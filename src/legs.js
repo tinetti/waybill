@@ -49,7 +49,7 @@ function bayPath(state) {
 
 /**
  * The `bay` leg is done once the isolated tree exists — either we are standing in it, or it
- * sits where the naming convention says it should.
+ * sits where {@link resolveBayPath} says it should.
  *
  * @param {RepoState} state
  * @returns {boolean}
@@ -67,11 +67,14 @@ export function bayIsDone(state) {
  * in yet, and treating that as a completed cleanup would make the `ideate` rule below fire in every
  * untouched repository.
  *
- * "No bay remains" is judged against the `gwt` convention path only, deliberately matching
+ * "No bay remains" is judged against the resolved bay path only, deliberately matching
  * {@link bayIsDone}: a bay the operator registered somewhere else reads as cleaned up while it
  * is still checked out. Asking `git worktree list --porcelain` instead would answer for every path,
  * but then the two wrapper stamps would disagree about what "the bay" is, and the leg Waybill
- * anchors on is the one at the convention path.
+ * anchors on is the one {@link resolveBayPath} names.
+ *
+ * That both stamps go through the same resolver is what keeps them agreeing once the location is
+ * configurable: change `waybill.baydir` and they move together, to the same directory.
  *
  * @param {RepoState} state
  * @returns {boolean}

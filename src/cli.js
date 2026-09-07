@@ -18,8 +18,11 @@ const USAGE = [
   '  status          Where this docket stands, without the waybill',
   '',
   'Options:',
-  '  --json  Print the raw resolved state instead of the waybill (`next` only)',
-  '  --help  Print this message',
+  '  --json            Print the raw resolved state instead of the waybill (`next` only)',
+  '  --bay-dir <path>  Where bays are created (`start` only); overrides WAYBILL_BAY_DIR and',
+  '                    `git config waybill.baydir`. Relative paths resolve against the main',
+  '                    checkout; the default is .claude/worktrees',
+  '  --help            Print this message',
 ].join('\n');
 
 /**
@@ -131,13 +134,31 @@ function status(cwd, args, io) {
  * @returns {number} exit code
  */
 function start(cwd, args, io) {
-  // `--help` is answered by `run` before dispatch, so no option reaching here is one we know.
-  const flag = args.find((arg) => arg.startsWith('-'));
-  if (flag !== undefined) {
-    io.err(`waybill: unknown option \`${flag}\` for \`start\`\n${USAGE}\n`);
-    return 2;
+  /** @type {string[]} */
+  const positional = [];
+  /** @type {string|undefined} */
+  let bayDir;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--bay-dir') {
+      // A missing value would otherwise swallow the branch name, or the flag itself.
+      bayDir = args[index + 1];
+      if (bayDir === undefined || bayDir.startsWith('-')) {
+        io.err(`waybill: \`--bay-dir\` takes a path\n${USAGE}\n`);
+        return 2;
+      }
+      index += 1;
+      continue;
+    }
+    // `--help` is answered by `run` before dispatch, so no other option here is one we know.
+    if (arg.startsWith('-')) {
+      io.err(`waybill: unknown option \`${arg}\` for \`start\`\n${USAGE}\n`);
+      return 2;
+    }
+    positional.push(arg);
   }
-  const [branch, ...extra] = args;
+
+  const [branch, ...extra] = positional;
   if (!branch || extra.length > 0) {
     io.err(`waybill: \`start\` takes exactly one branch name\n${USAGE}\n`);
     return 2;
@@ -149,7 +170,7 @@ function start(cwd, args, io) {
   /** @type {import('./bay.js').StartResult} */
   let result;
   try {
-    result = startBay(branch, { cwd: root });
+    result = startBay(branch, { cwd: root, bayDir });
   } catch (error) {
     // Only this module's own failures are operator-facing; anything else is a bug and must not be
     // dressed up as advice.

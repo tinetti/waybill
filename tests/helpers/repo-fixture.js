@@ -3,6 +3,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveBayPath } from '../../src/repo.js';
+import { ensureBayIgnored } from '../../src/bay.js';
+
+// The code under test spawns git with *this* process's environment, so the developer's own
+// `waybill.baydir` — or a stray `WAYBILL_BAY_DIR` — would otherwise decide where every fixture's
+// bay lands, and the suite would pass or fail on a machine setting. Neutralised once, here, so no
+// test has to remember: every suite that touches a repository imports this module.
+process.env.GIT_CONFIG_GLOBAL = '/dev/null';
+process.env.GIT_CONFIG_SYSTEM = '/dev/null';
+delete process.env.WAYBILL_BAY_DIR;
+
 /** Temp roots created by this module, removed by {@link cleanupAll}. @type {string[]} */
 const roots = [];
 
@@ -82,15 +93,34 @@ export function createRepo(options = {}) {
 }
 
 /**
- * Add a linked worktree as a sibling of `repoDir`, named the way `gwt` names it.
+ * Where a branch's bay lands with nothing configured — written out longhand rather than derived,
+ * so an assertion against it cannot agree with a broken {@link resolveBayPath}.
+ *
+ * @param {string} repoDir main checkout
+ * @param {string} branch
+ * @returns {string} absolute path
+ */
+export function defaultBayPath(repoDir, branch) {
+  const name = `${path.basename(repoDir)}-${branch.replace(/\//g, '-')}`;
+  return path.join(repoDir, '.claude', 'worktrees', name);
+}
+
+/**
+ * Add a linked worktree where Waybill would put it, so leg inference finds it.
+ *
+ * The path comes from {@link resolveBayPath} rather than a copy of the derivation: a fixture that
+ * honours `waybill.baydir` is the only kind that can be used to test it. The ignore line is the
+ * same one `startBay` writes — without it a nested bay is an embedded repository, and any fixture
+ * that runs `git add -A` in the main checkout would stage it as a gitlink.
  *
  * @param {string} repoDir main checkout
  * @param {string} branch new branch to check out there
  * @returns {string} absolute path to the linked worktree
  */
 export function addWorktree(repoDir, branch) {
-  const target = path.join(path.dirname(repoDir), `${path.basename(repoDir)}-${branch.replace(/\//g, '-')}`);
+  const target = resolveBayPath(branch, repoDir);
   git(repoDir, ['worktree', 'add', '--no-track', '-b', branch, target]);
+  ensureBayIgnored(repoDir, path.dirname(target));
   return target;
 }
 
@@ -139,6 +169,33 @@ export function withPath(value, fn) {
     return fn();
   } finally {
     process.env.PATH = previous;
+  }
+}
+
+/**
+ * Run `fn` with environment variables set, restoring every one of them afterwards. A value of
+ * `undefined` unsets the variable for the duration.
+ *
+ * @template T
+ * @param {Record<string, string|undefined>} vars
+ * @param {() => T} fn
+ * @returns {T}
+ */
+export function withEnv(vars, fn) {
+  /** @type {Record<string, string|undefined>} */
+  const previous = {};
+  for (const [key, value] of Object.entries(vars)) {
+    previous[key] = process.env[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 }
 
