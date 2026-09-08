@@ -381,4 +381,25 @@ describe('changedPaths', () => {
     const repo = createRepo({ branch: 'main' });
     assert.equal(changedPaths(repo, 'nonexistent'), null);
   });
+
+  it('falls back to origin/<base> when only the remote-tracking base exists', () => {
+    // `git clone -b feat/thing` checks out one branch and creates no local `main`, and git does not
+    // resolve a bare `main` to `refs/remotes/origin/main`. Without the retry every path-stamped leg
+    // reports not-done forever in a shape of clone that is entirely ordinary.
+    const origin = createRepo({ remote: true, originHead: true });
+    git(origin, ['checkout', '-b', 'feat/thing']);
+    writeFile(path.join(origin, 'docs', 'new.md'), 'a\n');
+    git(origin, ['add', '-A']);
+    git(origin, ['commit', '-m', 'work']);
+    git(origin, ['push', '-u', 'origin', 'feat/thing']);
+
+    const elsewhere = tempRoot();
+    const clone = path.join(elsewhere, 'narrow');
+    git(elsewhere, ['clone', '--branch', 'feat/thing', git(origin, ['remote', 'get-url', 'origin']), clone]);
+
+    // The fixture is only worth anything if the clone really has no local base branch.
+    assert.equal(git(clone, ['branch', '--format=%(refname:short)']), 'feat/thing');
+    assert.equal(defaultBranch(clone), 'main');
+    assert.deepEqual(changedPaths(clone, 'main'), ['docs/new.md']);
+  });
 });

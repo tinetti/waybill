@@ -98,7 +98,14 @@ export function resolveLeg(cwd, bookings) {
   // two sets disagreeing.
   const changedList = changedPaths(root, base);
   if (changedList === null) {
-    warnings.push(`cannot determine what ${branch ?? 'HEAD'} changed against ${base}; no leg will stamp`);
+    // Named remedies rather than a bare complaint: this is the only signal an operator gets for a
+    // tool that has silently stopped stamping, and the two fixes are the two shapes of the cause —
+    // a base branch that was never fetched, and an `origin/HEAD` pointing somewhere it should not.
+    warnings.push(
+      `cannot determine what ${branch ?? 'HEAD'} changed against ${base}; no leg will stamp — ` +
+        `run \`git fetch origin ${base}:${base}\`, or \`git remote set-head origin -a\` if ${base} ` +
+        'is not this repository\'s default branch',
+    );
   }
   const changed = changedList === null ? null : new Set(changedList);
 
@@ -108,6 +115,16 @@ export function resolveLeg(cwd, bookings) {
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
   const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings)));
   done[0] = ideateIsDone(state, done.some(Boolean));
+
+  // With no docket open there is no position to report, so the walk's verdict is discarded — the
+  // walk still runs, because the warnings it collects are worth having either way. It cannot simply
+  // be trusted: `stampCmd` is unscoped by design, so a completed-but-unarchived change left in
+  // history stamps `execute`, which back-stamps `ideate` through `laterComplete` and leaves the
+  // position mid-workflow — handing the operator a `/waybill:start <change-id>` that cannot succeed.
+  // The whole vector is cleared, not just the position: `next --json` would otherwise report
+  // `docketOpen: false` beside a list of legs a docket that does not exist had supposedly finished,
+  // and the header and the payload have to agree.
+  if (!docketOpen) done.fill(false);
 
   const current = done.indexOf(false);
   const leg = current === -1 ? null : LEGS[current].id;
@@ -124,7 +141,11 @@ export function resolveLeg(cwd, bookings) {
     booking: leg === null ? undefined : bookings.get(leg),
     branch: state.branch,
     docketOpen: state.docketOpen,
-    changeId: discoverChangeId(root),
+    // Same reasoning as the cleared walk above: `discoverChangeId` reads the whole
+    // `openspec/changes` directory, so a shipped change left in history would be interpolated into
+    // the ideate waybill as `/ideation:brainstorm <that id>` — a handoff naming work that is done.
+    // No docket, no change in flight.
+    changeId: docketOpen ? discoverChangeId(root) : null,
     warnings,
   };
 

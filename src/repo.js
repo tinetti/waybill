@@ -206,15 +206,22 @@ function lines(output) {
  * stamps by this set must stamp nothing when it cannot tell, rather than fall back to matching
  * whatever is on disk and reinstate the bug this exists to fix.
  *
- * Directories never appear: `git diff --name-only` reports files. A `stampPath` naming a directory
- * therefore cannot stamp a docket.
+ * The one directory shape that can appear is a trailing-slash entry: `git diff --name-only` reports
+ * files, but `git ls-files --others` collapses an untracked nested repository to `vendor/sub/`.
+ * Neither shape can equal a walked file path, so a `stampPath` naming a directory cannot stamp a
+ * docket.
  *
  * @param {string} cwd
- * @param {string} base
+ * @param {string} base the base branch *name*, not a ref
  * @returns {string[]|null}
  */
 export function changedPaths(cwd, base) {
-  const mergeBase = tryGit(cwd, ['merge-base', base, 'HEAD']);
+  // `git clone -b feat/x` creates no local `main`, and git does not resolve a bare `main` to
+  // `refs/remotes/origin/main`, so the branch name {@link defaultBranch} correctly answers with is
+  // not a rev in that clone. The remote-tracking ref names the same commit; without this retry
+  // every path-stamped leg would report not-done forever in an entirely ordinary clone.
+  const mergeBase =
+    tryGit(cwd, ['merge-base', base, 'HEAD']) ?? tryGit(cwd, ['merge-base', `origin/${base}`, 'HEAD']);
   if (mergeBase === null) return null;
 
   // `git diff <commit>` compares the working tree to the commit, so committed, staged and unstaged

@@ -320,6 +320,19 @@ describe('resolveLeg', () => {
       assert.equal(resolveLeg(path.join(tempRoot(), 'missing')).docketOpen, false);
     });
   });
+
+  it('names a remedy when it cannot tell what the branch changed', () => {
+    // The stalled-operator case: every `stampPath` leg reports not-done forever, and this warning is
+    // the only signal saying why. A warning that names no way out leaves the tool wedged.
+    const repo = createRepo({ branch: 'wip', remote: false });
+
+    const result = resolve(repo);
+    const warning = result.warnings.find((text) => /no leg will stamp/.test(text));
+    assert.ok(warning, `expected a stalled-diff warning, got ${JSON.stringify(result.warnings)}`);
+    assert.match(warning, /wip/);
+    assert.match(warning, /git fetch origin main:main/);
+    assert.match(warning, /set-head/);
+  });
 });
 
 describe('shipped papers do not stamp a docket', () => {
@@ -348,6 +361,30 @@ describe('shipped papers do not stamp a docket', () => {
     assert.equal(state.docketOpen, true);
     assert.equal(state.leg, 'refine');
     assert.deepEqual(state.completed, ['ideate', 'bay']);
+  });
+
+  it('pins the trunk to ideate even when an unscoped stampCmd matches history', () => {
+    // `stampCmd` is unscoped by design, so a completed-but-unarchived change left in history stamps
+    // `execute`, which back-stamps `ideate` through `laterComplete` and walks the position to the
+    // first genuinely incomplete leg — `bay`. The render then hands the operator
+    // `/waybill:start <change-id>`, a command that cannot succeed. The base branch has no docket, so
+    // it has no position: it reports ideate, with nothing behind it.
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, { 'openspec/changes/add-thing/tasks.md': '- [x] a\n- [x] b\n' });
+
+    const state = resolveLeg(repo);
+    assert.equal(state.docketOpen, false);
+    assert.equal(state.leg, 'ideate');
+    assert.equal(state.index, 1);
+    assert.match(state.booking.path, /ideation-ideate\.md$/);
+    // A docket that does not exist cannot report progress: `next --json` would otherwise print
+    // `docketOpen: false` beside a list of completed legs.
+    assert.deepEqual(state.completed, []);
+    assert.deepEqual(state.skipped, []);
+    // Nor can it name a change in flight. `discoverChangeId` walks the whole `openspec/changes`
+    // directory, so a shipped change would otherwise be interpolated into the ideate waybill as
+    // `/ideation:brainstorm add-thing` — the same operator-hostile handoff, one leg over.
+    assert.equal(state.changeId, null);
   });
 
   it('stamps refine once this docket writes its own papers', () => {
