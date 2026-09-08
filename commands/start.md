@@ -23,7 +23,7 @@ No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next`: fallin
 operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not exist.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT:-}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" start "$ARGUMENTS"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" start "$ARGUMENTS"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
