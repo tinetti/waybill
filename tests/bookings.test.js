@@ -170,10 +170,16 @@ describe('stampedByPath', () => {
     assert.equal(stampedByPath('anything', path.join(tempRoot(), 'missing'), new Set()), false);
   });
 
-  it('does not match a directory, which git never reports as a changed path', () => {
+  it('does not match a directory, in the one shape git reports one', () => {
+    // `git ls-files --others` collapses an untracked nested repository to a single trailing-slash
+    // entry, `vendor/sub/` — the only directory either half of `changedPaths` can emit. A walker
+    // that matched the directory itself would compare `vendor/sub` against it and never stamp
+    // anyway; the guard is what makes that a property rather than an accident of two output formats.
     const root = tempRoot();
-    fs.mkdirSync(path.join(root, 'openspec', 'changes'), { recursive: true });
-    assert.equal(stampedByPath('openspec/changes', root, new Set(['openspec/changes'])), false);
+    fs.mkdirSync(path.join(root, 'vendor', 'sub'), { recursive: true });
+    assert.equal(stampedByPath('vendor/*', root, new Set(['vendor/sub/'])), false);
+    // And the shape git cannot produce is rejected too, which is the guard's own contribution.
+    assert.equal(stampedByPath('vendor/sub', root, new Set(['vendor/sub'])), false);
   });
 });
 

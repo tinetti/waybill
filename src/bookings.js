@@ -147,6 +147,11 @@ function walk(dir, segments, accept) {
  * ago, and matching on existence alone stamps legs from history. `changed` is the docket's own diff;
  * `null` means it could not be computed, and stamps nothing rather than falling back to existence.
  *
+ * Limitation worth knowing before writing a booking: a pattern whose *last* segment is `**` can only
+ * ever match a directory, and no directory is ever in `changed`, so such a pattern answers false
+ * forever with nothing on screen to explain it. End the pattern with a segment that names files —
+ * `docs/ideation/*` then `/contract.md`, or `.../*.md` — instead.
+ *
  * @param {string} pattern
  * @param {string} repoRoot
  * @param {Set<string>|null} changed repository-relative forward-slash paths
@@ -158,9 +163,10 @@ export function stampedByPath(pattern, repoRoot, changed) {
   if (segments.length === 0) return false;
 
   return walk(repoRoot, segments, (absolute) => {
-    // `git diff --name-only` never reports a directory, so a leaf that is one cannot be a match —
-    // checked explicitly rather than trusted to the caller's `changed` set, which a caller could
-    // otherwise populate with a directory entry that was never a real diff result.
+    // A directory leaf can never be a changed path, and this makes that a property rather than an
+    // accident of git's output formats: `git diff --name-only` reports only files, and the one
+    // directory `git ls-files --others` can emit — an untracked nested repository — arrives as
+    // `vendor/sub/`, whose trailing slash no `path.relative` result below could ever equal.
     if (!fs.statSync(absolute).isFile()) return false;
     const relative = path.relative(repoRoot, absolute).split(path.sep).join('/');
     return changed.has(relative);
