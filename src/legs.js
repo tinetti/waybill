@@ -7,8 +7,10 @@ import { inBay, isMerged, resolveBayPath } from './repo.js';
  */
 
 /**
- * @typedef {{cwd:string, root:string, branch:string|null, base:string, docketOpen:boolean}} RepoState
+ * @typedef {{cwd:string, root:string, branch:string|null, base:string, docketOpen:boolean,
+ *            changed:Set<string>|null}} RepoState
  *   `root` is the working tree the stamps resolve against; `base` is the default branch.
+ *   `changed` is the current branch's diff against `base` (`null` when it could not be computed).
  */
 
 /**

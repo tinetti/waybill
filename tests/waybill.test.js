@@ -97,14 +97,15 @@ describe('renderWaybill golden output', () => {
 
   it('renders a repository whose seven legs are all complete', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
-    writeFile(path.join(repo, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
-    git(repo, ['add', '-A']);
-    git(repo, ['commit', '-m', 'every paper']);
 
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
+
+    // Left uncommitted, deliberately: see the identical case in tests/inference.test.js — committing
+    // these onto `feat/thing` would move its ref past `main` and `isMerged` would read false.
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);

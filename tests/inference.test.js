@@ -12,6 +12,7 @@ import {
   addSubmodule,
   addWorktree,
   cleanupAll,
+  commitPapers,
   createRepo,
   git,
   pathWithout,
@@ -217,17 +218,21 @@ describe('resolveLeg', () => {
 
   it('falls off the end of the walk when all seven legs pass', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
-    writeFile(path.join(repo, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
-    git(repo, ['add', '-A']);
-    git(repo, ['commit', '-m', 'every paper']);
 
     // Registered off the `gwt` path on purpose: `bayIsDone` sees a linked worktree while
     // `cleanupIsDone` sees nothing at the convention path, which is the one arrangement in which
     // all seven legs can be complete at once (both stamps are convention-keyed by design).
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
+
+    // Left uncommitted, deliberately: committing these onto `feat/thing` would move its ref past
+    // `main`, and `isMerged` would then read false. Leaving them as untracked files in the bay's
+    // working tree keeps the branch ref identical to base (trivially merged) while still landing
+    // in `changedPaths`' untracked-file half — the one way a fully "landed" docket can still carry
+    // a diff worth stamping.
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);
@@ -312,6 +317,44 @@ describe('resolveLeg', () => {
     it('is false outside a repository', () => {
       assert.equal(resolveLeg(path.join(tempRoot(), 'missing')).docketOpen, false);
     });
+  });
+});
+
+describe('shipped papers do not stamp a docket', () => {
+  it('reports no docket on a base branch carrying shipped ideation papers', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, {
+      'docs/ideation/shipped/contract.md': '# shipped\n',
+      'docs/ideation/shipped/contract-data.json': '{}\n',
+    });
+
+    const state = resolveLeg(repo);
+    assert.equal(state.docketOpen, false);
+    assert.equal(state.leg, 'ideate');
+    assert.deepEqual(state.completed, []);
+  });
+
+  it('reports refine in a fresh bay, not specs', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, {
+      'docs/ideation/shipped/contract.md': '# shipped\n',
+      'docs/ideation/shipped/contract-data.json': '{}\n',
+    });
+    const bay = addWorktree(repo, 'feat/thing');
+
+    const state = resolveLeg(bay);
+    assert.equal(state.docketOpen, true);
+    assert.equal(state.leg, 'refine');
+    assert.deepEqual(state.completed, ['ideate', 'bay']);
+  });
+
+  it('stamps refine once this docket writes its own papers', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, { 'docs/ideation/shipped/contract-data.json': '{}\n' });
+    const bay = addWorktree(repo, 'feat/thing');
+    writeFile(path.join(bay, 'docs', 'ideation', 'live', 'contract-data.json'), '{}\n');
+
+    assert.equal(resolveLeg(bay).completed.includes('refine'), true);
   });
 });
 

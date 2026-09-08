@@ -117,38 +117,54 @@ function readdirSafe(dir) {
 /**
  * @param {string} dir
  * @param {string[]} segments
+ * @param {(absolute:string) => boolean} accept applied to a matched leaf
  * @returns {boolean}
  */
-function walk(dir, segments) {
-  if (segments.length === 0) return fs.existsSync(dir);
+function walk(dir, segments, accept) {
+  if (segments.length === 0) return fs.existsSync(dir) && accept(dir);
   const [head, ...rest] = segments;
 
   if (head === '**') {
-    if (walk(dir, rest)) return true;
+    if (walk(dir, rest, accept)) return true;
     return readdirSafe(dir).some(
-      (entry) => entry.isDirectory() && walk(path.join(dir, entry.name), segments),
+      (entry) => entry.isDirectory() && walk(path.join(dir, entry.name), segments, accept),
     );
   }
-  if (!head.includes('*') && !head.includes('?')) return walk(path.join(dir, head), rest);
+  if (!head.includes('*') && !head.includes('?')) return walk(path.join(dir, head), rest, accept);
 
   const pattern = segmentToRegExp(head);
   return readdirSafe(dir).some(
-    (entry) => pattern.test(entry.name) && walk(path.join(dir, entry.name), rest),
+    (entry) => pattern.test(entry.name) && walk(path.join(dir, entry.name), rest, accept),
   );
 }
 
 /**
- * `stampPath`: a glob resolved relative to the repository root. Supports `*` and `?` within a
- * segment and `**` across segments — deliberately not a full glob dialect.
+ * `stampPath`: a glob resolved relative to the repository root, matching only paths the current
+ * docket introduced. Supports `*` and `?` within a segment and `**` across segments — deliberately
+ * not a full glob dialect.
+ *
+ * The glob alone cannot tell a paper belonging to the change in flight from one that shipped long
+ * ago, and matching on existence alone stamps legs from history. `changed` is the docket's own diff;
+ * `null` means it could not be computed, and stamps nothing rather than falling back to existence.
  *
  * @param {string} pattern
  * @param {string} repoRoot
+ * @param {Set<string>|null} changed repository-relative forward-slash paths
  * @returns {boolean}
  */
-export function stampedByPath(pattern, repoRoot) {
+export function stampedByPath(pattern, repoRoot, changed) {
+  if (changed === null) return false;
   const segments = pattern.split('/').filter((segment) => segment !== '' && segment !== '.');
   if (segments.length === 0) return false;
-  return walk(repoRoot, segments);
+
+  return walk(repoRoot, segments, (absolute) => {
+    // `git diff --name-only` never reports a directory, so a leaf that is one cannot be a match —
+    // checked explicitly rather than trusted to the caller's `changed` set, which a caller could
+    // otherwise populate with a directory entry that was never a real diff result.
+    if (!fs.statSync(absolute).isFile()) return false;
+    const relative = path.relative(repoRoot, absolute).split(path.sep).join('/');
+    return changed.has(relative);
+  });
 }
 
 /**
@@ -196,10 +212,11 @@ export function stampedByCmd(command, cwd) {
  *
  * @param {Pick<Booking,'stampPath'|'stampCmd'>} booking
  * @param {string} repoRoot
+ * @param {Set<string>|null} changed repository-relative forward-slash paths
  * @returns {boolean}
  */
-export function bookingIsDone(booking, repoRoot) {
-  return evaluateBooking(booking, repoRoot).done;
+export function bookingIsDone(booking, repoRoot, changed) {
+  return evaluateBooking(booking, repoRoot, changed).done;
 }
 
 /**
@@ -209,9 +226,10 @@ export function bookingIsDone(booking, repoRoot) {
  *
  * @param {Booking} booking
  * @param {string} repoRoot
+ * @param {Set<string>|null} changed repository-relative forward-slash paths
  * @returns {{done:boolean, warnings:string[]}}
  */
-export function evaluateBooking(booking, repoRoot) {
+export function evaluateBooking(booking, repoRoot, changed) {
   /** @type {string[]} */
   const warnings = [];
   const label = booking.path ?? `<${booking.leg}>`;
@@ -221,7 +239,7 @@ export function evaluateBooking(booking, repoRoot) {
   if (booking.stampPath) {
     checked = true;
     try {
-      done = stampedByPath(booking.stampPath, repoRoot);
+      done = stampedByPath(booking.stampPath, repoRoot, changed);
     } catch (error) {
       warnings.push(`${label}: stampPath failed: ${error.message}`);
       done = false;

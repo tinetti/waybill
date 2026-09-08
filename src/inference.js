@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS, cleanupIsDone, ideateIsDone, bayIsDone } from './legs.js';
 import { evaluateBooking, loadBookings } from './bookings.js';
-import { checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
+import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
 import { discoverChangeId, executeProgress } from './progress.js';
 
 /**
@@ -34,7 +34,7 @@ function legIsDone(leg, state, bookings, warnings) {
   const booking = bookings.get(leg.id);
   if (!booking) return false;
 
-  const result = evaluateBooking(booking, state.root);
+  const result = evaluateBooking(booking, state.root, state.changed);
   warnings.push(...result.warnings);
   return result.done;
 }
@@ -93,8 +93,17 @@ export function resolveLeg(cwd, bookings) {
   // otherwise open a docket with no branch to hang it on.
   const docketOpen = Boolean(branch) && branch !== base;
 
+  // `git diff --name-only` prints paths relative to the repository root, and `stampedByPath`
+  // derives its own relative paths from `repoRoot` (== `root`) — querying anywhere else risks the
+  // two sets disagreeing.
+  const changedList = changedPaths(root, base);
+  if (changedList === null) {
+    warnings.push(`cannot determine what ${branch ?? 'HEAD'} changed against ${base}; no leg will stamp`);
+  }
+  const changed = changedList === null ? null : new Set(changedList);
+
   /** @type {import('./legs.js').RepoState} */
-  const state = { cwd: anchor, root, branch, base, docketOpen };
+  const state = { cwd: anchor, root, branch, base, docketOpen, changed };
 
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
   const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings)));
