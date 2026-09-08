@@ -30,6 +30,7 @@ const BOOKINGS = path.join(ROOT, 'bookings');
  * either way. `spec-phase-5.md` records the deviation.
  */
 const DECLARED = [
+  'cleanup.md',
   'next.md',
   'spec/apply.md',
   'spec/archive.md',
