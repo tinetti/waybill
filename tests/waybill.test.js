@@ -117,6 +117,17 @@ describe('renderWaybill golden output', () => {
   it('renders no docket open on the base branch', () => {
     assertGolden('no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
   });
+
+  it('renders the trunk identically whether or not papers shipped into its history', () => {
+    // `no-docket.txt` and `ideate.txt` are byte-identical on purpose: the two fixtures differ only
+    // in what they commit, and identical output *is* the assertion that history no longer moves the
+    // render. Neither golden file can catch a divergence on its own — each would simply be
+    // regenerated — so the identity is asserted here rather than left to a reader to notice.
+    assert.equal(
+      renderWaybill(resolve(noDocketFixture().dir), CLEAN),
+      renderWaybill(resolve(ideateFixture().dir), CLEAN),
+    );
+  });
 });
 
 describe('renderWaybill header and leg strip', () => {
@@ -289,6 +300,16 @@ describe('renderPosition', () => {
     const output = renderPosition(state({ leg: null, booking: undefined }), CLEAN);
     assert.match(output, /all 7 legs complete/);
     assert.equal(output.includes('NEXT:'), false);
+  });
+
+  it('reports no docket open and suppresses the strip, exactly as the waybill does', () => {
+    // The gate is one `state.docketOpen` check in each renderer, and `renderPosition`'s was covered
+    // by reading the code only. `state()` carries four completed legs, so a broken gate would print
+    // a tick row here.
+    const output = renderPosition(state({ docketOpen: false }), CLEAN);
+    assert.equal(output, 'feat/thing · no docket open\n');
+    assert.equal(output.includes('✓'), false);
+    assert.equal(output.includes('▶'), false);
   });
 
   it('always ends with exactly one trailing newline', () => {
