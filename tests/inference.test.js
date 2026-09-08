@@ -10,7 +10,9 @@ import { executeProgress } from '../src/progress.js';
 import { loadBookings } from '../src/bookings.js';
 import {
   addSubmodule,
+  addWorktree,
   cleanupAll,
+  commitPapers,
   createRepo,
   git,
   pathWithout,
@@ -65,8 +67,10 @@ describe('LEGS', () => {
     ]);
   });
 
-  it('has one fixture per leg and no strays — criterion 1 counts this directory', () => {
-    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length);
+  it('has one fixture per leg, plus no-docket for the trunk, and no strays', () => {
+    // Criterion 1 counts this directory; no-docket.js is the one deliberate exception, since the
+    // state it covers — standing on the base branch — is not one of the seven legs.
+    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 1);
   });
 });
 
@@ -216,17 +220,21 @@ describe('resolveLeg', () => {
 
   it('falls off the end of the walk when all seven legs pass', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
-    writeFile(path.join(repo, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
-    git(repo, ['add', '-A']);
-    git(repo, ['commit', '-m', 'every paper']);
 
     // Registered off the `gwt` path on purpose: `bayIsDone` sees a linked worktree while
     // `cleanupIsDone` sees nothing at the convention path, which is the one arrangement in which
     // all seven legs can be complete at once (both stamps are convention-keyed by design).
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
+
+    // Left uncommitted, deliberately: committing these onto `feat/thing` would move its ref past
+    // `main`, and `isMerged` would then read false. Leaving them as untracked files in the bay's
+    // working tree keeps the branch ref identical to base (trivially merged) while still landing
+    // in `changedPaths`' untracked-file half — the one way a fully "landed" docket can still carry
+    // a diff worth stamping.
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);
@@ -294,6 +302,98 @@ describe('resolveLeg', () => {
 
   it('never throws in a repository with no commits', () => {
     assert.equal(resolve(createRepo({ commit: false })).leg, 'ideate');
+  });
+
+  describe('docketOpen', () => {
+    it('is false on the base branch', () => {
+      const repo = createRepo({ remote: true, originHead: true });
+      assert.equal(resolveLeg(repo).docketOpen, false);
+    });
+
+    it('is true in a bay on a feature branch', () => {
+      const repo = createRepo({ remote: true, originHead: true });
+      const bay = addWorktree(repo, 'feat/thing');
+      assert.equal(resolveLeg(bay).docketOpen, true);
+    });
+
+    it('is false outside a repository', () => {
+      assert.equal(resolveLeg(path.join(tempRoot(), 'missing')).docketOpen, false);
+    });
+  });
+
+  it('names a remedy when it cannot tell what the branch changed', () => {
+    // The stalled-operator case: every `stampPath` leg reports not-done forever, and this warning is
+    // the only signal saying why. A warning that names no way out leaves the tool wedged.
+    const repo = createRepo({ branch: 'wip', remote: false });
+
+    const result = resolve(repo);
+    const warning = result.warnings.find((text) => /no leg will stamp/.test(text));
+    assert.ok(warning, `expected a stalled-diff warning, got ${JSON.stringify(result.warnings)}`);
+    assert.match(warning, /wip/);
+    assert.match(warning, /git fetch origin main:main/);
+    assert.match(warning, /set-head/);
+  });
+});
+
+describe('shipped papers do not stamp a docket', () => {
+  it('reports no docket on a base branch carrying shipped ideation papers', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, {
+      'docs/ideation/shipped/contract.md': '# shipped\n',
+      'docs/ideation/shipped/contract-data.json': '{}\n',
+    });
+
+    const state = resolveLeg(repo);
+    assert.equal(state.docketOpen, false);
+    assert.equal(state.leg, 'ideate');
+    assert.deepEqual(state.completed, []);
+  });
+
+  it('reports refine in a fresh bay, not specs', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, {
+      'docs/ideation/shipped/contract.md': '# shipped\n',
+      'docs/ideation/shipped/contract-data.json': '{}\n',
+    });
+    const bay = addWorktree(repo, 'feat/thing');
+
+    const state = resolveLeg(bay);
+    assert.equal(state.docketOpen, true);
+    assert.equal(state.leg, 'refine');
+    assert.deepEqual(state.completed, ['ideate', 'bay']);
+  });
+
+  it('pins the trunk to ideate even when an unscoped stampCmd matches history', () => {
+    // `stampCmd` is unscoped by design, so a completed-but-unarchived change left in history stamps
+    // `execute`, which back-stamps `ideate` through `laterComplete` and walks the position to the
+    // first genuinely incomplete leg — `bay`. The render then hands the operator
+    // `/waybill:start <change-id>`, a command that cannot succeed. The base branch has no docket, so
+    // it has no position: it reports ideate, with nothing behind it.
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, { 'openspec/changes/add-thing/tasks.md': '- [x] a\n- [x] b\n' });
+
+    const state = resolveLeg(repo);
+    assert.equal(state.docketOpen, false);
+    assert.equal(state.leg, 'ideate');
+    assert.equal(state.index, 1);
+    assert.match(state.booking.path, /ideation-ideate\.md$/);
+    // A docket that does not exist cannot report progress: `next --json` would otherwise print
+    // `docketOpen: false` beside a list of completed legs.
+    assert.deepEqual(state.completed, []);
+    assert.deepEqual(state.skipped, []);
+    // Nor can it name a change in flight. `discoverChangeId` walks the whole `openspec/changes`
+    // directory, so a shipped change would otherwise be interpolated into the ideate waybill as
+    // `/ideation:brainstorm add-thing` — the same operator-hostile handoff, one leg over.
+    assert.equal(state.changeId, null);
+  });
+
+  it('stamps refine once this docket writes its own papers', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, { 'docs/ideation/shipped/contract-data.json': '{}\n' });
+    const bay = addWorktree(repo, 'feat/thing');
+    writeFile(path.join(bay, 'docs', 'ideation', 'live', 'contract-data.json'), '{}\n');
+
+    assert.equal(resolveLeg(bay).completed.includes('refine'), true);
   });
 });
 

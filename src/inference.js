@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS, cleanupIsDone, ideateIsDone, bayIsDone } from './legs.js';
 import { evaluateBooking, loadBookings } from './bookings.js';
-import { checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
+import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
 import { discoverChangeId, executeProgress } from './progress.js';
 
 /**
@@ -16,7 +16,7 @@ export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta
 /**
  * @typedef {{leg:string|null, index:number, completed:string[], skipped:string[],
  *            progress?:{done:number,total:number,source:string,changeId:string|null},
- *            booking?:import('./bookings.js').Booking, branch:string|null,
+ *            booking?:import('./bookings.js').Booking, branch:string|null, docketOpen:boolean,
  *            changeId:string|null, warnings:string[]}} Inference
  */
 
@@ -34,7 +34,7 @@ function legIsDone(leg, state, bookings, warnings) {
   const booking = bookings.get(leg.id);
   if (!booking) return false;
 
-  const result = evaluateBooking(booking, state.root);
+  const result = evaluateBooking(booking, state.root, state.changed);
   warnings.push(...result.warnings);
   return result.done;
 }
@@ -80,17 +80,51 @@ export function resolveLeg(cwd, bookings) {
       skipped: [],
       booking: bookings.get(LEGS[0].id),
       branch: null,
+      docketOpen: false,
       changeId: null,
       warnings,
     };
   }
 
+  const branch = currentBranch(anchor);
+  const base = defaultBranch(anchor);
+  // A docket is the branch: nothing is in flight while we stand on the trunk. The `branch` guard is
+  // load-bearing — `currentBranch` is null on a detached HEAD, and `null !== 'main'` would
+  // otherwise open a docket with no branch to hang it on.
+  const docketOpen = Boolean(branch) && branch !== base;
+
+  // `git diff --name-only` prints paths relative to the repository root, and `stampedByPath`
+  // derives its own relative paths from `repoRoot` (== `root`) — querying anywhere else risks the
+  // two sets disagreeing.
+  const changedList = changedPaths(root, base);
+  if (changedList === null) {
+    // Named remedies rather than a bare complaint: this is the only signal an operator gets for a
+    // tool that has silently stopped stamping, and the two fixes are the two shapes of the cause —
+    // a base branch that was never fetched, and an `origin/HEAD` pointing somewhere it should not.
+    warnings.push(
+      `cannot determine what ${branch ?? 'HEAD'} changed against ${base}; no leg will stamp — ` +
+        `run \`git fetch origin ${base}:${base}\`, or \`git remote set-head origin -a\` if ${base} ` +
+        'is not this repository\'s default branch',
+    );
+  }
+  const changed = changedList === null ? null : new Set(changedList);
+
   /** @type {import('./legs.js').RepoState} */
-  const state = { cwd: anchor, root, branch: currentBranch(anchor), base: defaultBranch(anchor) };
+  const state = { cwd: anchor, root, branch, base, docketOpen, changed };
 
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
   const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings)));
   done[0] = ideateIsDone(state, done.some(Boolean));
+
+  // With no docket open there is no position to report, so the walk's verdict is discarded — the
+  // walk still runs, because the warnings it collects are worth having either way. It cannot simply
+  // be trusted: `stampCmd` is unscoped by design, so a completed-but-unarchived change left in
+  // history stamps `execute`, which back-stamps `ideate` through `laterComplete` and leaves the
+  // position mid-workflow — handing the operator a `/waybill:start <change-id>` that cannot succeed.
+  // The whole vector is cleared, not just the position: `next --json` would otherwise report
+  // `docketOpen: false` beside a list of legs a docket that does not exist had supposedly finished,
+  // and the header and the payload have to agree.
+  if (!docketOpen) done.fill(false);
 
   const current = done.indexOf(false);
   const leg = current === -1 ? null : LEGS[current].id;
@@ -106,7 +140,12 @@ export function resolveLeg(cwd, bookings) {
     skipped: LEGS.filter((_, i) => !done[i] && i > current && i < lastComplete).map((entry) => entry.id),
     booking: leg === null ? undefined : bookings.get(leg),
     branch: state.branch,
-    changeId: discoverChangeId(root),
+    docketOpen: state.docketOpen,
+    // Same reasoning as the cleared walk above: `discoverChangeId` reads the whole
+    // `openspec/changes` directory, so a shipped change left in history would be interpolated into
+    // the ideate waybill as `/ideation:brainstorm <that id>` — a handoff naming work that is done.
+    // No docket, no change in flight.
+    changeId: docketOpen ? discoverChangeId(root) : null,
     warnings,
   };
 

@@ -115,18 +115,19 @@ describe('startBay base selection', () => {
   });
 
   it('still lands on origin/<default> when the repository has no origin/HEAD of its own', () => {
-    // `defaultBranch` would fall back to the current branch here; the fetch repairs `origin/HEAD`
-    // first, which is why the fetch has to precede the resolve rather than follow it.
+    // With no `origin/HEAD` published, `defaultBranch` falls through to its local-trunk probe. The
+    // fetch still has to precede the resolve: it is what repairs `origin/HEAD` and what makes an
+    // as-yet-unfetched `origin/<default>` resolvable at all.
     const repo = createRepo({ remote: true, originHead: false });
 
     assert.equal(startBay('feat/demo', { cwd: repo }).base, 'origin/main');
   });
 
   it('refuses to guess when the composed base does not resolve', () => {
-    // The silent-wrong-base failure mode: `defaultBranch` answers with the *current* branch when
-    // origin publishes no HEAD, so `origin/<that>` is a ref that usually does not exist. A reachable
-    // origin hides this — git repairs `origin/HEAD` during the fetch — so the case only shows up
-    // when the fetch cannot help, which is exactly when guessing would do the most damage.
+    // The silent-wrong-base failure mode: with no `origin/HEAD`, `defaultBranch` answers with a
+    // probed local trunk, and `origin/<that>` need not exist. A reachable origin hides this — git
+    // repairs `origin/HEAD` during the fetch — so the case only shows up when the fetch cannot help,
+    // which is exactly when guessing would do the most damage.
     const repo = createRepo({ remote: false });
     git(repo, ['remote', 'add', 'origin', path.join(tempRoot(), 'gone.git')]);
 

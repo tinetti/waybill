@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import {
+  changedPaths,
   currentBranch,
   defaultBranch,
   hasRemote,
@@ -23,6 +24,7 @@ import {
   tempRoot,
   withEnv,
   withPath,
+  writeFile,
 } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
@@ -204,18 +206,52 @@ describe('defaultBranch', () => {
     assert.equal(defaultBranch(repo), 'trunk');
   });
 
-  it('falls back to the current branch when origin publishes no HEAD', () => {
+  it('falls back to a local main when origin publishes no HEAD', () => {
     const repo = createRepo({ branch: 'main', remote: true });
     git(repo, ['checkout', '-b', 'feat/x']);
-    assert.equal(defaultBranch(repo), 'feat/x');
+    assert.equal(defaultBranch(repo), 'main');
   });
 
-  it('falls back to the current branch when there is no remote', () => {
-    assert.equal(defaultBranch(createRepo({ branch: 'trunk' })), 'trunk');
+  it('falls back to a local master when there is no remote', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['checkout', '-b', 'feat/x']);
+    assert.equal(defaultBranch(repo), 'master');
   });
 
   it('does not throw in a repository with zero commits', () => {
     assert.equal(defaultBranch(createRepo({ commit: false, branch: 'main' })), 'main');
+  });
+});
+
+describe('defaultBranch without origin/HEAD', () => {
+  it('falls back to a local main', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('falls back to a local master when there is no main', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'master');
+  });
+
+  it('prefers main over master when both exist', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['branch', 'main']);
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('returns main when no candidate branch exists', () => {
+    const repo = createRepo({ branch: 'wip' });
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('never returns the current branch as the base', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.notEqual(defaultBranch(repo), currentBranch(repo));
   });
 });
 
@@ -300,5 +336,70 @@ describe('probeOpenspec', () => {
     const result = withPath(`${stub}:${absent()}`, () => probeOpenspec(tempRoot()));
     assert.equal(result.available, true);
     assert.equal(result.fields, undefined);
+  });
+});
+
+describe('changedPaths', () => {
+  it('is empty on a branch identical to its base', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.deepEqual(changedPaths(repo, 'main'), []);
+  });
+
+  it('reports a file committed on the branch', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    writeFile(path.join(repo, 'docs', 'new.md'), 'x\n');
+    git(repo, ['add', 'docs/new.md']);
+    git(repo, ['commit', '-m', 'add']);
+    assert.deepEqual(changedPaths(repo, 'main'), ['docs/new.md']);
+  });
+
+  it('reports staged, unstaged and untracked files', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+
+    writeFile(path.join(repo, 'staged.md'), 'a\n');
+    git(repo, ['add', 'staged.md']);
+    writeFile(path.join(repo, 'README.md'), '# edited\n');
+    writeFile(path.join(repo, 'untracked.md'), 'c\n');
+
+    const result = changedPaths(repo, 'main');
+    assert.deepEqual([...result].sort(), ['README.md', 'staged.md', 'untracked.md']);
+  });
+
+  it('does not report a file that only exists on the base branch', () => {
+    const repo = createRepo({ branch: 'main' });
+    writeFile(path.join(repo, 'shipped.md'), 'old\n');
+    git(repo, ['add', 'shipped.md']);
+    git(repo, ['commit', '-m', 'ship']);
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.deepEqual(changedPaths(repo, 'main'), []);
+  });
+
+  it('is null when the base ref does not exist', () => {
+    const repo = createRepo({ branch: 'main' });
+    assert.equal(changedPaths(repo, 'nonexistent'), null);
+  });
+
+  it('falls back to origin/<base> when only the remote-tracking base exists', () => {
+    // `git clone -b feat/thing` checks out one branch and creates no local `main`, and git does not
+    // resolve a bare `main` to `refs/remotes/origin/main`. Without the retry every path-stamped leg
+    // reports not-done forever in a shape of clone that is entirely ordinary.
+    const origin = createRepo({ remote: true, originHead: true });
+    git(origin, ['checkout', '-b', 'feat/thing']);
+    writeFile(path.join(origin, 'docs', 'new.md'), 'a\n');
+    git(origin, ['add', '-A']);
+    git(origin, ['commit', '-m', 'work']);
+    git(origin, ['push', '-u', 'origin', 'feat/thing']);
+
+    const elsewhere = tempRoot();
+    const clone = path.join(elsewhere, 'narrow');
+    git(elsewhere, ['clone', '--branch', 'feat/thing', git(origin, ['remote', 'get-url', 'origin']), clone]);
+
+    // The fixture is only worth anything if the clone really has no local base branch.
+    assert.equal(git(clone, ['branch', '--format=%(refname:short)']), 'feat/thing');
+    assert.equal(defaultBranch(clone), 'main');
+    assert.deepEqual(changedPaths(clone, 'main'), ['docs/new.md']);
   });
 });

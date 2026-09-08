@@ -226,6 +226,25 @@ export function writeFile(file, contents) {
   return file;
 }
 
+/**
+ * Commit files to the repository's current branch — papers that have already shipped.
+ *
+ * Fixtures that only write papers into the working tree cannot reproduce the bug this guards:
+ * a stamp must distinguish a paper belonging to the change in flight from one merged long ago,
+ * and only committed history makes the two look different.
+ *
+ * @param {string} repoDir
+ * @param {Record<string,string>} files path relative to the repo root -> contents
+ * @returns {void}
+ */
+export function commitPapers(repoDir, files) {
+  for (const [relative, contents] of Object.entries(files)) {
+    writeFile(path.join(repoDir, relative), contents);
+  }
+  git(repoDir, ['add', '-A']);
+  git(repoDir, ['commit', '-m', 'ship papers']);
+}
+
 /** Remove every temp root this module created. */
 export function cleanupAll() {
   while (roots.length > 0) {

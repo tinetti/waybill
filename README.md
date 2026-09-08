@@ -30,7 +30,7 @@ seen exactly as one done through the tool.
 
 | # | Leg | Stamped by | Booked to |
 | --- | --- | --- | --- |
-| 1 | `ideate` | a non-default branch, or any later leg being stamped | `bookings/ideation-ideate.md` |
+| 1 | `ideate` | the docket being open, or any later leg being stamped | `bookings/ideation-ideate.md` |
 | 2 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
 | 3 | `refine` | `docs/ideation/*/contract-data.json` | `bookings/ideation-refine.md` |
 | 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
@@ -41,6 +41,17 @@ seen exactly as one done through the tool.
 Legs 2 and 7 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
 anchor and the terminus have to be relied on while everything they hand to is swappable. They still
 take their command, model, and prose from a booking like every other leg.
+
+Every path glob above — rows 3, 4 and 5 — is scoped to the docket. A file only stamps its leg when
+it is also part of what this branch changed against the default branch: committed on the branch,
+staged, unstaged, or untracked. Papers that shipped with an earlier change are on disk in every
+worktree and stamp nothing. When Waybill cannot work out that diff at all it stamps nothing either,
+and says so under `WARNINGS:` — visibly unable to tell beats invisibly wrong.
+
+`stampCmd` bookings receive no such scoping — row 6 is the only shipped one that can ever succeed,
+and it runs against the repository as it stands, so a command that greps a directory tree can still
+match papers left over from history. On the default branch that no longer matters: with no docket
+open, nothing is reported as stamped at all.
 
 ## Install
 
@@ -87,10 +98,28 @@ step.
 | `waybill start <branch>` | `/waybill:start` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill status` | `/waybill:status` | Where this docket stands, without the waybill |
 
-The **docket** is the change itself — the papers that accumulate on disk as it moves. The
+The **docket** is the branch. It is open whenever a branch other than the default one is checked
+out, and there is no state file to keep in step: git already tracks what is in flight. The
 **waybill** is issued fresh for one leg: the command, the model, and the prose the next session
 needs, and nothing that outlives that session. `waybill next` prints a waybill; the docket is
 already in the repository.
+
+On the default branch no docket is open, and all three commands say so and stop reporting a
+position:
+
+```
+main · no docket open
+
+NEXT:
+  /clear, then run:
+  /ideation:brainstorm
+  └ opus · high effort
+```
+
+That is the whole trunk state: no leg strip, no completed legs, and `next --json` reports
+`"docketOpen": false` with `leg: "ideate"` and empty `completed`/`skipped`. Ideating comes before
+the docket exists — the papers it produces travel as the branch's first diff once
+`waybill start <branch>` cuts the bay.
 
 `waybill next --json` prints the raw resolved state for scripts. `waybill status` takes no options —
 the machine-readable surface is `next --json`, and a second one would be a second thing to keep in

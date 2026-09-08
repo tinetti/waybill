@@ -98,17 +98,34 @@ export function hasRemote(cwd) {
 }
 
 /**
- * The branch new work forks from: `origin/HEAD` when the remote publishes one, otherwise the
- * current branch. Never fetches — fetching is a side effect belonging to the bay command,
- * not to a query inference calls repeatedly.
+ * Trunk names probed when the remote publishes no `origin/HEAD`, in preference order.
+ * The list exists so a remoteless `master` repository is not told its base is `main`, which would
+ * report a docket open while standing on the trunk.
+ */
+const BASE_CANDIDATES = ['main', 'master', 'trunk'];
+
+/**
+ * The branch new work forks from: `origin/HEAD` when the remote publishes one, otherwise the first
+ * conventional trunk that exists locally, otherwise `main`.
+ *
+ * Never returns the current branch. The previous self-referential fallback made `branch === base`
+ * unconditionally true in a remoteless repository, so a docket could never be seen to open there.
+ * Never fetches — fetching is a side effect belonging to the bay command, not to a query inference
+ * calls repeatedly.
  *
  * @param {string} cwd
- * @returns {string|null}
+ * @returns {string}
  */
 export function defaultBranch(cwd) {
   const head = tryGit(cwd, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
   if (head) return head.replace(/^origin\//, '');
-  return currentBranch(cwd);
+
+  for (const candidate of BASE_CANDIDATES) {
+    if (tryGit(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
+      return candidate;
+    }
+  }
+  return BASE_CANDIDATES[0];
 }
 
 /** How many superproject hops are walked before the chain is treated as pathological. */
@@ -165,6 +182,55 @@ export function inBay(cwd) {
  */
 export function checkoutRoot(cwd) {
   return tryGit(cwd, ['rev-parse', '--show-toplevel']);
+}
+
+/**
+ * Split git's multi-line output into entries.
+ *
+ * `''.split('\n')` yields `['']`, and an empty diff is the common case here rather than the
+ * exception it is for this module's other callers, so the empty entry has to be dropped.
+ *
+ * @param {string} output
+ * @returns {string[]}
+ */
+function lines(output) {
+  return output.split('\n').filter(Boolean);
+}
+
+/**
+ * Every path the current branch introduces relative to `base` — committed, staged, unstaged and
+ * untracked — as repository-relative forward-slash paths.
+ *
+ * `null` means the question could not be answered: the refs share no history, or `base` does not
+ * exist. That is deliberately distinct from `[]` ("nothing changed"), because a caller that scopes
+ * stamps by this set must stamp nothing when it cannot tell, rather than fall back to matching
+ * whatever is on disk and reinstate the bug this exists to fix.
+ *
+ * The one directory shape that can appear is a trailing-slash entry: `git diff --name-only` reports
+ * files, but `git ls-files --others` collapses an untracked nested repository to `vendor/sub/`.
+ * Neither shape can equal a walked file path, so a `stampPath` naming a directory cannot stamp a
+ * docket.
+ *
+ * @param {string} cwd
+ * @param {string} base the base branch *name*, not a ref
+ * @returns {string[]|null}
+ */
+export function changedPaths(cwd, base) {
+  // `git clone -b feat/x` creates no local `main`, and git does not resolve a bare `main` to
+  // `refs/remotes/origin/main`, so the branch name {@link defaultBranch} correctly answers with is
+  // not a rev in that clone. The remote-tracking ref names the same commit; without this retry
+  // every path-stamped leg would report not-done forever in an entirely ordinary clone.
+  const mergeBase =
+    tryGit(cwd, ['merge-base', base, 'HEAD']) ?? tryGit(cwd, ['merge-base', `origin/${base}`, 'HEAD']);
+  if (mergeBase === null) return null;
+
+  // `git diff <commit>` compares the working tree to the commit, so committed, staged and unstaged
+  // changes all arrive in one call; only untracked files need the second.
+  const tracked = tryGit(cwd, ['diff', '--name-only', mergeBase]);
+  const untracked = tryGit(cwd, ['ls-files', '--others', '--exclude-standard', '--full-name']);
+  if (tracked === null || untracked === null) return null;
+
+  return [...lines(tracked), ...lines(untracked)];
 }
 
 /**

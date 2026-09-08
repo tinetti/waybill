@@ -9,6 +9,7 @@ import { renderWaybill, renderPosition } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
+import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
 import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
@@ -68,6 +69,7 @@ function state(overrides = {}) {
       path: '/bookings/openspec-specs.md',
     },
     branch: 'feat/thing',
+    docketOpen: true,
     changeId: 'add-thing',
     warnings: [],
     ...overrides,
@@ -97,18 +99,34 @@ describe('renderWaybill golden output', () => {
 
   it('renders a repository whose seven legs are all complete', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
-    writeFile(path.join(repo, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
-    writeFile(path.join(repo, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
-    git(repo, ['add', '-A']);
-    git(repo, ['commit', '-m', 'every paper']);
 
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
 
+    // Left uncommitted, deliberately: see the identical case in tests/inference.test.js — committing
+    // these onto `feat/thing` would move its ref past `main` and `isMerged` would read false.
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
+
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);
     assertGolden('complete', renderWaybill(result, CLEAN));
+  });
+
+  it('renders no docket open on the base branch', () => {
+    assertGolden('no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
+  });
+
+  it('renders the trunk identically whether or not papers shipped into its history', () => {
+    // `no-docket.txt` and `ideate.txt` are byte-identical on purpose: the two fixtures differ only
+    // in what they commit, and identical output *is* the assertion that history no longer moves the
+    // render. Neither golden file can catch a divergence on its own — each would simply be
+    // regenerated — so the identity is asserted here rather than left to a reader to notice.
+    assert.equal(
+      renderWaybill(resolve(noDocketFixture().dir), CLEAN),
+      renderWaybill(resolve(ideateFixture().dir), CLEAN),
+    );
   });
 });
 
@@ -282,6 +300,16 @@ describe('renderPosition', () => {
     const output = renderPosition(state({ leg: null, booking: undefined }), CLEAN);
     assert.match(output, /all 7 legs complete/);
     assert.equal(output.includes('NEXT:'), false);
+  });
+
+  it('reports no docket open and suppresses the strip, exactly as the waybill does', () => {
+    // The gate is one `state.docketOpen` check in each renderer, and `renderPosition`'s was covered
+    // by reading the code only. `state()` carries four completed legs, so a broken gate would print
+    // a tick row here.
+    const output = renderPosition(state({ docketOpen: false }), CLEAN);
+    assert.equal(output, 'feat/thing · no docket open\n');
+    assert.equal(output.includes('✓'), false);
+    assert.equal(output.includes('▶'), false);
   });
 
   it('always ends with exactly one trailing newline', () => {

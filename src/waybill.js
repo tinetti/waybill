@@ -40,12 +40,17 @@ const DEFAULT_ARGUMENT = 'change-id';
 const INDENT = '  ';
 
 /**
+ * `docketOpen` is checked before `leg`, not after: on the base branch `leg` still reads `ideate`
+ * (nothing stamps it done from history alone), and reporting a leg position the repository has no
+ * business claiming is exactly the bug this state exists to stop.
+ *
  * @param {import('./inference.js').Inference} state
  * @returns {string}
  */
 function header(state) {
-  const position =
-    state.leg === null
+  const position = !state.docketOpen
+    ? 'no docket open'
+    : state.leg === null
       ? `all ${LEGS.length} legs complete`
       : `leg ${state.index} of ${LEGS.length} (${state.leg})`;
   return state.branch ? `${state.branch} · ${position}` : position;
@@ -177,7 +182,9 @@ function withFindings(sections, state, inspection) {
  * @returns {string} ends with exactly one newline
  */
 export function renderWaybill(state, inspection = { ignored: [], warnings: [] }) {
-  const position = [header(state), ...strip(state)].join('\n');
+  // No docket open means no leg walk to show a checklist of — the strip would otherwise print
+  // `▶ ideate` for a leg the repository was never actually working.
+  const position = [header(state), ...(state.docketOpen ? strip(state) : [])].join('\n');
   return withFindings([position, nextBlock(state).join('\n')], state, inspection);
 }
 
@@ -194,6 +201,6 @@ export function renderWaybill(state, inspection = { ignored: [], warnings: [] })
  * @returns {string} ends with exactly one newline
  */
 export function renderPosition(state, inspection = { ignored: [], warnings: [] }) {
-  const position = [header(state), ...strip(state)].join('\n');
+  const position = [header(state), ...(state.docketOpen ? strip(state) : [])].join('\n');
   return withFindings([position], state, inspection);
 }

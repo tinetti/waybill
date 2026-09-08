@@ -156,10 +156,10 @@ export function ensureBayIgnored(cwd, container) {
  * The ref a brand-new branch is cut from.
  *
  * `gwt` always uses `origin/<default>` and always fetches; both are wrong in a repository with no
- * remote, which is the shape Waybill's own repository has. And `defaultBranch` answers with the
- * *current* branch when origin publishes no HEAD, so the composed ref is verified rather than
- * trusted — an unverified `origin/<whatever branch you happen to be on>` either fails obscurely or,
- * worse, resolves to the wrong commit.
+ * remote, which is the shape Waybill's own repository has. And `defaultBranch` answers with a probed
+ * local trunk — or the literal `main` — when origin publishes no HEAD, so the composed ref is
+ * verified rather than trusted: an unverified `origin/<a name that was only ever a guess>` either
+ * fails obscurely or, worse, resolves to the wrong commit.
  *
  * @param {string} cwd
  * @param {string} [requested] an explicit base from the caller
@@ -182,9 +182,8 @@ function resolveBase(cwd, requested) {
   // a fetch that did work is what makes an as-yet-unfetched default branch resolvable below.
   git(cwd, ['fetch', '--quiet', 'origin']);
 
-  const name = defaultBranch(cwd);
-  const base = name === null ? null : `origin/${name}`;
-  if (base === null || !resolves(cwd, base)) {
+  const base = `origin/${defaultBranch(cwd)}`;
+  if (!resolves(cwd, base)) {
     throw new BayError(
       "cannot determine origin's default branch — run `git remote set-head origin -a`, " +
         'or pass an explicit base ref',
