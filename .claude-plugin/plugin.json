@@ -1,6 +1,6 @@
 {
   "name": "waybill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A leg route with pluggable carriers: one command names the leg, the next command, and the model it wants.",
   "author": {
     "name": "John Tinetti",
