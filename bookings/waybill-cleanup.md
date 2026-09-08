@@ -1,6 +1,6 @@
 ---
 leg: cleanup
-command: /mar
+command: /waybill:cleanup
 model: sonnet
 effort: low
 handover: through
@@ -19,6 +19,12 @@ cleanup's stamp from repository state — the branch merged into the default bra
 at the configured path — never from a booking. This one exists to supply the waybill: the command,
 the model, and this text.
 
-`/mar` is a personal dotfile command rather than something Waybill ships, and the README names what
-it needs. Swap the `command` above for whatever finishes a branch here; `argument: branch` is what
-hands it the branch name rather than the change id, because a branch is what is being finished.
+`/waybill:cleanup` is the carrier Waybill ships, and it is deliberately the modest one: it assumes
+the pull or merge request is already merged on the forge — by a reviewer, or by CI — verifies that
+with plain git, and then retires the bay and the branch. It never merges anything itself and never
+calls `gh` or `glab`, so it needs no auth and behaves the same on any remote. If the branch is not
+merged yet it stops and says so rather than deleting work.
+
+If you want a carrier that merges the request for you as well, rebook this leg rather than editing
+this file: point `waybill.bookingsdir` at a directory of your own and drop a booking for `cleanup`
+into it. `examples/mar-cleanup.md` is a worked one. See *Swapping a carrier* in the README.

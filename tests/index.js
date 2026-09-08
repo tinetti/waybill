@@ -5,6 +5,7 @@
 // here satisfies both — it is not itself a test file, so default discovery never double-runs it.
 import './bay.test.js';
 import './booking-swap.test.js';
+import './bookings-overlay.test.js';
 import './bookings.test.js';
 import './cli.test.js';
 import './commands.test.js';

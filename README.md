@@ -163,10 +163,11 @@ see *Swapping a carrier* — but a waybill pointing at a command you do not have
 | 1, 3, 4 | the `ideation` plugin | `/plugin install ideation@tinetti` |
 | 5, 6 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
 | 5, 6 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
-| 7 | `/mar` — a personal dotfile command, not part of Waybill | `tinetti_dev_tools` (`files/home/.claude/commands/mar.md` plus the `merge-and-reset` skill), and it needs `gh`/`glab`, `jq`, and the `ExitWorktree` tool |
+| 7 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
 
-Leg 7's carrier is the one most likely to be wrong for you. It is a single line in
-`bookings/waybill-cleanup.md`.
+Leg 7 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
+retires a branch someone else already merged. If your habit is to merge from the terminal, rebook
+that leg; the overlay below is how, and `examples/mar-cleanup.md` is a worked one.
 
 ## Swapping a carrier
 
@@ -193,18 +194,50 @@ reads one waybill, runs one leg, and leaves its mark on the docket. `/clear` bet
 premise of the tool, not a limitation it works around — the paperwork carries the change, so the
 handler never has to.
 
-`examples/superpowers-execute.md` is a worked alternative booking for the execute leg, pointing it at
-`superpowers:subagent-driven-development` instead of `/spec:apply`. Apply it by copying it over the
-booking it replaces:
+### An overlay, rather than an edit
+
+Editing `bookings/` in place works, but not for long: installed as a plugin, Waybill lives in
+`~/.claude/plugins/cache/`, and the next update overwrites whatever you changed there. Point
+Waybill at a directory of your own instead. Bookings found in it replace the shipped booking for
+the leg they name, and every other leg keeps its default:
+
+| Where | Example |
+| --- | --- |
+| `WAYBILL_BOOKINGS_DIR` | `WAYBILL_BOOKINGS_DIR=./alt-bookings waybill next` |
+| `git config waybill.bookingsdir` | `git config --global waybill.bookingsdir ~/.config/waybill/bookings` |
+
+So keeping `/mar` as your cleanup carrier, on every repository on this machine, is three commands:
 
 ```
-cp examples/superpowers-execute.md bookings/openspec-execute.md
+mkdir -p ~/.config/waybill/bookings
+cp examples/mar-cleanup.md ~/.config/waybill/bookings/cleanup.md
+git config --global waybill.bookingsdir ~/.config/waybill/bookings
 ```
 
-It lives in `examples/` rather than in `bookings/` on purpose. Two bookings claiming one leg is a
-hard error — Waybill refuses to guess which one you meant — so an alternative that shipped beside the
-booking it replaces would break every command on install. The swap is still one file and no source
-change; it is an overwrite rather than an addition.
+Set it without `--global` to rebook a leg for one repository — a repository whose branches are
+finished by a script the rest of your work has never heard of. There is no CLI flag and no default
+directory, on purpose: an overlay is a standing decision about how a machine or a repository
+finishes work, not something retyped per invocation, and a conventional path would have Waybill
+reading a directory nobody configured. A relative setting resolves against the checkout you are
+in — in a bay, that is the branch's own answer. `git config` reads the value as a path, so a
+leading `~` expands. A directory that does not exist yet is simply an empty overlay, not an error.
+
+A leg is replaced **whole**, never merged key by key. A booking is one statement — the command, the
+model, and the stamp that says when that command is finished — and a per-key merge would let you
+change the command while silently keeping a stamp written for the command you replaced. An overlay
+binding a leg that does not exist, or two of its own files claiming one leg, is an error, exactly as
+it is in `bookings/`.
+
+Two worked examples ship in `examples/`:
+
+| File | Rebooks | To |
+| --- | --- | --- |
+| `mar-cleanup.md` | `cleanup` | `/mar`, which merges the request as well as cleaning up after it |
+| `superpowers-execute.md` | `execute` | `superpowers:subagent-driven-development` instead of `/spec:apply` |
+
+They live in `examples/` rather than in `bookings/` on purpose. Two bookings claiming one leg is a
+hard error — Waybill refuses to guess which one you meant — so an alternative that shipped beside
+the booking it replaces would break every command on install.
 
 ## The vendored `/spec:*` commands
 

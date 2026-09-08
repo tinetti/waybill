@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS } from './legs.js';
 import { renderWaybill, renderPosition } from './waybill.js';
-import { BUILTIN_BOOKINGS, resolveLeg } from './inference.js';
+import { resolveLeg } from './inference.js';
 import { paperPaths, checkIgnored } from './inspection.js';
-import { loadBookings } from './bookings.js';
+import { resolveBookings } from './bookings.js';
 import { checkoutRoot, superprojectRoot } from './repo.js';
 import { BayError, isInside, startBay } from './bay.js';
 
@@ -79,7 +79,7 @@ function next(cwd, args, io) {
   const root = repoRoot(cwd, io);
   if (root === null) return 2;
 
-  const bookings = loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
+  const bookings = resolveBookings(cwd, { knownLegs: LEGS.map((leg) => leg.id) });
   const state = resolveLeg(cwd, bookings);
 
   if (args.includes('--json')) {
@@ -113,7 +113,7 @@ function status(cwd, args, io) {
   const root = repoRoot(cwd, io);
   if (root === null) return 2;
 
-  const bookings = loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
+  const bookings = resolveBookings(cwd, { knownLegs: LEGS.map((leg) => leg.id) });
   const state = resolveLeg(cwd, bookings);
 
   io.out(renderPosition(state, checkIgnored(root, paperPaths(bookings))));
@@ -179,7 +179,7 @@ function start(cwd, args, io) {
     return 2;
   }
 
-  const bookings = loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
+  const bookings = resolveBookings(result.path, { knownLegs: LEGS.map((leg) => leg.id) });
   const state = resolveLeg(result.path, bookings);
 
   // The one place Waybill names a shell command rather than a slash command: a tool-invoked shell

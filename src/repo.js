@@ -17,6 +17,21 @@ function tryGit(cwd, args) {
 }
 
 /**
+ * A git config value read as a path, or `null` when the key is unset or git cannot answer.
+ *
+ * `--type=path` is what expands a leading `~`, and an operator writing a directory into their
+ * global config writes `~/...`. Doing the expansion here rather than by hand keeps Waybill from
+ * owning a second, worse opinion about what a home directory is.
+ *
+ * @param {string} cwd
+ * @param {string} key
+ * @returns {string|null}
+ */
+export function configPath(cwd, key) {
+  return tryGit(cwd, ['config', '--type=path', '--get', key]);
+}
+
+/**
  * Absolute path to the main checkout — the anchor every derived path hangs off.
  *
  * Ported from `git-main-worktree` (tinetti_dev_tools/files/zsh/git.zsh:115-117), but the literal

@@ -1,14 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 import { parseFrontmatter } from './frontmatter.js';
+import { checkoutRoot, configPath } from './repo.js';
 
 /**
  * @typedef {{leg:string,command:string,model:string,effort?:string,handover?:string,
  *            argument?:'change-id'|'branch'|'none',stampPath?:string,stampCmd?:string,
  *            body:string,path:string}} Booking
  */
+
+/**
+ * The bookings Waybill ships with — the base every overlay is applied on top of. It lives in this
+ * module rather than beside the inference because it is a fact about where bookings are kept, and
+ * {@link resolveBookings} is the one thing that has to know it.
+ */
+export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings');
 
 const REQUIRED = ['leg', 'command', 'model'];
 const OPTIONAL = ['effort', 'handover', 'argument', 'stampPath', 'stampCmd'];
@@ -84,6 +93,58 @@ export function loadBookings(dir, options = {}) {
   }
 
   return bookings;
+}
+
+/**
+ * The overlay directory as configured, unresolved, or `null` when nothing configures one.
+ *
+ * The tiers follow {@link import('./repo.js').resolveBayPath}'s for the same reason: a shell that
+ * exports the variable is answering for one invocation, and the config is answering for the
+ * machine. Blank is not an answer at either tier — an exported `WAYBILL_BOOKINGS_DIR=` would
+ * otherwise overlay the checkout root itself and bind every leg to nothing.
+ *
+ * There is deliberately no CLI flag and no default: an overlay is a standing choice about how this
+ * machine or this repository finishes work, not something retyped per invocation, and a default
+ * would make Waybill read a directory nobody configured.
+ *
+ * @param {string} cwd
+ * @returns {string|null}
+ */
+function configuredBookingsDir(cwd) {
+  const tiers = [process.env.WAYBILL_BOOKINGS_DIR, configPath(cwd, 'waybill.bookingsdir')];
+  return tiers.find((value) => value !== undefined && value !== null && value.trim() !== '')?.trim() ?? null;
+}
+
+/**
+ * The bookings in force for `cwd`: the built-ins, with any configured overlay laid over them by leg.
+ *
+ * A leg the overlay binds is replaced *whole* rather than merged key by key. A booking is one
+ * coherent statement — command, model, and the stamp that says when that command is finished — and
+ * a merge would let an overlay change the command while silently keeping a stamp written for the
+ * command it replaced. Replacement is also what `tests/booking-swap.test.js` already measures a
+ * swap as.
+ *
+ * The overlay is validated exactly as the built-ins are, so an unknown leg or two of its own files
+ * claiming one leg is an error rather than a silently dropped override. A directory that does not
+ * exist is not an error: {@link loadBookings} reads it as empty, which is what an overlay pointing
+ * at a machine's not-yet-created config directory should mean.
+ *
+ * @param {string} cwd
+ * @param {{ knownLegs?: Iterable<string> }} [options] passed through to {@link loadBookings}
+ * @returns {Map<string, Booking>} keyed by leg
+ * @throws {Error} on a malformed booking in either the built-ins or the overlay
+ */
+export function resolveBookings(cwd, options = {}) {
+  const builtins = loadBookings(BUILTIN_BOOKINGS, options);
+
+  const configured = configuredBookingsDir(cwd);
+  if (configured === null) return builtins;
+
+  // Anchored on the tree the operator is actually in rather than on the main checkout, matching
+  // where `stampPath` resolves its globs: in a bay, `.waybill/bookings` is the branch's own answer.
+  // `checkoutRoot` returns null outside a repository, where `cwd` is the only anchor there is.
+  const dir = path.resolve(checkoutRoot(cwd) ?? cwd, configured);
+  return new Map([...builtins, ...loadBookings(dir, options)]);
 }
 
 /**

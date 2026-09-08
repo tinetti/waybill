@@ -1,17 +1,7 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { LEGS, cleanupIsDone, ideateIsDone, bayIsDone } from './legs.js';
-import { evaluateBooking, loadBookings } from './bookings.js';
+import { BUILTIN_BOOKINGS, evaluateBooking, loadBookings } from './bookings.js';
 import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
 import { discoverChangeId, executeProgress } from './progress.js';
-
-/**
- * The bookings Waybill ships with, used when a caller supplies none. Exported so the CLI can load
- * the same map it hands to {@link resolveLeg} and derive the inspection's paper paths from it,
- * rather than keeping a second copy of this path.
- */
-export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings');
 
 /**
  * @typedef {{leg:string|null, index:number, completed:string[], skipped:string[],
