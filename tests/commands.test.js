@@ -148,6 +148,26 @@ describe('the shipped command set', () => {
     assert.deepEqual(problems(dir, DECLARED), ['status.md:3: duplicate key `description`']);
   });
 
+  it('spells the plugin root the one way Claude Code actually substitutes', () => {
+    // `${CLAUDE_PLUGIN_ROOT}` is not an environment variable and never reaches bash as one.
+    // Claude Code rewrites the literal out of the command body first, matching `${CLAUDE_PLUGIN_ROOT}`
+    // or a bare `$CLAUDE_PLUGIN_ROOT` and nothing else. So a defensive `${CLAUDE_PLUGIN_ROOT:-}` is
+    // the one spelling guaranteed to fail: the rewrite skips it for want of an exact match, bash
+    // finds no such variable, expands it to nothing, and the test collapses to `[ -f /src/cli.js ]`.
+    // Every command then reports an unset root on a plugin that is installed and working.
+    const offenders = [];
+    for (const rel of DECLARED) {
+      const source = fs.readFileSync(path.join(COMMANDS, ...rel.split('/')), 'utf8');
+      source.split('\n').forEach((line, i) => {
+        if (!line.startsWith('!`')) return;
+        for (const [found] of line.matchAll(/\$\{CLAUDE_PLUGIN_ROOT[^}]*\}/g)) {
+          if (found !== '${CLAUDE_PLUGIN_ROOT}') offenders.push(`${rel}:${i + 1}: ${found}`);
+        }
+      });
+    }
+    assert.deepEqual(offenders, []);
+  });
+
   it('keeps the vendored routing commands byte-identical to what they encode', () => {
     // The whole point of vendoring is that the `model:`/`effort:` frontmatter *is* the routing.
     // A copy that quietly lost it would still parse and still install.
