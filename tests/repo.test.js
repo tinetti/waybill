@@ -21,6 +21,7 @@ import {
   pathWithout,
   stubBin,
   tempRoot,
+  withEnv,
   withPath,
 } from './helpers/repo-fixture.js';
 
@@ -61,14 +62,14 @@ describe('mainCheckout', () => {
 });
 
 describe('resolveBayPath', () => {
-  it('derives a sibling of the main checkout for a plain branch', () => {
+  it('puts the bay under .claude/worktrees inside the main checkout by default', () => {
     const repo = createRepo();
-    assert.equal(resolveBayPath('plain', repo), path.join(path.dirname(repo), 'repo-plain'));
+    assert.equal(resolveBayPath('plain', repo), path.join(repo, '.claude', 'worktrees', 'repo-plain'));
   });
 
   it('replaces every slash in the branch name', () => {
     const repo = createRepo();
-    const dir = path.dirname(repo);
+    const dir = path.join(repo, '.claude', 'worktrees');
     assert.equal(resolveBayPath('feat/x', repo), path.join(dir, 'repo-feat-x'));
     assert.equal(resolveBayPath('feat/a/b', repo), path.join(dir, 'repo-feat-a-b'));
   });
@@ -76,17 +77,89 @@ describe('resolveBayPath', () => {
   it('derives the same path from inside a bay', () => {
     const repo = createRepo();
     const linked = addWorktree(repo, 'feat/x');
-    assert.equal(resolveBayPath('feat/a/b', linked), path.join(path.dirname(repo), 'repo-feat-a-b'));
+    assert.equal(
+      resolveBayPath('feat/a/b', linked),
+      path.join(repo, '.claude', 'worktrees', 'repo-feat-a-b'),
+    );
   });
 
   it('handles a repository path containing a space', () => {
     const repo = createRepo({ name: 'my repo' });
-    assert.equal(resolveBayPath('feat/x', repo), path.join(path.dirname(repo), 'my repo-feat-x'));
+    assert.equal(
+      resolveBayPath('feat/x', repo),
+      path.join(repo, '.claude', 'worktrees', 'my repo-feat-x'),
+    );
   });
 
   it('works in a repository with zero commits', () => {
     const repo = createRepo({ commit: false, branch: 'ideation/waybill' });
-    assert.equal(resolveBayPath('feat/x', repo), path.join(path.dirname(repo), 'repo-feat-x'));
+    assert.equal(resolveBayPath('feat/x', repo), path.join(repo, '.claude', 'worktrees', 'repo-feat-x'));
+  });
+});
+
+describe('resolveBayPath is configurable', () => {
+  it('reproduces the old sibling convention when waybill.baydir is `..`', () => {
+    const repo = createRepo();
+    const dir = path.dirname(repo);
+    git(repo, ['config', 'waybill.baydir', '..']);
+
+    assert.equal(resolveBayPath('plain', repo), path.join(dir, 'repo-plain'));
+    assert.equal(resolveBayPath('feat/x', repo), path.join(dir, 'repo-feat-x'));
+    assert.equal(resolveBayPath('feat/a/b', repo), path.join(dir, 'repo-feat-a-b'));
+  });
+
+  it('keeps the sibling convention reachable from inside a bay and with a space in the path', () => {
+    const spaced = createRepo({ name: 'my repo' });
+    git(spaced, ['config', 'waybill.baydir', '..']);
+    assert.equal(resolveBayPath('feat/x', spaced), path.join(path.dirname(spaced), 'my repo-feat-x'));
+
+    const repo = createRepo();
+    git(repo, ['config', 'waybill.baydir', '..']);
+    const linked = addWorktree(repo, 'feat/x');
+    assert.equal(linked, path.join(path.dirname(repo), 'repo-feat-x'));
+    assert.equal(resolveBayPath('feat/a/b', linked), path.join(path.dirname(repo), 'repo-feat-a-b'));
+  });
+
+  it('uses an absolute waybill.baydir as the container directory as it stands', () => {
+    const repo = createRepo();
+    const elsewhere = tempRoot();
+    git(repo, ['config', 'waybill.baydir', elsewhere]);
+
+    assert.equal(resolveBayPath('feat/x', repo), path.join(elsewhere, 'repo-feat-x'));
+  });
+
+  it('resolves a relative waybill.baydir against the main checkout, not the cwd', () => {
+    const repo = createRepo();
+    const sub = path.join(repo, 'a', 'b');
+    fs.mkdirSync(sub, { recursive: true });
+    git(repo, ['config', 'waybill.baydir', 'bays']);
+
+    assert.equal(resolveBayPath('feat/x', sub), path.join(repo, 'bays', 'repo-feat-x'));
+  });
+
+  it('lets WAYBILL_BAY_DIR win over the git config', () => {
+    const repo = createRepo();
+    git(repo, ['config', 'waybill.baydir', 'from-config']);
+
+    const target = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(target, path.join(repo, 'from-env', 'repo-feat-x'));
+  });
+
+  it('ignores an empty WAYBILL_BAY_DIR rather than resolving the bay onto the checkout root', () => {
+    const repo = createRepo();
+
+    const target = withEnv({ WAYBILL_BAY_DIR: '  ' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(target, path.join(repo, '.claude', 'worktrees', 'repo-feat-x'));
+  });
+
+  it('lets an explicit bayDir win over both the environment and the config', () => {
+    const repo = createRepo();
+    git(repo, ['config', 'waybill.baydir', 'from-config']);
+
+    const target = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () =>
+      resolveBayPath('feat/x', repo, { bayDir: 'from-caller' }),
+    );
+    assert.equal(target, path.join(repo, 'from-caller', 'repo-feat-x'));
   });
 });
 

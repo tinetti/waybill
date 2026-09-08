@@ -31,7 +31,7 @@ seen exactly as one done through the tool.
 | # | Leg | Stamped by | Booked to |
 | --- | --- | --- | --- |
 | 1 | `ideate` | a non-default branch, or any later leg being stamped | `bookings/ideation-ideate.md` |
-| 2 | `bay` | the bay at the naming-convention path | `bookings/waybill-bay.md` |
+| 2 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
 | 3 | `refine` | `docs/ideation/*/contract-data.json` | `bookings/ideation-refine.md` |
 | 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
 | 5 | `specs` | `openspec/changes/*/tasks.md` | `bookings/openspec-specs.md` |
@@ -100,6 +100,28 @@ All three warn when a paper directory is git-ignored in the host repository — 
 before their position block, and `start` in the waybill it prints after cutting the bay. That
 matters more than it sounds: untracked papers are destroyed when the bay is removed at the cleanup
 leg.
+
+### Where bays live
+
+A bay is a git worktree, and by default it goes in `.claude/worktrees/` inside the main checkout —
+`<main>/.claude/worktrees/<checkout>-<branch>`, with every `/` in the branch name flattened to `-`.
+Waybill adds that directory to `.git/info/exclude` on the first `start`, never to the tracked
+`.gitignore`: the host repository's ignore file belongs to the host, and a nested worktree that is
+not ignored is staged as an embedded repository by `git add -A`.
+
+Point it somewhere else, in order of precedence:
+
+| Where | Example |
+| --- | --- |
+| `--bay-dir <path>` on `start` | `waybill start feat/thing --bay-dir ../bays` |
+| `WAYBILL_BAY_DIR` | `WAYBILL_BAY_DIR=~/bays waybill start feat/thing` |
+| `git config waybill.baydir` | `git config waybill.baydir ..` |
+
+An absolute path is the container directory as it stands; a relative one resolves against the main
+checkout, not your current directory. The directory *name* inside the container never changes, so
+`git config waybill.baydir ..` reproduces the sibling layout — `<checkout>-<branch>` next to the
+main checkout — exactly. A container outside the checkout is left out of `.git/info/exclude`, since
+there is nothing there for git to notice.
 
 ## Prerequisites
 

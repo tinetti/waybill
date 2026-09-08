@@ -8,8 +8,10 @@ import { run } from '../src/cli.js';
 import {
   cleanupAll,
   createRepo,
+  defaultBayPath,
   pathWithout,
   tempRoot,
+  withEnv,
   withPath,
   writeFile,
 } from './helpers/repo-fixture.js';
@@ -198,7 +200,7 @@ describe('waybill start', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const result = cli(['start', 'feat/demo'], repo);
-    const target = path.join(path.dirname(repo), `${path.basename(repo)}-feat-demo`);
+    const target = defaultBayPath(repo, 'feat/demo');
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
@@ -226,7 +228,7 @@ describe('waybill start', () => {
   it('reports a no-op without a cd line when run from inside the bay it would create', () => {
     const repo = createRepo({ remote: true, originHead: true });
     cli(['start', 'feat/demo'], repo);
-    const target = path.join(path.dirname(repo), `${path.basename(repo)}-feat-demo`);
+    const target = defaultBayPath(repo, 'feat/demo');
 
     const result = cli(['start', 'feat/demo'], target);
 
@@ -242,6 +244,32 @@ describe('waybill start', () => {
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
     assert.match(result.err, /Usage: waybill/);
+  });
+
+  it('puts the bay where --bay-dir says, ahead of the environment', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () =>
+      cli(['start', '--bay-dir', 'bays', 'feat/demo'], repo),
+    );
+    const target = path.join(repo, 'bays', `${path.basename(repo)}-feat-demo`);
+
+    assert.equal(result.code, 0);
+    assert.equal(fs.existsSync(target), true);
+    assert.match(result.out, new RegExp(`^ {2}cd ${target}$`, 'm'));
+  });
+
+  it('accepts --bay-dir after the branch name too, and rejects it with no path', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const trailing = cli(['start', 'feat/demo', '--bay-dir', 'bays'], repo);
+    assert.equal(trailing.code, 0);
+    assert.match(trailing.out, new RegExp(`^ {2}cd ${path.join(repo, 'bays')}`, 'm'));
+
+    const bare = cli(['start', '--bay-dir'], repo);
+    assert.equal(bare.code, 2);
+    assert.equal(bare.out, '');
+    assert.match(bare.err, /`--bay-dir` takes a path/);
   });
 
   it('rejects an option and a second positional rather than guessing which is the branch', () => {

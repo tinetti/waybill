@@ -17,7 +17,7 @@ function tryGit(cwd, args) {
 }
 
 /**
- * Absolute path to the main checkout — the sibling anchor every derived path hangs off.
+ * Absolute path to the main checkout — the anchor every derived path hangs off.
  *
  * Ported from `git-main-worktree` (tinetti_dev_tools/files/zsh/git.zsh:115-117), but the literal
  * `worktree ` prefix is sliced rather than split on whitespace so paths containing spaces survive.
@@ -33,17 +33,45 @@ export function mainCheckout(cwd) {
   return first.slice('worktree '.length);
 }
 
+/** Where bays go when nothing says otherwise: inside the main checkout, beside the other tooling. */
+const DEFAULT_BAY_DIR = '.claude/worktrees';
+
 /**
- * Where a branch's bay lives: a sibling of the main checkout, suffixed with the branch name
- * and every `/` flattened to `-`. Ports the `gwt` convention (git.zsh:267-288).
+ * The directory bays are created in, as configured — an absolute path, or one relative to the main
+ * checkout. Left unresolved here so {@link resolveBayPath} can spend a single `mainCheckout` call.
+ *
+ * The env var wins over the git config for the usual reason: a shell that exports it is answering
+ * for one invocation, and the config is answering for the machine. Blank is not an answer at
+ * either tier — `WAYBILL_BAY_DIR=` would otherwise resolve every bay onto the checkout root itself.
+ *
+ * @param {string} cwd
+ * @param {string} [override] a value from the caller, ahead of both tiers
+ * @returns {string}
+ */
+function configuredBayDir(cwd, override) {
+  const tiers = [override, process.env.WAYBILL_BAY_DIR, tryGit(cwd, ['config', '--get', 'waybill.baydir'])];
+  return tiers.find((value) => value !== undefined && value !== null && value.trim() !== '')?.trim() ?? DEFAULT_BAY_DIR;
+}
+
+/**
+ * Where a branch's bay lives: the configured container directory, holding a directory named for the
+ * main checkout and the branch, with every `/` flattened to `-`.
+ *
+ * The name keeps `gwt`'s shape (git.zsh:267-288) even though the container no longer has to be the
+ * parent directory, and that is the point: `waybill.baydir=..` reproduces the sibling paths `gwt`
+ * produced, exactly, so the old convention is a setting rather than a thing that was taken away.
  *
  * @param {string} branch
  * @param {string} cwd
+ * @param {{bayDir?:string}} [options] `bayDir` overrides `WAYBILL_BAY_DIR` and `waybill.baydir`
  * @returns {string} absolute path
  */
-export function resolveBayPath(branch, cwd) {
+export function resolveBayPath(branch, cwd, options = {}) {
   const main = mainCheckout(cwd);
-  return path.join(path.dirname(main), `${path.basename(main)}-${branch.replace(/\//g, '-')}`);
+  // `resolve` rather than `join`: an absolute setting is the container as it stands, and a relative
+  // one is anchored to the main checkout rather than to whatever directory the operator is in.
+  const container = path.resolve(main, configuredBayDir(cwd, options.bayDir));
+  return path.join(container, `${path.basename(main)}-${branch.replace(/\//g, '-')}`);
 }
 
 /**

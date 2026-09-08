@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { defaultBranch, hasRemote, resolveBayPath } from './repo.js';
+import { defaultBranch, hasRemote, mainCheckout, resolveBayPath } from './repo.js';
 
 /**
  * @typedef {{path:string, created:boolean, branchCreated:boolean, base:string|null}} StartResult
@@ -112,6 +112,47 @@ export function isInside(target, cwd) {
 }
 
 /**
+ * Keep a bay that lives inside the main checkout from reading as untracked work.
+ *
+ * A nested worktree is not merely noise in `git status`: it carries a `.git` file, so `git add -A`
+ * stages it as an embedded repository. The line therefore goes in `.git/info/exclude` rather than
+ * `.gitignore` — the host repository's ignore file is tracked, and Waybill is a guest that must
+ * never commit anything to it. That file lives in the *common* git dir, which is why the path is
+ * asked for rather than assumed: run from inside a bay, `--git-dir` would point at the linked
+ * worktree's private directory, where nothing reads an exclude file.
+ *
+ * A container outside the checkout is git's business, not ours, and is left alone.
+ *
+ * Exported so anything creating a bay by hand can make the same guarantee.
+ *
+ * @param {string} cwd
+ * @param {string} container the directory bays are created in
+ * @returns {void}
+ */
+export function ensureBayIgnored(cwd, container) {
+  let relative;
+  try {
+    relative = path.relative(mainCheckout(cwd), container);
+  } catch {
+    return;
+  }
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return;
+
+  const commonDir = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (!commonDir.ok) return;
+
+  const file = path.join(commonDir.stdout, 'info', 'exclude');
+  // Anchored and trailing-slashed: this ignores the one container directory, not every path
+  // anywhere in the tree that happens to share its name.
+  const line = `/${relative.split(path.sep).join('/')}/`;
+  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (existing.split('\n').some((entry) => entry.trim() === line)) return;
+
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${existing === '' || existing.endsWith('\n') ? '' : '\n'}${line}\n`);
+}
+
+/**
  * The ref a brand-new branch is cut from.
  *
  * `gwt` always uses `origin/<default>` and always fetches; both are wrong in a repository with no
@@ -162,7 +203,7 @@ function resolves(cwd, ref) {
 }
 
 /**
- * Create `branch` and its bay at the `gwt` convention path, and report where it is.
+ * Create `branch` and its bay at the configured path, and report where it is.
  *
  * A port of `gwt` (tinetti_dev_tools/files/zsh/git.zsh:265-289) with the three properties a shell
  * function invoked by hand never needed: it is idempotent, it is a no-op from inside the target,
@@ -173,7 +214,7 @@ function resolves(cwd, ref) {
  * change the operator's directory, so the path is returned and the CLI prints it instead.
  *
  * @param {string} branch
- * @param {{cwd:string, base?:string}} opts
+ * @param {{cwd:string, base?:string, bayDir?:string}} opts
  * @returns {StartResult}
  * @throws {BayError} on every failure, each carrying its own remedy
  */
@@ -193,10 +234,14 @@ export function startBay(branch, opts) {
 
   let target;
   try {
-    target = resolveBayPath(branch, cwd);
+    target = resolveBayPath(branch, cwd, { bayDir: opts.bayDir });
   } catch {
     throw new BayError(`${cwd} is not inside a git repository — run this from a repository checkout`);
   }
+
+  // Before the idempotence guards rather than after the create: a second `start` is exactly when an
+  // exclude line someone dropped should come back, and it costs nothing when it is already there.
+  ensureBayIgnored(cwd, path.dirname(target));
 
   // The operator ran it twice, or ran it where they already are. Neither is a mistake worth
   // punishing, and creating anything here would nest a worktree inside a worktree.

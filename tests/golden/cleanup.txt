@@ -16,7 +16,7 @@ NEXT:
 
   This leg's `stampCmd` never succeeds on purpose, exactly as the bay leg's does not: Waybill takes
   cleanup's stamp from repository state — the branch merged into the default branch, and no bay left
-  at the convention path — never from a booking. This one exists to supply the waybill: the command,
+  at the configured path — never from a booking. This one exists to supply the waybill: the command,
   the model, and this text.
 
   `/mar` is a personal dotfile command rather than something Waybill ships, and the README names what
