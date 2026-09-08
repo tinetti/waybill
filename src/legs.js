@@ -7,7 +7,7 @@ import { inBay, isMerged, resolveBayPath } from './repo.js';
  */
 
 /**
- * @typedef {{cwd:string, root:string, branch:string|null, base:string|null}} RepoState
+ * @typedef {{cwd:string, root:string, branch:string|null, base:string, docketOpen:boolean}} RepoState
  *   `root` is the working tree the stamps resolve against; `base` is the default branch.
  */
 
@@ -81,7 +81,7 @@ export function bayIsDone(state) {
  */
 export function cleanupIsDone(state) {
   const { branch, base } = state;
-  if (!branch || !base || branch === base) return false;
+  if (!branch || branch === base) return false;
   if (!isMerged(branch, base, state.cwd)) return false;
   const target = bayPath(state);
   return target !== null && !fs.existsSync(target);
@@ -89,14 +89,13 @@ export function cleanupIsDone(state) {
 
 /**
  * The `ideate` leg leaves no papers by design — a rough-ideation conversation writes nothing —
- * so it is judged by what it must have preceded: any later leg being complete, or a branch other
- * than the default being checked out.
+ * so it is judged by what it must have preceded: any later leg being complete, or a docket being
+ * open at all.
  *
  * @param {RepoState} state
  * @param {boolean} laterComplete whether any leg after this one is complete
  * @returns {boolean}
  */
 export function ideateIsDone(state, laterComplete) {
-  if (laterComplete) return true;
-  return Boolean(state.branch && state.base && state.branch !== state.base);
+  return laterComplete || state.docketOpen;
 }

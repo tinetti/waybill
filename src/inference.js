@@ -16,7 +16,7 @@ export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta
 /**
  * @typedef {{leg:string|null, index:number, completed:string[], skipped:string[],
  *            progress?:{done:number,total:number,source:string,changeId:string|null},
- *            booking?:import('./bookings.js').Booking, branch:string|null,
+ *            booking?:import('./bookings.js').Booking, branch:string|null, docketOpen:boolean,
  *            changeId:string|null, warnings:string[]}} Inference
  */
 
@@ -80,13 +80,21 @@ export function resolveLeg(cwd, bookings) {
       skipped: [],
       booking: bookings.get(LEGS[0].id),
       branch: null,
+      docketOpen: false,
       changeId: null,
       warnings,
     };
   }
 
+  const branch = currentBranch(anchor);
+  const base = defaultBranch(anchor);
+  // A docket is the branch: nothing is in flight while we stand on the trunk. The `branch` guard is
+  // load-bearing — `currentBranch` is null on a detached HEAD, and `null !== 'main'` would
+  // otherwise open a docket with no branch to hang it on.
+  const docketOpen = Boolean(branch) && branch !== base;
+
   /** @type {import('./legs.js').RepoState} */
-  const state = { cwd: anchor, root, branch: currentBranch(anchor), base: defaultBranch(anchor) };
+  const state = { cwd: anchor, root, branch, base, docketOpen };
 
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
   const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings)));
@@ -106,6 +114,7 @@ export function resolveLeg(cwd, bookings) {
     skipped: LEGS.filter((_, i) => !done[i] && i > current && i < lastComplete).map((entry) => entry.id),
     booking: leg === null ? undefined : bookings.get(leg),
     branch: state.branch,
+    docketOpen: state.docketOpen,
     changeId: discoverChangeId(root),
     warnings,
   };

@@ -10,6 +10,7 @@ import { executeProgress } from '../src/progress.js';
 import { loadBookings } from '../src/bookings.js';
 import {
   addSubmodule,
+  addWorktree,
   cleanupAll,
   createRepo,
   git,
@@ -294,6 +295,23 @@ describe('resolveLeg', () => {
 
   it('never throws in a repository with no commits', () => {
     assert.equal(resolve(createRepo({ commit: false })).leg, 'ideate');
+  });
+
+  describe('docketOpen', () => {
+    it('is false on the base branch', () => {
+      const repo = createRepo({ remote: true, originHead: true });
+      assert.equal(resolveLeg(repo).docketOpen, false);
+    });
+
+    it('is true in a bay on a feature branch', () => {
+      const repo = createRepo({ remote: true, originHead: true });
+      const bay = addWorktree(repo, 'feat/thing');
+      assert.equal(resolveLeg(bay).docketOpen, true);
+    });
+
+    it('is false outside a repository', () => {
+      assert.equal(resolveLeg(path.join(tempRoot(), 'missing')).docketOpen, false);
+    });
   });
 });
 
