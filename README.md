@@ -32,8 +32,8 @@ seen exactly as one done through the tool.
 | --- | --- | --- | --- |
 | 1 | `ideate` | a non-default branch, or any later leg being stamped | `bookings/ideation-ideate.md` |
 | 2 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
-| 3 | `refine` | `docs/ideation/*/contract-data.json` | `bookings/ideation-refine.md` |
-| 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
+| 3 | `refine` | `docs/ideation/*/contract-data.json`, among the docket's own changed paths | `bookings/ideation-refine.md` |
+| 4 | `contract` | `docs/ideation/*/contract.md`, among the docket's own changed paths | `bookings/ideation-contract.md` |
 | 5 | `specs` | `openspec/changes/*/tasks.md` | `bookings/openspec-specs.md` |
 | 6 | `execute` | every checkbox in `tasks.md` ticked | `bookings/openspec-execute.md` |
 | 7 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
@@ -41,6 +41,9 @@ seen exactly as one done through the tool.
 Legs 2 and 7 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
 anchor and the terminus have to be relied on while everything they hand to is swappable. They still
 take their command, model, and prose from a booking like every other leg.
+
+`stampCmd` bookings receive no docket scoping: that command runs against the repository as it
+stands, so one that greps a directory tree can still match papers left over from history.
 
 ## Install
 

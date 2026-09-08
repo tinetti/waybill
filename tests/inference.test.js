@@ -67,8 +67,10 @@ describe('LEGS', () => {
     ]);
   });
 
-  it('has one fixture per leg and no strays — criterion 1 counts this directory', () => {
-    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length);
+  it('has one fixture per leg, plus no-docket for the trunk, and no strays', () => {
+    // Criterion 1 counts this directory; no-docket.js is the one deliberate exception, since the
+    // state it covers — standing on the base branch — is not one of the seven legs.
+    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 1);
   });
 });
 

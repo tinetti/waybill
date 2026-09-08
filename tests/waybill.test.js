@@ -9,6 +9,7 @@ import { renderWaybill, renderPosition } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
+import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
 import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
@@ -68,6 +69,7 @@ function state(overrides = {}) {
       path: '/bookings/openspec-specs.md',
     },
     branch: 'feat/thing',
+    docketOpen: true,
     changeId: 'add-thing',
     warnings: [],
     ...overrides,
@@ -110,6 +112,10 @@ describe('renderWaybill golden output', () => {
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);
     assertGolden('complete', renderWaybill(result, CLEAN));
+  });
+
+  it('renders no docket open on the base branch', () => {
+    assertGolden('no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
   });
 });
 
