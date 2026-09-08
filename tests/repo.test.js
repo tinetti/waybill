@@ -204,18 +204,52 @@ describe('defaultBranch', () => {
     assert.equal(defaultBranch(repo), 'trunk');
   });
 
-  it('falls back to the current branch when origin publishes no HEAD', () => {
+  it('falls back to a local main when origin publishes no HEAD', () => {
     const repo = createRepo({ branch: 'main', remote: true });
     git(repo, ['checkout', '-b', 'feat/x']);
-    assert.equal(defaultBranch(repo), 'feat/x');
+    assert.equal(defaultBranch(repo), 'main');
   });
 
-  it('falls back to the current branch when there is no remote', () => {
-    assert.equal(defaultBranch(createRepo({ branch: 'trunk' })), 'trunk');
+  it('falls back to a local master when there is no remote', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['checkout', '-b', 'feat/x']);
+    assert.equal(defaultBranch(repo), 'master');
   });
 
   it('does not throw in a repository with zero commits', () => {
     assert.equal(defaultBranch(createRepo({ commit: false, branch: 'main' })), 'main');
+  });
+});
+
+describe('defaultBranch without origin/HEAD', () => {
+  it('falls back to a local main', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('falls back to a local master when there is no main', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'master');
+  });
+
+  it('prefers main over master when both exist', () => {
+    const repo = createRepo({ branch: 'master' });
+    git(repo, ['branch', 'main']);
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('returns main when no candidate branch exists', () => {
+    const repo = createRepo({ branch: 'wip' });
+    assert.equal(defaultBranch(repo), 'main');
+  });
+
+  it('never returns the current branch as the base', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.notEqual(defaultBranch(repo), currentBranch(repo));
   });
 });
 

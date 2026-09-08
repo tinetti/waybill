@@ -98,17 +98,34 @@ export function hasRemote(cwd) {
 }
 
 /**
- * The branch new work forks from: `origin/HEAD` when the remote publishes one, otherwise the
- * current branch. Never fetches — fetching is a side effect belonging to the bay command,
- * not to a query inference calls repeatedly.
+ * Trunk names probed when the remote publishes no `origin/HEAD`, in preference order.
+ * The list exists so a remoteless `master` repository is not told its base is `main`, which would
+ * report a docket open while standing on the trunk.
+ */
+const BASE_CANDIDATES = ['main', 'master', 'trunk'];
+
+/**
+ * The branch new work forks from: `origin/HEAD` when the remote publishes one, otherwise the first
+ * conventional trunk that exists locally, otherwise `main`.
+ *
+ * Never returns the current branch. The previous self-referential fallback made `branch === base`
+ * unconditionally true in a remoteless repository, so a docket could never be seen to open there.
+ * Never fetches — fetching is a side effect belonging to the bay command, not to a query inference
+ * calls repeatedly.
  *
  * @param {string} cwd
- * @returns {string|null}
+ * @returns {string}
  */
 export function defaultBranch(cwd) {
   const head = tryGit(cwd, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
   if (head) return head.replace(/^origin\//, '');
-  return currentBranch(cwd);
+
+  for (const candidate of BASE_CANDIDATES) {
+    if (tryGit(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
+      return candidate;
+    }
+  }
+  return BASE_CANDIDATES[0];
 }
 
 /** How many superproject hops are walked before the chain is treated as pathological. */
