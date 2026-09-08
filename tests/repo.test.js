@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import {
+  changedPaths,
   currentBranch,
   defaultBranch,
   hasRemote,
@@ -23,6 +24,7 @@ import {
   tempRoot,
   withEnv,
   withPath,
+  writeFile,
 } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
@@ -334,5 +336,49 @@ describe('probeOpenspec', () => {
     const result = withPath(`${stub}:${absent()}`, () => probeOpenspec(tempRoot()));
     assert.equal(result.available, true);
     assert.equal(result.fields, undefined);
+  });
+});
+
+describe('changedPaths', () => {
+  it('is empty on a branch identical to its base', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.deepEqual(changedPaths(repo, 'main'), []);
+  });
+
+  it('reports a file committed on the branch', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    writeFile(path.join(repo, 'docs', 'new.md'), 'x\n');
+    git(repo, ['add', 'docs/new.md']);
+    git(repo, ['commit', '-m', 'add']);
+    assert.deepEqual(changedPaths(repo, 'main'), ['docs/new.md']);
+  });
+
+  it('reports staged, unstaged and untracked files', () => {
+    const repo = createRepo({ branch: 'main' });
+    git(repo, ['checkout', '-b', 'feat/thing']);
+
+    writeFile(path.join(repo, 'staged.md'), 'a\n');
+    git(repo, ['add', 'staged.md']);
+    writeFile(path.join(repo, 'README.md'), '# edited\n');
+    writeFile(path.join(repo, 'untracked.md'), 'c\n');
+
+    const result = changedPaths(repo, 'main');
+    assert.deepEqual([...result].sort(), ['README.md', 'staged.md', 'untracked.md']);
+  });
+
+  it('does not report a file that only exists on the base branch', () => {
+    const repo = createRepo({ branch: 'main' });
+    writeFile(path.join(repo, 'shipped.md'), 'old\n');
+    git(repo, ['add', 'shipped.md']);
+    git(repo, ['commit', '-m', 'ship']);
+    git(repo, ['checkout', '-b', 'feat/thing']);
+    assert.deepEqual(changedPaths(repo, 'main'), []);
+  });
+
+  it('is null when the base ref does not exist', () => {
+    const repo = createRepo({ branch: 'main' });
+    assert.equal(changedPaths(repo, 'nonexistent'), null);
   });
 });

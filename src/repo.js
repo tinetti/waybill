@@ -185,6 +185,48 @@ export function checkoutRoot(cwd) {
 }
 
 /**
+ * Split git's multi-line output into entries.
+ *
+ * `''.split('\n')` yields `['']`, and an empty diff is the common case here rather than the
+ * exception it is for this module's other callers, so the empty entry has to be dropped.
+ *
+ * @param {string} output
+ * @returns {string[]}
+ */
+function lines(output) {
+  return output.split('\n').filter(Boolean);
+}
+
+/**
+ * Every path the current branch introduces relative to `base` — committed, staged, unstaged and
+ * untracked — as repository-relative forward-slash paths.
+ *
+ * `null` means the question could not be answered: the refs share no history, or `base` does not
+ * exist. That is deliberately distinct from `[]` ("nothing changed"), because a caller that scopes
+ * stamps by this set must stamp nothing when it cannot tell, rather than fall back to matching
+ * whatever is on disk and reinstate the bug this exists to fix.
+ *
+ * Directories never appear: `git diff --name-only` reports files. A `stampPath` naming a directory
+ * therefore cannot stamp a docket.
+ *
+ * @param {string} cwd
+ * @param {string} base
+ * @returns {string[]|null}
+ */
+export function changedPaths(cwd, base) {
+  const mergeBase = tryGit(cwd, ['merge-base', base, 'HEAD']);
+  if (mergeBase === null) return null;
+
+  // `git diff <commit>` compares the working tree to the commit, so committed, staged and unstaged
+  // changes all arrive in one call; only untracked files need the second.
+  const tracked = tryGit(cwd, ['diff', '--name-only', mergeBase]);
+  const untracked = tryGit(cwd, ['ls-files', '--others', '--exclude-standard', '--full-name']);
+  if (tracked === null || untracked === null) return null;
+
+  return [...lines(tracked), ...lines(untracked)];
+}
+
+/**
  * True when every commit on `branch` is already contained in `base`.
  *
  * `--format` is used rather than parsing `git branch`'s decorated output, whose leading `* ` marker
