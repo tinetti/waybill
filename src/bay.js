@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { defaultBranch, hasRemote, mainCheckout, resolveBayPath } from './repo.js';
+import { defaultBranch, hasRemote, listWorktrees, mainCheckout, resolveBayPath } from './repo.js';
 
 /**
  * @typedef {{path:string, created:boolean, branchCreated:boolean, base:string|null}} StartResult
@@ -52,38 +52,6 @@ function git(cwd, args) {
  */
 function firstLine(text) {
   return text.split('\n')[0].replace(/^fatal:\s*/, '').trim();
-}
-
-/**
- * @typedef {{path:string, branch:string|null, prunable:boolean}} WorktreeRecord
- */
-
-/**
- * Every worktree git has registered, including ones whose directory has since been deleted — those
- * carry a `prunable` line, and conflating them with live ones is what turns the idempotence guard
- * into a `cd` into nothing.
- *
- * @param {string} cwd
- * @returns {WorktreeRecord[]}
- */
-function listWorktrees(cwd) {
-  const listing = git(cwd, ['worktree', 'list', '--porcelain']);
-  if (!listing.ok) return [];
-
-  /** @type {WorktreeRecord[]} */
-  const records = [];
-  for (const line of listing.stdout.split('\n')) {
-    // The `worktree ` prefix is sliced rather than split on whitespace so paths with spaces survive.
-    if (line.startsWith('worktree ')) {
-      records.push({ path: line.slice('worktree '.length), branch: null, prunable: false });
-      continue;
-    }
-    const current = records[records.length - 1];
-    if (!current) continue;
-    if (line.startsWith('branch refs/heads/')) current.branch = line.slice('branch refs/heads/'.length);
-    if (line === 'prunable' || line.startsWith('prunable ')) current.prunable = true;
-  }
-  return records;
 }
 
 /**
