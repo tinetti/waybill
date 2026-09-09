@@ -38,23 +38,23 @@ the literal `/waybill:start`, so leaving the rename until last meant §3 would v
 this section then rewrites. Renaming first is one mechanical diff against a green suite, and every
 section after it is written against final verb names.
 
-- [ ] 2.1 Rename `commands/start.md` to `commands/bay.md` and update the declared-command list in the
+- [x] 2.1 Rename `commands/start.md` to `commands/bay.md` and update the declared-command list in the
   commands suite in the same step — verified by the commands suite passing with no `start.md`
-- [ ] 2.2 Rename the CLI verb from `start` to `bay` with no alias, leaving its argument, collision
+- [x] 2.2 Rename the CLI verb from `start` to `bay` with no alias, leaving its argument, collision
   handling and success block unchanged. Touches the dispatch entry (`src/cli.js:204`), the usage line
   (`:17`), the `--bay-dir` help (`:22`), the jsdoc (`:124`), the function (`:136`) and the two error
   strings (`:155`, `:163`), plus `startBay` in `src/bay.js` — verified by the existing start cases at
   `tests/cli.test.js:198-297` passing under the new name and `start` being rejected as unknown
-- [ ] 2.3 Update `bookings/waybill-bay.md:3` from `/waybill:start` to `/waybill:bay`. That literal is
+- [x] 2.3 Update `bookings/waybill-bay.md:3` from `/waybill:start` to `/waybill:bay`. That literal is
   pinned by `tests/inference.test.js:146` (`assert.equal(result.booking.command, '/waybill:start')`),
   so **update that assertion in the same step** — verified by the inference suite passing. Editing
   `tests/inference.test.js` does **not** breach the boundary: the guardrail is on `src/inference.js`,
   not on its suite. Do not stop on this.
-- [ ] 2.4 Update the README route and command tables to name `bay` — verified by the commands suite's
+- [x] 2.4 Update the README route and command tables to name `bay` — verified by the commands suite's
   vendored-routing assertion
-- [ ] 2.5 Regenerate `tests/golden/bay.txt`, and update the text-only mentions of the old verb at
+- [x] 2.5 Regenerate `tests/golden/bay.txt`, and update the text-only mentions of the old verb at
   `commands/status.md:19` and `src/bay.js:209` — verified by the waybill suite
-- [ ] 2.6 **Do not** correct the stale `/waybill:start` comment at `src/inference.js:113`. It is left
+- [x] 2.6 **Do not** correct the stale `/waybill:start` comment at `src/inference.js:113`. It is left
   deliberately: the zero-diff criterion on that file is the check on the whole approach, and an
   implementer who "fixes" the comment has done exactly what the boundary exists to catch. The next
   change that legitimately opens that module fixes it.

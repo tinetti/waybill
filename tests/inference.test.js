@@ -143,7 +143,7 @@ describe('resolveLeg', () => {
 
   it('carries the booking for a wrapper-owned leg too, since the waybill is not the stamp', () => {
     const result = resolve(bayFixture().dir);
-    assert.equal(result.booking.command, '/waybill:start');
+    assert.equal(result.booking.command, '/waybill:bay');
     assert.match(result.booking.path, /waybill-bay\.md$/);
   });
 

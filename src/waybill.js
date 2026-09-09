@@ -21,7 +21,7 @@ const DEFAULT_HANDOVER = 'run:';
  * booking whose `argument` reads `constructor` would find a function on a plain object's prototype
  * and be called with the resolved state. `loadBookings` rejects that key today, so this is depth
  * rather than a live bug — but the renderer is also reachable with hand-built bookings from tests
- * and from `waybill start`, and a lookup table should not depend on its only caller validating for
+ * and from `waybill bay`, and a lookup table should not depend on its only caller validating for
  * it.
  */
 const ARGUMENT_SOURCES = new Map([
@@ -173,7 +173,7 @@ function withFindings(sections, state, inspection) {
 /**
  * The whole product in one string: where this repository stands, and what the next session runs.
  *
- * Pure by design — no filesystem, no subprocess, no clock. `waybill start` prints this same block
+ * Pure by design — no filesystem, no subprocess, no clock. `waybill bay` prints this same block
  * after creating a bay, and a renderer that went looking for its own inputs could not be reused
  * there.
  *

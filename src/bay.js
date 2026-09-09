@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { defaultBranch, hasRemote, listWorktrees, mainCheckout, resolveBayPath } from './repo.js';
 
 /**
- * @typedef {{path:string, created:boolean, branchCreated:boolean, base:string|null}} StartResult
+ * @typedef {{path:string, created:boolean, branchCreated:boolean, base:string|null}} BayResult
  *   `base` is the ref the branch was cut from, and `null` whenever nothing was cut — a no-op, an
  *   existing bay, or a branch that already existed. Naming a base in those cases would be an
  *   invention: no ref was chosen, and the caller would have no way to tell the difference.
@@ -182,10 +182,10 @@ function resolves(cwd, ref) {
  *
  * @param {string} branch
  * @param {{cwd:string, base?:string, bayDir?:string}} opts
- * @returns {StartResult}
+ * @returns {BayResult}
  * @throws {BayError} on every failure, each carrying its own remedy
  */
-export function startBay(branch, opts) {
+export function openBay(branch, opts) {
   const { cwd } = opts;
 
   if (!branch || branch.trim() === '') {
@@ -206,7 +206,7 @@ export function startBay(branch, opts) {
     throw new BayError(`${cwd} is not inside a git repository — run this from a repository checkout`);
   }
 
-  // Before the idempotence guards rather than after the create: a second `start` is exactly when an
+  // Before the idempotence guards rather than after the create: a second `bay` is exactly when an
   // exclude line someone dropped should come back, and it costs nothing when it is already there.
   ensureBayIgnored(cwd, path.dirname(target));
 

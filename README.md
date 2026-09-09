@@ -64,7 +64,7 @@ The two surfaces install separately, and neither one brings the other.
 /plugin install waybill@tinetti
 ```
 
-That gives you `/waybill:next`, `/waybill:start`, `/waybill:status`, and the four routing commands as
+That gives you `/waybill:bay`, `/waybill:next`, `/waybill:status`, and the four routing commands as
 **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces every plugin command
 under the plugin name, and a `commands/` subdirectory becomes one more segment — measured against a
 scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown command.
@@ -94,8 +94,8 @@ step.
 
 | Command | Slash command | Answers |
 | --- | --- | --- |
+| `waybill bay <branch>` | `/waybill:bay` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill next` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
-| `waybill start <branch>` | `/waybill:start` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill status` | `/waybill:status` | Where this docket stands, without the waybill |
 
 The **docket** is the branch. It is open whenever a branch other than the default one is checked
@@ -119,14 +119,14 @@ NEXT:
 That is the whole trunk state: no leg strip, no completed legs, and `next --json` reports
 `"docketOpen": false` with `leg: "ideate"` and empty `completed`/`skipped`. Ideating comes before
 the docket exists — the papers it produces travel as the branch's first diff once
-`waybill start <branch>` cuts the bay.
+`waybill bay <branch>` cuts the bay.
 
 `waybill next --json` prints the raw resolved state for scripts. `waybill status` takes no options —
 the machine-readable surface is `next --json`, and a second one would be a second thing to keep in
 step.
 
 All three warn when a paper directory is git-ignored in the host repository — `next` and `status`
-before their position block, and `start` in the waybill it prints after cutting the bay. That
+before their position block, and `bay` in the waybill it prints after cutting the bay. That
 matters more than it sounds: untracked papers are destroyed when the bay is removed at the cleanup
 leg.
 
@@ -134,7 +134,7 @@ leg.
 
 A bay is a git worktree, and by default it goes in `.claude/worktrees/` inside the main checkout —
 `<main>/.claude/worktrees/<checkout>-<branch>`, with every `/` in the branch name flattened to `-`.
-Waybill adds that directory to `.git/info/exclude` on the first `start`, never to the tracked
+Waybill adds that directory to `.git/info/exclude` on the first `bay`, never to the tracked
 `.gitignore`: the host repository's ignore file belongs to the host, and a nested worktree that is
 not ignored is staged as an embedded repository by `git add -A`.
 
@@ -142,8 +142,8 @@ Point it somewhere else, in order of precedence:
 
 | Where | Example |
 | --- | --- |
-| `--bay-dir <path>` on `start` | `waybill start feat/thing --bay-dir ../bays` |
-| `WAYBILL_BAY_DIR` | `WAYBILL_BAY_DIR=~/bays waybill start feat/thing` |
+| `--bay-dir <path>` on `bay` | `waybill bay feat/thing --bay-dir ../bays` |
+| `WAYBILL_BAY_DIR` | `WAYBILL_BAY_DIR=~/bays waybill bay feat/thing` |
 | `git config waybill.baydir` | `git config waybill.baydir ..` |
 
 An absolute path is the container directory as it stands; a relative one resolves against the main

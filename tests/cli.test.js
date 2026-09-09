@@ -195,11 +195,11 @@ describe('waybill status', () => {
   });
 });
 
-describe('waybill start', () => {
+describe('waybill bay', () => {
   it('creates the bay, names the cd target, and hands off the leg that follows', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const result = cli(['start', 'feat/demo'], repo);
+    const result = cli(['bay', 'feat/demo'], repo);
     const target = defaultBayPath(repo, 'feat/demo');
 
     assert.equal(result.code, 0);
@@ -214,9 +214,9 @@ describe('waybill start', () => {
 
   it('is a clean no-op on a second run, and still prints the waybill', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    cli(['start', 'feat/demo'], repo);
+    cli(['bay', 'feat/demo'], repo);
 
-    const result = cli(['start', 'feat/demo'], repo);
+    const result = cli(['bay', 'feat/demo'], repo);
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
@@ -227,10 +227,10 @@ describe('waybill start', () => {
 
   it('reports a no-op without a cd line when run from inside the bay it would create', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    cli(['start', 'feat/demo'], repo);
+    cli(['bay', 'feat/demo'], repo);
     const target = defaultBayPath(repo, 'feat/demo');
 
-    const result = cli(['start', 'feat/demo'], target);
+    const result = cli(['bay', 'feat/demo'], target);
 
     assert.equal(result.code, 0);
     assert.equal(/^ {2}cd /m.test(result.out), false, 'told the operator to cd where they already are');
@@ -239,7 +239,7 @@ describe('waybill start', () => {
   });
 
   it('exits 2 with usage when given no branch name at all', () => {
-    const result = cli(['start'], createRepo({ remote: true, originHead: true }));
+    const result = cli(['bay'], createRepo({ remote: true, originHead: true }));
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
@@ -250,7 +250,7 @@ describe('waybill start', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const result = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () =>
-      cli(['start', '--bay-dir', 'bays', 'feat/demo'], repo),
+      cli(['bay', '--bay-dir', 'bays', 'feat/demo'], repo),
     );
     const target = path.join(repo, 'bays', `${path.basename(repo)}-feat-demo`);
 
@@ -262,11 +262,11 @@ describe('waybill start', () => {
   it('accepts --bay-dir after the branch name too, and rejects it with no path', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const trailing = cli(['start', 'feat/demo', '--bay-dir', 'bays'], repo);
+    const trailing = cli(['bay', 'feat/demo', '--bay-dir', 'bays'], repo);
     assert.equal(trailing.code, 0);
     assert.match(trailing.out, new RegExp(`^ {2}cd ${path.join(repo, 'bays')}`, 'm'));
 
-    const bare = cli(['start', '--bay-dir'], repo);
+    const bare = cli(['bay', '--bay-dir'], repo);
     assert.equal(bare.code, 2);
     assert.equal(bare.out, '');
     assert.match(bare.err, /`--bay-dir` takes a path/);
@@ -275,17 +275,17 @@ describe('waybill start', () => {
   it('rejects an option and a second positional rather than guessing which is the branch', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const flagged = cli(['start', '--force', 'feat/demo'], repo);
+    const flagged = cli(['bay', '--force', 'feat/demo'], repo);
     assert.equal(flagged.code, 2);
     assert.match(flagged.err, /unknown option `--force`/);
 
-    const extra = cli(['start', 'feat/demo', 'feat/other'], repo);
+    const extra = cli(['bay', 'feat/demo', 'feat/other'], repo);
     assert.equal(extra.code, 2);
     assert.match(extra.err, /one branch name/);
   });
 
   it('explains itself in one line outside a repository and exits 2', () => {
-    const result = cli(['start', 'feat/demo'], tempRoot());
+    const result = cli(['bay', 'feat/demo'], tempRoot());
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
@@ -294,13 +294,24 @@ describe('waybill start', () => {
   });
 
   it('turns a git refusal into a remedy on stderr, with no stack trace and no half-waybill', () => {
-    const result = cli(['start', 'feat/demo'], createRepo({ commit: false }));
+    const result = cli(['bay', 'feat/demo'], createRepo({ commit: false }));
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
     assert.match(result.err, /no commits yet/);
     assert.match(result.err, /initial commit/);
     assert.equal(/\bat .*\.js:\d+/.test(result.err), false, 'a stack trace leaked into stderr');
+  });
+
+  it('rejects the former `start` verb as unknown, since the rename ships without an alias', () => {
+    const result = cli(['start', 'feat/demo'], createRepo({ remote: true, originHead: true }));
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /unknown command `start`/);
+    // An alias would be a second name to document and keep in step forever, so usage must not
+    // offer the old verb back either.
+    assert.equal(/^ {2}start /m.test(result.err), false, '`start` is still listed in usage');
   });
 });
 

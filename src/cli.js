@@ -7,19 +7,19 @@ import { resolveLeg } from './inference.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
 import { checkoutRoot, superprojectRoot } from './repo.js';
-import { BayError, isInside, startBay } from './bay.js';
+import { BayError, isInside, openBay } from './bay.js';
 
 const USAGE = [
   'Usage: waybill <command> [options]',
   '',
   'Commands:',
+  '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next            Where this docket stands, and the waybill for the next leg',
-  '  start <branch>  Create the branch and its bay, then hand off the next leg',
   '  status          Where this docket stands, without the waybill',
   '',
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
-  '  --bay-dir <path>  Where bays are created (`start` only); overrides WAYBILL_BAY_DIR and',
+  '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
   '                    `git config waybill.baydir`. Relative paths resolve against the main',
   '                    checkout; the default is .claude/worktrees',
   '  --help            Print this message',
@@ -121,7 +121,7 @@ function status(cwd, args, io) {
 }
 
 /**
- * `waybill start <branch>` — cut the branch and its bay, then hand off the leg that follows.
+ * `waybill bay <branch>` — cut the branch and its bay, then hand off the leg that follows.
  *
  * Leaving the operator at a bare success message would recreate the exact gap Waybill exists to
  * close, so the waybill is printed here too. It is resolved from the *new* bay rather than from
@@ -133,7 +133,7 @@ function status(cwd, args, io) {
  * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
  * @returns {number} exit code
  */
-function start(cwd, args, io) {
+function bay(cwd, args, io) {
   /** @type {string[]} */
   const positional = [];
   /** @type {string|undefined} */
@@ -152,7 +152,7 @@ function start(cwd, args, io) {
     }
     // `--help` is answered by `run` before dispatch, so no other option here is one we know.
     if (arg.startsWith('-')) {
-      io.err(`waybill: unknown option \`${arg}\` for \`start\`\n${USAGE}\n`);
+      io.err(`waybill: unknown option \`${arg}\` for \`bay\`\n${USAGE}\n`);
       return 2;
     }
     positional.push(arg);
@@ -160,17 +160,17 @@ function start(cwd, args, io) {
 
   const [branch, ...extra] = positional;
   if (!branch || extra.length > 0) {
-    io.err(`waybill: \`start\` takes exactly one branch name\n${USAGE}\n`);
+    io.err(`waybill: \`bay\` takes exactly one branch name\n${USAGE}\n`);
     return 2;
   }
 
   const root = repoRoot(cwd, io);
   if (root === null) return 2;
 
-  /** @type {import('./bay.js').StartResult} */
+  /** @type {import('./bay.js').BayResult} */
   let result;
   try {
-    result = startBay(branch, { cwd: root, bayDir });
+    result = openBay(branch, { cwd: root, bayDir });
   } catch (error) {
     // Only this module's own failures are operator-facing; anything else is a bug and must not be
     // dressed up as advice.
@@ -200,8 +200,8 @@ function start(cwd, args, io) {
 
 /** Subcommands, as a Map so a bare `constructor` on the command line resolves to nothing. */
 const COMMANDS = new Map([
+  ['bay', bay],
   ['next', next],
-  ['start', start],
   ['status', status],
 ]);
 

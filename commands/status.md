@@ -16,7 +16,7 @@ session.
 question — checking where a docket stands mid-session, or after handing one off — so that reading
 the last stamp does not also re-issue an instruction the operator has already acted on.
 
-No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next` and `start`: falling back
+No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next` and `bay`: falling back
 to the operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not
 exist, and hands the model a raw node MODULE_NOT_FOUND dump in place of the block below.
 -->
