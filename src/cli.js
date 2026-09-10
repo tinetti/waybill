@@ -7,13 +7,16 @@ import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
-import { checkoutRoot, superprojectRoot } from './repo.js';
+import { checkoutRoot, defaultBranch, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
 
 const USAGE = [
   'Usage: waybill <command> [options]',
   '',
   'Commands:',
+  // Route-table order rather than alphabetical, matching the order an effort actually goes through:
+  // begin it, cut its bay, ask what comes next, ask where it stands.
+  '  new             Begin an effort: the first leg\'s waybill, and nothing else',
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
@@ -262,6 +265,84 @@ function status(cwd, args, io) {
 }
 
 /**
+ * Leg 1's state, whichever tree the question was asked from.
+ *
+ * On the trunk `resolveLeg` already answers leg 1 — nothing stamps from history alone there — so its
+ * result is passed through untouched, and the block stays byte-for-byte what the trunk used to print
+ * in reply to `next`. Inside a bay it answers for that bay's docket instead, which is a different
+ * question, so the first leg is rebuilt here.
+ *
+ * Rebuilt rather than resolved: `src/inference.js` is deliberately not opened by this change, and a
+ * `resolveFirstLeg` exported from it would be one more caller of a module whose whole contract is
+ * "infer from the repository". Nothing about leg 1 is inferred — it is where every effort starts.
+ *
+ * The branch is the *trunk's*, not the bay's. `feat/x · no docket open` would be a false claim about
+ * a branch that plainly carries one, and `feat/x · leg 1 of 7 (ideate)` a false claim about where
+ * that docket stands; this waybill belongs to the trunk, and the warning says why it was printed
+ * here anyway. The warning rides in `state.warnings` rather than going to stderr so it lands in the
+ * block's own `WARNINGS:` section — the `` ! `` invocation captures stdout only.
+ *
+ * @param {string} cwd
+ * @param {string} root the working tree root {@link repoRoot} resolved
+ * @param {Map<string, import('./bookings.js').Booking>} bookings
+ * @returns {import('./inference.js').Inference}
+ */
+function firstLeg(cwd, root, bookings) {
+  const state = resolveLeg(cwd, bookings);
+  if (!state.docketOpen) return state;
+
+  return {
+    leg: LEGS[0].id,
+    index: 1,
+    completed: [],
+    skipped: [],
+    booking: bookings.get(LEGS[0].id),
+    branch: defaultBranch(root),
+    docketOpen: false,
+    changeId: null,
+    warnings: [
+      ...state.warnings,
+      `new efforts begin on the trunk, and ${state.branch} already carries a docket — this is ` +
+        'still leg 1\'s waybill, and the ideate leg writes nothing to disk wherever it is run',
+    ],
+  };
+}
+
+/**
+ * `waybill new` — begin an effort: leg 1's waybill, and nothing else.
+ *
+ * The block is the one the trunk used to answer `next` with, moved to the verb that means it. In a
+ * terminal that is the whole command: printing a waybill is all a CLI can do, because it has no
+ * session to invoke anything in. `/waybill:new` shows the same block and then runs what it names.
+ *
+ * No exit contract of its own, and no branch to take: the fleet cannot change the answer, because
+ * `new` is asked before there is a docket to be ambiguous about. Every argument is rejected for the
+ * reason `status` rejects them — `next --json` is the one machine-readable surface, and a second one
+ * would be another shape to keep in step.
+ *
+ * @param {string} cwd
+ * @param {string[]} args
+ * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @returns {number} exit code
+ */
+function begin(cwd, args, io) {
+  // `--help` is answered by `run` before dispatch, so no argument reaching here is one we know.
+  if (args.length > 0) {
+    io.err(`waybill: unknown option \`${args[0]}\` for \`new\`\n${USAGE}\n`);
+    return 2;
+  }
+
+  const root = repoRoot(cwd, io);
+  if (root === null) return 2;
+
+  const bookings = resolveBookings(cwd, KNOWN_LEGS);
+  const state = firstLeg(cwd, root, bookings);
+
+  io.out(renderWaybill(state, checkIgnored(root, paperPaths(bookings))));
+  return 0;
+}
+
+/**
  * `waybill bay <branch>` — cut the branch and its bay, then hand off the leg that follows.
  *
  * Leaving the operator at a bare success message would recreate the exact gap Waybill exists to
@@ -341,8 +422,14 @@ function bay(cwd, args, io) {
   return 0;
 }
 
-/** Subcommands, as a Map so a bare `constructor` on the command line resolves to nothing. */
+/**
+ * Subcommands, as a Map so a bare `constructor` on the command line resolves to nothing.
+ *
+ * `new` is a reserved word, so the verb and its handler are the one pair here that cannot share a
+ * name — the key is what the operator types, and `begin` is what JavaScript will accept.
+ */
 const COMMANDS = new Map([
+  ['new', begin],
   ['bay', bay],
   ['next', next],
   ['status', status],

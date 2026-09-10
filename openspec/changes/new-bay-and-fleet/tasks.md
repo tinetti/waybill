@@ -107,22 +107,22 @@ section after it is written against final verb names.
 
 ## 5. `new`
 
-- [ ] 5.1 Add the CLI `new` verb printing leg 1's waybill and stopping, and re-point the existing
+- [x] 5.1 Add the CLI `new` verb printing leg 1's waybill and stopping, and re-point the existing
   `tests/golden/no-docket.txt` fixture at it — verified by that golden passing **unchanged**; a diff
   there means the ideate waybill was altered by accident. That golden is compared at
   `tests/waybill.test.js:118` (renderer level, not the CLI suite), and `tests/waybill.test.js:121-129`
   additionally pins `no-docket.txt` and `ideate.txt` as byte-identical on purpose — the re-point must
   disturb neither.
-- [ ] 5.2 Add `commands/new.md` declaring the model and effort its booking names, and invoking the
+- [x] 5.2 Add `commands/new.md` declaring the model and effort its booking names, and invoking the
   command the waybill names after showing the block — verified by the commands suite seeing the new
   declared command
-- [ ] 5.3 Pin `commands/new.md`'s model and effort against `bookings/ideation-ideate.md` — verified by
+- [x] 5.3 Pin `commands/new.md`'s model and effort against `bookings/ideation-ideate.md` — verified by
   a test that fails when the booking is rebooked to a different model
-- [ ] 5.4 Warn, and proceed, when `new` is invoked from inside a bay — verified by a CLI case
+- [x] 5.4 Warn, and proceed, when `new` is invoked from inside a bay — verified by a CLI case
   asserting the warning and a zero exit
-- [ ] 5.5 Handle the case where the command `new` names cannot be resolved: say so and leave the
+- [x] 5.5 Handle the case where the command `new` names cannot be resolved: say so and leave the
   waybill on screen as the instruction — verified by the instruction being stated in `commands/new.md`
-- [ ] 5.6 Add the fourth verb to the README command table — verified by review
+- [x] 5.6 Add the fourth verb to the README command table — verified by review
 
 ## 6. The session-facing branch
 

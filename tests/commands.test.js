@@ -32,6 +32,7 @@ const BOOKINGS = path.join(ROOT, 'bookings');
 const DECLARED = [
   'bay.md',
   'cleanup.md',
+  'new.md',
   'next.md',
   'spec/apply.md',
   'spec/archive.md',
@@ -183,6 +184,28 @@ describe('the shipped command set', () => {
       assert.equal(meta.model, expected.model, rel);
       assert.equal(meta.effort, expected.effort, rel);
       assert.match(source, /\$ARGUMENTS/, `${rel} lost its argument line`);
+    }
+  });
+
+  it('runs `new` at the model and effort the ideate booking names, and nothing else at any', () => {
+    // `new` is the one command whose waybill is for *this* session, and a session cannot switch its
+    // own model — so it declares one, and the value has to be the booking's. Asserted against the
+    // booking's parsed frontmatter rather than against `opus`/`high`: rebook ideate to sonnet and
+    // this reports that the command disagrees, which is the failure worth having. A literal would
+    // simply be a second place to state the same routing, free to drift from the first.
+    const meta = (dir, rel) =>
+      parseFrontmatter(fs.readFileSync(path.join(dir, ...rel.split('/')), 'utf8'), rel).meta;
+
+    const booking = meta(BOOKINGS, 'ideation-ideate.md');
+    assert.ok(booking.model, 'the ideate booking names no model, so the pin below asserts nothing');
+    assert.equal(meta(COMMANDS, 'new.md').model, booking.model);
+    assert.equal(meta(COMMANDS, 'new.md').effort, booking.effort);
+
+    // The inversion is half the requirement: every other command's waybill is for the *next*
+    // session, so declaring a model there would silently override the booking's own choice.
+    for (const rel of DECLARED.filter((name) => name !== 'new.md' && !name.startsWith('spec/'))) {
+      assert.equal(meta(COMMANDS, rel).model, undefined, `${rel} declares a model`);
+      assert.equal(meta(COMMANDS, rel).effort, undefined, `${rel} declares an effort`);
     }
   });
 });

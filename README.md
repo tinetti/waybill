@@ -64,10 +64,11 @@ The two surfaces install separately, and neither one brings the other.
 /plugin install waybill@tinetti
 ```
 
-That gives you `/waybill:bay`, `/waybill:next`, `/waybill:status`, and the four routing commands as
-**`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces every plugin command
-under the plugin name, and a `commands/` subdirectory becomes one more segment — measured against a
-scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown command.
+That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, and the four
+routing commands as **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces
+every plugin command under the plugin name, and a `commands/` subdirectory becomes one more segment
+— measured against a scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an
+unknown command.
 
 The waybills for legs 5 and 6 name the **bare** `/spec:propose` and `/spec:apply`. Those names come
 from `~/.claude/commands/spec/`, not from the plugin — the symlink step under *The vendored
@@ -94,6 +95,7 @@ step.
 
 | Command | Slash command | Answers |
 | --- | --- | --- |
+| `waybill new` | `/waybill:new` | Begin an effort: the first leg's waybill, and nothing else |
 | `waybill bay <branch>` | `/waybill:bay` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill next [<branch>]` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
@@ -103,6 +105,12 @@ out, and there is no state file to keep in step: git already tracks what is in f
 **waybill** is issued fresh for one leg: the command, the model, and the prose the next session
 needs, and nothing that outlives that session. `waybill next` prints a waybill; the docket is
 already in the repository.
+
+`waybill new` is the entry point, and the one verb asked before there is a docket to be about: it
+prints the first leg's waybill and stops, because a terminal has no session to run anything in.
+`/waybill:new` shows that same block and then runs the command it names, in that session and at the
+model and effort the booking asked for — a session cannot switch its own model, so the command file
+declares them and the test suite pins them against the booking.
 
 Standing on the default branch, no docket is open — so both commands answer for the repository
 instead of for the branch you are on. A **docket in flight is a bay on disk**: that is already the
@@ -140,11 +148,12 @@ too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so
 readable without a second surface. `waybill status` takes no options; the fleet view is chosen by
 where you stand, not by a flag.
 
-All three warn when a paper directory is git-ignored in the host repository — `next` and `status`
-before their position block, and `bay` in the waybill it prints after cutting the bay. That
-matters more than it sounds: untracked papers are destroyed when the bay is removed at the cleanup
-leg. In the fleet view each warning is prefixed with the branch it came from, so a docket that
-cannot read its own diff is named rather than blamed on the repository at large.
+All four warn when a paper directory is git-ignored in the host repository — `next` and `status`
+before their position block, `new` in the leg-1 waybill it prints, and `bay` in the waybill it
+prints after cutting the bay. That matters more than it sounds: untracked papers are destroyed when
+the bay is removed at the cleanup leg. In the fleet view each warning is prefixed with the branch it
+came from, so a docket that cannot read its own diff is named rather than blamed on the repository
+at large.
 
 ### Where bays live
 

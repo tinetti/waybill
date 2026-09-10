@@ -19,6 +19,7 @@ import {
   writeFile,
 } from './helpers/repo-fixture.js';
 import { specsFixture } from './fixtures/specs.js';
+import { noDocketFixture } from './fixtures/no-docket.js';
 
 after(cleanupAll);
 
@@ -356,6 +357,87 @@ describe('waybill next <branch>', () => {
     assert.equal(result.out, '', 'a parse error is the CLI\'s own, and keeps stderr');
     assert.match(result.err, /one branch name/);
     assert.match(result.err, /Usage: waybill/);
+  });
+});
+
+describe('waybill new', () => {
+  it("prints leg 1's waybill — byte-for-byte the block the trunk used to answer `next` with", () => {
+    // The golden's third consumer, and the first outside the renderer suite. That is the point:
+    // `tests/waybill.test.js` proves the renderer still produces this block, and this proves the
+    // verb still routes to it. The spec's claim is byte-for-byte, so nothing weaker will do.
+    const result = cli(['new'], noDocketFixture().dir);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'no-docket.txt'), 'utf8'));
+  });
+
+  it('hands the first leg off and invokes nothing — a terminal has no session to invoke in', () => {
+    const result = cli(['new'], trunkWith().repo);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^NEXT:$/m);
+    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+  });
+
+  it('answers identically with dockets in flight — `new` has no exit contract of its own', () => {
+    // `next`'s exit contract is about issuing a waybill for a *docket*, and `new` has none: it is
+    // the entry point, so the fleet cannot change its answer.
+    const result = cli(['new'], trunkWith('feat/one', 'feat/two').repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^main · no docket open$/m);
+    assert.equal(result.out.includes('SELECT A DOCKET:'), false, 'the fleet answered instead');
+  });
+
+  it('warns from inside a bay, names the trunk it answers for, and still exits 0', () => {
+    const { bays } = trunkWith('feat/one');
+
+    const result = cli(['new'], bays[0]);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '', 'the `!` invocation captures stdout only, so stderr would vanish');
+    assert.match(result.out, /^WARNINGS:$/m);
+    assert.match(result.out, /new efforts begin on the trunk/);
+    // The header names the trunk this waybill is for. `feat/one · no docket open` would be a false
+    // claim about a branch that does carry one, and `feat/one · leg 1 of 7 (ideate)` a false claim
+    // about where that docket stands.
+    assert.match(result.out, /^main · no docket open$/m);
+    assert.equal(result.out.includes('leg 3 of 7'), false, "the bay's own leg was reported instead");
+  });
+
+  it('still hands off the ideate leg from inside a bay rather than blocking on the warning', () => {
+    const { bays } = trunkWith('feat/one');
+
+    const result = cli(['new'], bays[0]);
+
+    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.ok(result.out.indexOf('NEXT:') < result.out.indexOf('WARNINGS:'), 'the warning buried it');
+  });
+
+  it('rejects every option, since there is no second machine-readable surface', () => {
+    const result = cli(['new', '--json'], trunkWith().repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /unknown option `--json`/);
+    assert.match(result.err, /Usage: waybill/);
+  });
+
+  it('explains itself in one line outside a repository and exits 2', () => {
+    const result = cli(['new'], tempRoot());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.equal(result.err.trimEnd().split('\n').length, 1, `not one line: ${result.err}`);
+    assert.match(result.err, /not inside a git repository/);
+  });
+
+  it('is listed in usage, so the verb `next` points at can be found from a mistyped command', () => {
+    const result = cli(['bogus'], trunkWith().repo);
+
+    assert.match(result.err, /^ {2}new {2,}\S/m);
   });
 });
 
