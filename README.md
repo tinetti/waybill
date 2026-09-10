@@ -95,8 +95,8 @@ step.
 | Command | Slash command | Answers |
 | --- | --- | --- |
 | `waybill bay <branch>` | `/waybill:bay` | Cut the branch and its bay, then hand off the leg that follows |
-| `waybill next` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
-| `waybill status` | `/waybill:status` | Where this docket stands, without the waybill |
+| `waybill next [<branch>]` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
+| `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
 
 The **docket** is the branch. It is open whenever a branch other than the default one is checked
 out, and there is no state file to keep in step: git already tracks what is in flight. The
@@ -104,31 +104,47 @@ out, and there is no state file to keep in step: git already tracks what is in f
 needs, and nothing that outlives that session. `waybill next` prints a waybill; the docket is
 already in the repository.
 
-On the default branch no docket is open, and all three commands say so and stop reporting a
-position:
+Standing on the default branch, no docket is open — so both commands answer for the repository
+instead of for the branch you are on. A **docket in flight is a bay on disk**: that is already the
+tool's own definition, since the bay is cut at leg 2 and removed at leg 7, and it is the definition
+that gives every docket a directory, so each one's position is read from its own working tree.
+Ideating comes before the docket exists — the papers it produces travel as the branch's first diff
+once `waybill bay <branch>` cuts the bay.
+
+`waybill status` on the trunk lists them:
 
 ```
-main · no docket open
+main · 2 dockets open
 
-NEXT:
-  /clear, then run:
-  /ideation:brainstorm
-  └ opus · high effort
+DOCKETS:
+  feat/session-handover · leg 5 of 7 (specs)
+  fix/stamp-scoping     · leg 6 of 7 (execute, 4 of 9 tasks)
 ```
 
-That is the whole trunk state: no leg strip, no completed legs, and `next --json` reports
-`"docketOpen": false` with `leg: "ideate"` and empty `completed`/`skipped`. Ideating comes before
-the docket exists — the papers it produces travel as the branch's first diff once
-`waybill bay <branch>` cuts the bay.
+**`waybill next` exits 0 if and only if it issued exactly one waybill.** With one bay open it
+issues that docket's waybill and names the `cd` that moves you into it. With none, and with more
+than one, no waybill was issued, so both exit 2 — one condition for a script to test rather than
+three:
 
-`waybill next --json` prints the raw resolved state for scripts. `waybill status` takes no options —
-the machine-readable surface is `next --json`, and a second one would be a second thing to keep in
-step.
+```
+waybill: no dockets open — begin one with `waybill new`
+```
+
+With more than one it prints the same list under `SELECT A DOCKET:` and names the way to pick:
+`waybill next <branch>` resolves that branch's bay from anywhere — the trunk, or another bay — and
+says so when the branch has no bay at all. Both non-zero cases print to stdout, not stderr, because
+the session's `` ! `` invocation captures stdout only.
+
+`waybill next --json` prints the raw resolved state for scripts, and an object in the non-zero cases
+too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so the fleet is machine-
+readable without a second surface. `waybill status` takes no options; the fleet view is chosen by
+where you stand, not by a flag.
 
 All three warn when a paper directory is git-ignored in the host repository — `next` and `status`
 before their position block, and `bay` in the waybill it prints after cutting the bay. That
 matters more than it sounds: untracked papers are destroyed when the bay is removed at the cleanup
-leg.
+leg. In the fleet view each warning is prefixed with the branch it came from, so a docket that
+cannot read its own diff is named rather than blamed on the repository at large.
 
 ### Where bays live
 

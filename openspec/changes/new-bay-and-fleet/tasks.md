@@ -85,24 +85,24 @@ section after it is written against final verb names.
 
 ## 4. The exit contract and trunk dispatch
 
-- [ ] 4.1 Write the exit-contract sweep in the CLI suite first: `next` exits 0 iff exactly one
+- [x] 4.1 Write the exit-contract sweep in the CLI suite first: `next` exits 0 iff exactly one
   waybill was issued, across zero, one, and three dockets — verified by the new cases failing before
   implementation. **Constraint:** `tests/inference.test.js:70-73` asserts
   `readdirSync(tests/fixtures/).length === LEGS.length + 1`, so any new fixture *file* breaks it —
   build multi-docket repositories through `tests/helpers/repo-fixture.js` (the route
   `tests/fleet.test.js` already uses), or update that count in this same task.
-- [ ] 4.2 Implement trunk dispatch for `next`: one docket issues its waybill and exits 0; zero
+- [x] 4.2 Implement trunk dispatch for `next`: one docket issues its waybill and exits 0; zero
   dockets points at `new` and exits 2; many dockets print the selection block and exit 2, all on
   stdout — verified by 4.1 passing
-- [ ] 4.3 Add the optional positional branch to `next`, resolving that branch's bay from anywhere and
+- [x] 4.3 Add the optional positional branch to `next`, resolving that branch's bay from anywhere and
   erroring when it has none — verified by hitting and missing cases in the CLI suite
-- [ ] 4.4 Make `status` on the trunk render the fleet, exit 0, and attribute each docket's warnings to
+- [x] 4.4 Make `status` on the trunk render the fleet, exit 0, and attribute each docket's warnings to
   its own branch; keep it option-free — verified by `fleet.txt` and `fleet-empty.txt`
-- [ ] 4.5 Confirm `next --json` still emits an object in every case, including both non-zero ones, and
+- [x] 4.5 Confirm `next --json` still emits an object in every case, including both non-zero ones, and
   keeps its per-docket `dockets` array — verified by a CLI case asserting the ambiguous-case shape.
   The array stays: `src/cli.js:97` and `README.md:124-125` keep `status` option-free *because*
   `next --json` already carries the fleet shape.
-- [ ] 4.6 Update `README.md:95-107`, whose command table and prose ("the docket is the branch", "all
+- [x] 4.6 Update `README.md:95-107`, whose command table and prose ("the docket is the branch", "all
   three commands say so and stop") this section makes false — verified by review
 
 ## 5. `new`
