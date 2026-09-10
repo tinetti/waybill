@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { run } from '../src/cli.js';
+import { cdLines } from '../src/waybill.js';
 import {
   cleanupAll,
   createRepo,
@@ -236,6 +237,19 @@ describe('waybill bay', () => {
     assert.equal(/^ {2}cd /m.test(result.out), false, 'told the operator to cd where they already are');
     assert.match(result.out, /already inside/);
     assert.match(result.out, /\(refine\)/);
+  });
+
+  it('names the cd target in the one shape the renderer builds, not a second one of its own', () => {
+    // The claim §3.3 makes is that `bay` and a trunk-resolved `next` cannot print different shapes
+    // of the same instruction. Asserting the regex only would let the two drift apart character by
+    // character while both still matched; comparing against the helper is what actually pins it.
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out.split('\n').includes(cdLines(target)[0]), true);
   });
 
   it('exits 2 with usage when given no branch name at all', () => {

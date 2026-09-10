@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from './legs.js';
-import { renderWaybill, renderPosition } from './waybill.js';
+import { cdLines, renderPosition, renderWaybill } from './waybill.js';
 import { resolveLeg } from './inference.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
@@ -30,9 +30,6 @@ const USAGE = [
  * printing the human waybill would be misparsed by the very script `--json` exists for.
  */
 const NEXT_FLAGS = new Set(['--json']);
-
-/** Every line the CLI writes below a heading is indented by this, matching the waybill. */
-const INDENT = '  ';
 
 /**
  * The repository every subcommand answers for, or `null` once the operator has been told there is
@@ -182,15 +179,17 @@ function bay(cwd, args, io) {
   const bookings = resolveBookings(result.path, { knownLegs: LEGS.map((leg) => leg.id) });
   const state = resolveLeg(result.path, bookings);
 
-  // The one place Waybill names a shell command rather than a slash command: a tool-invoked shell
-  // cannot change the operator's directory, so the move has to be theirs to make.
-  const lines = isInside(result.path, cwd)
+  // The `cd` line itself comes from the renderer, so this block and the one a trunk-resolved
+  // `next` prints cannot drift into two shapes of the same instruction. Only the heading above it
+  // is `bay`'s own: this surface reports what it just created, and that block is frozen.
+  const alreadyThere = isInside(result.path, cwd);
+  const lines = alreadyThere
     ? [`already inside the ${branch} bay at ${result.path} — nothing to do`]
     : [
         result.created
           ? `bay created at ${result.path}`
           : `bay already exists at ${result.path}`,
-        `${INDENT}cd ${result.path}`,
+        ...cdLines(result.path, alreadyThere),
       ];
 
   io.out(`${lines.join('\n')}\n\n`);

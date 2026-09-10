@@ -61,13 +61,13 @@ section after it is written against final verb names.
 
 ## 3. Rendering
 
-- [ ] 3.1 Write golden files `fleet.txt`, `select.txt`, `trunk-one-docket.txt` and `fleet-empty.txt`
+- [x] 3.1 Write golden files `fleet.txt`, `select.txt`, `trunk-one-docket.txt` and `fleet-empty.txt`
   matching the blocks in the approved design §4, and wire each into `tests/waybill.test.js`, which
   resolves goldens by name — verified by them existing, being non-empty, and being referenced by the
   waybill suite before any renderer is written. (`fleet-empty.txt`, not `no-dockets.txt`: the latter
   is one character from the existing `no-docket.txt`, which is the leg-1 waybill and means something
   entirely different.)
-- [ ] 3.2 Add the fleet and selection renderers beside the existing ones. They consume
+- [x] 3.2 Add the fleet and selection renderers beside the existing ones. They consume
   `fleet(cwd, bookings)` from `src/fleet.js` and `listWorktrees`/`defaultBranch` from `src/repo.js`,
   both already committed in `24d7ed0` — read them, do not rebuild them. Share the existing findings
   helper rather than building new blocks, but note `withFindings(sections, state, inspection)`
@@ -75,7 +75,7 @@ section after it is written against final verb names.
   states and no per-tree inspection: widen its parameters to accept a plain warnings list rather than
   fabricating a synthetic `Inference` to reach the `WARNINGS:` block — verified by the four new
   goldens passing
-- [ ] 3.3 Move the `cd` block currently built inline at `src/cli.js:193` into a shared helper, so
+- [x] 3.3 Move the `cd` block currently built inline at `src/cli.js:193` into a shared helper, so
   trunk-resolved `next` and `bay` cannot print different shapes of the same instruction. The helper
   covers the `cd <path>` line and its already-inside suppression **only**, not the surrounding block:
   `specs/command-surface/spec.md:30-31` freezes `bay`'s success block, while design §4 gives trunk

@@ -1,0 +1,11 @@
+feat/session-handover · leg 5 of 7 (specs)
+  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
+  ▶ specs
+
+IN BAY:
+  cd /repo/.claude/worktrees/waybill-feat-session-handover
+
+NEXT:
+  /clear, then run:
+  /spec:propose add-session-handover
+  └ placeholder-model · high effort

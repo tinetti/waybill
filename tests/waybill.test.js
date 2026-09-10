@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { renderWaybill, renderPosition } from '../src/waybill.js';
+import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
@@ -76,6 +76,44 @@ function state(overrides = {}) {
   };
 }
 
+/** A fixed literal, because a bay under the temp root would differ on every run. */
+const BAY = '/repo/.claude/worktrees/waybill-feat-session-handover';
+
+/**
+ * Three synthetic dockets, the shape `fleet(cwd, bookings)` returns.
+ *
+ * The branch names are three different widths on purpose: the position column is padded to the
+ * longest branch, and a fleet whose branches all measured the same could not tell a padded column
+ * from an unpadded one. Rebuilt per call so a test may attach warnings to one docket.
+ *
+ * @returns {import('../src/fleet.js').Docket[]}
+ */
+function dockets() {
+  return [
+    {
+      branch: 'feat/session-handover',
+      path: BAY,
+      state: state({ branch: 'feat/session-handover', changeId: 'add-session-handover' }),
+    },
+    {
+      branch: 'fix/stamp-scoping',
+      path: '/repo/.claude/worktrees/waybill-fix-stamp-scoping',
+      state: state({
+        branch: 'fix/stamp-scoping',
+        leg: 'execute',
+        index: 6,
+        completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+        progress: { done: 4, total: 9, source: 'tasks-md', changeId: 'fix-stamp-scoping' },
+      }),
+    },
+    {
+      branch: 'feat/fleet-view',
+      path: '/repo/.claude/worktrees/waybill-feat-fleet-view',
+      state: state({ branch: 'feat/fleet-view', leg: 'refine', index: 3, completed: ['ideate', 'bay'] }),
+    },
+  ];
+}
+
 describe('renderWaybill golden output', () => {
   const cases = [
     ['ideate', ideateFixture],
@@ -127,6 +165,119 @@ describe('renderWaybill golden output', () => {
       renderWaybill(resolve(noDocketFixture().dir), CLEAN),
       renderWaybill(resolve(ideateFixture().dir), CLEAN),
     );
+  });
+});
+
+describe('fleet golden output', () => {
+  it('renders the fleet, which is what `waybill status` prints on the trunk', () => {
+    assertGolden('fleet', renderFleet('main', dockets(), CLEAN));
+  });
+
+  it('renders the selection block, which is what `waybill next` prints on an ambiguous trunk', () => {
+    assertGolden('select', renderSelect('main', dockets(), CLEAN));
+  });
+
+  it('renders an empty fleet in the plural, which is not the leg-1 waybill', () => {
+    assertGolden('fleet-empty', renderFleet('main', [], CLEAN));
+    // `no docket open` is the singular `no-docket.txt` opens with, and it means the opposite thing:
+    // one branch with no docket on it, rather than a repository with nothing in flight. The two are
+    // one character apart, so the distinction is asserted rather than left to the golden.
+    assert.equal(renderFleet('main', [], CLEAN).includes('no docket open'), false);
+  });
+
+  it('renders the one-docket trunk answer: position, then the bay, then the waybill', () => {
+    assertGolden('trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
+  });
+});
+
+describe('renderFleet', () => {
+  it('counts the dockets in the header, in the singular when there is exactly one', () => {
+    const output = renderFleet('main', dockets().slice(0, 1), CLEAN);
+    assert.equal(output.split('\n')[0], 'main · 1 docket open');
+  });
+
+  it('emits no DOCKETS heading at all when nothing is in flight', () => {
+    assert.equal(renderFleet('main', [], CLEAN), 'main · no dockets open\n');
+  });
+
+  it('pads the branch column to the longest branch, so the positions line up', () => {
+    const rows = renderFleet('main', dockets(), CLEAN)
+      .split('\n')
+      .filter((line) => line.startsWith('  ') && line.includes(' · '));
+    assert.equal(rows.length, 3);
+    assert.equal(new Set(rows.map((line) => line.indexOf(' · '))).size, 1);
+  });
+
+  it('carries execute progress inline, where the leg strip gives it a line of its own', () => {
+    assert.match(
+      renderFleet('main', dockets(), CLEAN),
+      /^ {2}fix\/stamp-scoping {5}· leg 6 of 7 \(execute, 4 of 9 tasks\)$/m,
+    );
+  });
+
+  it('names the branch a warning came from, rather than blaming the repository at large', () => {
+    const fleet = dockets();
+    fleet[1].state.warnings = ['stampCmd command not found: nope'];
+
+    const output = renderFleet('main', fleet, CLEAN);
+    assert.match(output, /^WARNINGS:$/m);
+    assert.match(output, /^ {2}⚠ fix\/stamp-scoping: stampCmd command not found: nope$/m);
+  });
+
+  it('reports an inspection finding alongside the dockets, as every other surface does', () => {
+    const output = renderFleet('main', dockets(), { ignored: ['openspec/'], warnings: ['no diff'] });
+    assert.match(output, /^IGNORED BY GIT:$/m);
+    assert.match(output, /no diff/);
+  });
+});
+
+describe('renderSelect', () => {
+  it('carries the exact literal `commands/next.md` branches on', () => {
+    assert.match(renderSelect('main', dockets(), CLEAN), /^SELECT A DOCKET:$/m);
+  });
+
+  it('names the command to re-run, after a blank line inside the same block', () => {
+    assert.match(renderSelect('main', dockets(), CLEAN), /\(refine\)\n\n {2}waybill next <branch>\n/);
+  });
+
+  it('keeps the warnings below the instruction rather than sorting them in between', () => {
+    const fleet = dockets();
+    fleet[0].state.warnings = ['could not read the diff'];
+
+    const output = renderSelect('main', fleet, CLEAN);
+    assert.ok(output.indexOf('waybill next <branch>') < output.indexOf('WARNINGS:'));
+  });
+
+  it('lists the same dockets in the same order as the fleet view', () => {
+    const rows = (text) => text.split('\n').filter((line) => line.includes(' · ') && line.startsWith('  '));
+    assert.deepEqual(rows(renderSelect('main', dockets(), CLEAN)), rows(renderFleet('main', dockets(), CLEAN)));
+  });
+});
+
+describe('cdLines', () => {
+  it('renders the one shell instruction Waybill issues, indented like every other line', () => {
+    assert.deepEqual(cdLines('/repo/bays/x'), ['  cd /repo/bays/x']);
+  });
+
+  it('suppresses the line when the operator is already standing in the bay', () => {
+    assert.deepEqual(cdLines('/repo/bays/x', true), []);
+  });
+
+  it('is what puts an IN BAY block into a waybill, and drops the block with the line', () => {
+    assert.match(
+      renderWaybill(state(), CLEAN, cdLines('/repo/bays/x')),
+      /^IN BAY:\n {2}cd \/repo\/bays\/x$/m,
+    );
+    assert.equal(renderWaybill(state(), CLEAN, cdLines('/repo/bays/x', true)).includes('IN BAY:'), false);
+  });
+
+  it('puts the bay block before NEXT, because the shell has to move before the session does', () => {
+    const output = renderWaybill(state(), CLEAN, cdLines('/repo/bays/x'));
+    assert.ok(output.indexOf('IN BAY:') < output.indexOf('NEXT:'));
+  });
+
+  it('leaves the in-a-bay waybill byte-identical when no bay is named', () => {
+    assert.equal(renderWaybill(state(), CLEAN, []), renderWaybill(state(), CLEAN));
   });
 });
 
