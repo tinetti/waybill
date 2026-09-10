@@ -60,8 +60,25 @@ already pins the behavior.
   task that adds the branch, and cover it in the command test.
 - **Stdout versus stderr for the non-zero cases is asserted, not verified.** The approved design
   (§2) flags that the session invocation's stderr capture is unverified, and that an existing error
-  path may already be invisible because of it. → Verify during implementation and record the
-  finding; the pre-existing bug is fixed separately, not folded in here.
+  path may already be invisible because of it. → Probed in a live session; the finding and the three
+  probes behind it are recorded at `tasks.md` §7.2. What was observed is narrower than "stderr is
+  captured": on a **non-zero** exit the harness surfaces the command's stderr in full inside its
+  failure report, so `repoRoot`'s error is not invisible to a session. That is the exit code that
+  error path actually takes, so the approved design's §2 worry is answered for it. It does **not**
+  settle the `` ! `` *substitution*, which runs only on exit 0 — and the substitution is exactly what
+  the "captures stdout only" reason at `specs/command-surface/spec.md:47-48`, `src/cli.js:115-116`
+  and `README.md:142-143` describes. Whether that path carries stderr stays unmeasured, because no
+  shipped command writes to stderr and exits 0; nothing here shows those three lines to be false.
+  The requirement they justify is unaffected either way — stdout is still the right stream — so none
+  of the three is edited here, and the pre-existing bug is still fixed separately rather than folded
+  in.
+- **A non-zero exit costs the session the whole command file, not just a stream.** The same probe
+  found that when the `` ! `` line exits non-zero, Claude Code (2.1.267) reports a shell-command
+  failure naming that line and never renders the file, so the `## Task` section — and with it the
+  `SELECT A DOCKET:` branch this change adds — does not load. Both trunk cases that print and exit 2
+  are affected. → Out of scope here: the exit contract is a requirement of this change's own spec,
+  and revising it belongs to whichever change reopens it, not to the task that found the problem.
+  Recorded in `tasks.md` §7.2 with the two measurements the shipped commands could not produce.
 
 ## Migration Plan
 
@@ -74,4 +91,5 @@ rollback beyond reverting the branch; nothing persists state across versions.
 
 None. The design was approved with its decisions settled; the one investigation it defers (stderr
 capture, above) is recorded as a task output rather than a question, because its answer changes
-neither the specs nor the approach.
+neither the specs nor the approach. It did not: every requirement still stands, and what the probe
+turned up about non-zero exits is filed as a risk for a later change rather than reopened here.

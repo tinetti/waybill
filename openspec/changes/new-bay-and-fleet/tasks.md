@@ -138,13 +138,82 @@ section after it is written against final verb names.
 
 ## 7. Verification
 
-- [ ] 7.1 Run the full suite and confirm every pre-existing golden file covering the in-a-bay path
+- [x] 7.1 Run the full suite and confirm every pre-existing golden file covering the in-a-bay path
   passes **unchanged** — this is the cheapest available proof the trunk/bay dispatch did not disturb
-  the path that already worked
-- [ ] 7.2 Determine whether stderr is captured by the session's `` ! `` invocation and record the
+  the path that already worked. Run at `405139b`: `npm test` → 370 pass / 0 fail in 46.5s, and 434
+  TAP `ok` lines against criterion 0's floor of 372. That 46.5s is this section's own run; the
+  context map's pre-phase measurement at the same commit reports the same 370 / 0 / 434 in 47.2s.
+  They are two runs of one suite, and wall time is the only number that moves between them.
+  `git diff --quiet 08d0c6f` exits 0 for the eight in-a-bay goldens (`ideate`, `contract`, `specs`,
+  `execute`, `cleanup`, `complete`, `refine`, `status`), for `no-docket.txt`, for
+  `src/inference.js`, and for the six untouched modules; the
+  `is not inside a git repository` literal does not appear in this branch's `src/cli.js` diff.
+  `tests/golden/bay.txt` is the only pre-existing golden that differs from the merge base — one
+  line, the `/waybill:start` → `/waybill:bay` rename from §2.5 — which is why criterion 10 excludes
+  it. The other four changed goldens are new files this change added in §3.1.
+- [x] 7.2 Determine whether stderr is captured by the session's `` ! `` invocation and record the
   finding in the change. No command in this repository can answer this: it depends on a live session.
   Procedure — run a waybill command from a non-git directory inside a session via the `` ! ``
   invocation and record whether `repoRoot`'s `is not inside a git repository` text reaches the
   transcript. If it does not, that pre-existing error is already invisible in every session. Record
   it; do **not** fold the fix into this change — an acceptance check asserts that error literal does
   not appear in this branch's `src/cli.js` diff.
+
+  **Finding — on a non-zero exit the session is shown the stderr, and loses the whole command
+  file.** Run
+  2026-09-09 in a live Claude Code 2.1.267 session against the installed `waybill@tinetti` 0.3.1,
+  whose `` ! `` lines and error strings are identical to this branch's. Three invocations of the same
+  mechanism, differing only in what the CLI did:
+
+  - `/waybill:status` — stdout, exit 0. The `` ! `` line ran, its stdout replaced the line in the
+    file, and the `## Task` section loaded. This is the baseline: the mechanism works, and it is not
+    blocked by the `if … fi` permission question recorded at
+    `docs/ideation/pitwall/run-2026-08-24.json:64`.
+  - `/waybill:start --help` — stdout, exit 0, reached through the same `"$ARGUMENTS"` interpolation.
+    Same result. This is the control that rules out the argument path as the variable.
+  - `/waybill:start` with an empty branch name — **stderr, exit 2**, and no git call at all: `start`
+    returns on its arity check before `repoRoot` and before `startBay`. The session received a
+    `Shell command failed for pattern` error quoting the `` ! `` line, followed by an `[stderr]`
+    label and the complete stderr text — error line and full usage block. The command file's body and
+    `## Task` never rendered.
+
+  The empty-branch-name case stands in for the non-git directory the procedure above names, which
+  this session could not reach: the session's cwd is fixed and the `` ! `` line takes no directory
+  argument. The substitution is faithful because the two failures are the same observable — one
+  `io.err` write, `run()` returning 2 — travelling the identical `` ! `` line, and it was the only
+  non-mutating stderr/exit-2 path the shipped commands offer.
+
+  Reconciled against criterion 17, whose check reads *"established by running the command from a
+  non-git directory in a live session"*: this is a disclosed substitution for that literal wording,
+  not a run of it. What criterion 17 asks — *"whether stderr from the `` ! `` invocation reaches a
+  session transcript"* — is answered directly by the probe, because a non-git cwd and an empty
+  branch name reach the same observable (one `io.err` write, `run()` returning 2) through the same
+  `` ! `` line; the cwd would change which directory the CLI complains about, not which stream the
+  session shows. The literal route stays open to any reviewer who wants it on the record — an
+  untracked `.claude/commands/` probe file whose `` ! `` line wraps the call as
+  `(cd <non-git dir> && node …)` — and this paragraph is the disclosure the judgment gate should be
+  closed against, rather than the gate being closed on unstated inference.
+
+  **What this answers, and how far it reaches.** `repoRoot`'s `is not inside a git repository` text
+  is *not* invisible inside a session: on the exit-2 path that error actually takes, the harness
+  quotes the whole stderr stream back into the transcript under an `[stderr]` label. The approved
+  design's §2 worry is answered for that path. It is **not** answered for the `` ! `` substitution
+  itself, which runs only on exit 0 — and the substitution is the path the reason restated at
+  `specs/command-surface/spec.md:47-48`, `src/cli.js:115-116` and `README.md:142-143` — "the primary
+  consumer captures stdout only" — describes. Nothing measured here shows that reason to be false:
+  the case that would test it, stderr written while exiting 0, is one of the two regimes left
+  unmeasured below, because no shipped command produces it. So the three lines stand as written and
+  the requirement they justify is untouched — printing to stdout is still correct, and none of those
+  three files is in this section's scope. The narrowed conclusion is mirrored in `design.md` rather
+  than chased further.
+
+  **What it opens, and does not close.** The output arrived as a *failed tool call*, not as a
+  rendered command file. That answers §6's open question the unwelcome way: a session that hits the
+  trunk's zero-docket or many-docket case — both exit 2 by design (§4.2) — may never load
+  `commands/next.md`'s `## Task`, and so may never reach the `SELECT A DOCKET:` branch §6.1 adds.
+  Two things stay unmeasured, because no shipped command produces them: a `` ! `` line that exits
+  non-zero while writing to **stdout** (so whether the error wrapper preserves stdout is inferred
+  from the `[stderr]` label, not observed), and one that writes to stderr while exiting **0** (so
+  whether the abort is triggered by the exit status, by the stream, or by both is unseparated).
+  Recorded in `design.md` as a risk for the next change that opens the exit contract; not fixed here,
+  where that contract is a spec requirement and criterion 15 pins the `src/cli.js` diff.
