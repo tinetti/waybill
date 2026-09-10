@@ -126,15 +126,15 @@ section after it is written against final verb names.
 
 ## 6. The session-facing branch
 
-- [ ] 6.1 Add the selection branch to `commands/next.md`, keyed on the exact `SELECT A DOCKET:`
+- [x] 6.1 Add the selection branch to `commands/next.md`, keyed on the exact `SELECT A DOCKET:`
   literal with verbatim as the default — verified by the commands suite asserting both the literal and
   the surviving verbatim rule. That literal appears nowhere in `src/` or `commands/` today, so a
   positive grep for it is a real, currently-failing anchor.
-- [ ] 6.2 Add `AskUserQuestion` to `commands/next.md`'s `allowed-tools` **line**, since the list is
+- [x] 6.2 Add `AskUserQuestion` to `commands/next.md`'s `allowed-tools` **line**, since the list is
   restrictive and an undeclared prompt is silently unavailable — verified by the commands suite
   asserting the entry. The acceptance check anchors on `^allowed-tools:`, so an explanatory comment
   naming the tool will not satisfy it.
-- [ ] 6.3 Update `commands/status.md` for the trunk fleet view — verified by the commands suite
+- [x] 6.3 Update `commands/status.md` for the trunk fleet view — verified by the commands suite
 
 ## 7. Verification
 

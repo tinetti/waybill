@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { renderWaybill } from '../src/waybill.js';
+import { renderSelect, renderWaybill } from '../src/waybill.js';
 import { parseFrontmatter } from '../src/frontmatter.js';
 import { loadBookings } from '../src/bookings.js';
 import { cleanupAll, tempRoot, writeFile } from './helpers/repo-fixture.js';
@@ -156,11 +156,22 @@ describe('the shipped command set', () => {
     // the one spelling guaranteed to fail: the rewrite skips it for want of an exact match, bash
     // finds no such variable, expands it to nothing, and the test collapses to `[ -f /src/cli.js ]`.
     // Every command then reports an unset root on a plugin that is installed and working.
+    //
+    // The sweep covers every line that is *not* inside an HTML comment, rather than only the
+    // lines beginning `` !` ``: the rewrite is over the whole command body, so a root named in a
+    // Task section — `next.md` names one, in the command it tells the session to re-run — is
+    // substituted on exactly the same terms and breaks on exactly the same misspelling. HTML
+    // comments are the one exclusion, because they are where the broken spelling is deliberately
+    // written out and explained; a sweep that flagged those would delete its own documentation.
     const offenders = [];
     for (const rel of DECLARED) {
       const source = fs.readFileSync(path.join(COMMANDS, ...rel.split('/')), 'utf8');
+      let inComment = false;
       source.split('\n').forEach((line, i) => {
-        if (!line.startsWith('!`')) return;
+        if (line.includes('<!--')) inComment = true;
+        const commented = inComment;
+        if (line.includes('-->')) inComment = false;
+        if (commented) return;
         for (const [found] of line.matchAll(/\$\{CLAUDE_PLUGIN_ROOT[^}]*\}/g)) {
           if (found !== '${CLAUDE_PLUGIN_ROOT}') offenders.push(`${rel}:${i + 1}: ${found}`);
         }
@@ -207,6 +218,43 @@ describe('the shipped command set', () => {
       assert.equal(meta(COMMANDS, rel).model, undefined, `${rel} declares a model`);
       assert.equal(meta(COMMANDS, rel).effort, undefined, `${rel} declares an effort`);
     }
+  });
+
+  it('keys `next`\'s one exception to the verbatim rule on the heading the renderer emits', () => {
+    // Two files now state the same routing, and `renderSelect`'s own doc comment records why that
+    // is dangerous: reword the heading and the selection prompt silently turns off, with no error
+    // anywhere. So the command file is asserted against the literal the renderer *actually*
+    // produces rather than against a second hand-typed copy of it — a copy is simply a second
+    // place to state one fact, free to drift from the first.
+    //
+    // An empty fleet is not a state `renderSelect` is ever called in; it is the cheapest way to
+    // get the heading out of it with no synthetic `Inference` to build, because `docketBlock`
+    // renders the heading alone when there are no dockets to list under it.
+    const heading = renderSelect('main', [])
+      .split('\n')
+      .find((line) => line.endsWith(':'));
+    assert.ok(heading, 'renderSelect emits no heading line for the command file to key on');
+
+    const source = fs.readFileSync(path.join(COMMANDS, 'next.md'), 'utf8');
+    assert.ok(source.includes(heading), `commands/next.md does not branch on \`${heading}\``);
+
+    // The rule the exception is carved out of is the other half of the requirement. A file that
+    // grew the branch but lost `verbatim` would satisfy the check above while paraphrasing every
+    // ordinary waybill — which is the failure the single unconditional rule exists to prevent.
+    assert.match(source, /\*\*verbatim\*\*/, 'commands/next.md no longer states the verbatim rule');
+  });
+
+  it('declares AskUserQuestion on `next`\'s allowed-tools line, since the list is restrictive', () => {
+    // `allowed-tools` is an allowlist, not a hint: a tool left off it is unavailable, and the
+    // silence is total — the prompt simply never happens and the session carries on as though
+    // asking had not been part of the instruction. Asserted through the parser rather than by
+    // grepping the file, because the parser only ever reads the frontmatter block, so this cannot
+    // be satisfied by the tool name appearing in the prose that explains it.
+    const { meta } = parseFrontmatter(
+      fs.readFileSync(path.join(COMMANDS, 'next.md'), 'utf8'),
+      'next.md',
+    );
+    assert.match(meta['allowed-tools'] ?? '', /\bAskUserQuestion\b/);
   });
 });
 

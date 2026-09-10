@@ -1,12 +1,12 @@
 # Context Map: new-bay-and-fleet
 
-**Phase**: 4 — `new`: the trunk-side entry point (tasks.md §5)
+**Phase**: 5 — The session-facing branch (tasks.md §6)
 **Gates**: 5/5 ready
 **Verdict**: GO
 
 > Repository root for every path below: `/Users/tinetti/.openclaw/workspaces/rick/projects/waybill/.claude/worktrees/waybill-feat-new-bay-and-fleet`. Paths are repo-relative from here on so this map stays portable.
 
-> This map was started in Phase 1 and is extended, not replaced. Phases 1–3 are retained verbatim below; Phase 4's sections begin at **Phase 4 — `new`**.
+> This map was started in Phase 1 and is extended, not replaced. Phases 1–4 are retained verbatim below; Phase 5's sections begin at **Phase 5 — The session-facing branch**.
 
 ---
 
@@ -200,7 +200,9 @@ Contract phase entry: `contract-data.json → execution.phases[2]`, title "The e
 
 ---
 
-# Phase 4 — `new`: the trunk-side entry point (tasks.md §5.1–5.6)
+# Phase 4 (retained) — `new`: the trunk-side entry point (tasks.md §5.1–5.6)
+
+**Gates**: 5/5 ready · **Verdict**: GO · **Shipped as** `1ce2528` ("feat: give an effort a trunk-side entry point, and run the leg it names")
 
 Contract phase entry: `contract-data.json → execution.phases[3]`, title "new: the trunk-side entry point", risk **medium**, prereq "The exit contract and trunk dispatch", files `src/cli.js`, `commands/new.md`, `tests/fixtures/no-docket.js`, `tests/waybill.test.js`, `tests/cli.test.js`, `tests/commands.test.js`, `README.md`.
 
@@ -210,108 +212,168 @@ Contract phase entry: `contract-data.json → execution.phases[3]`, title "new: 
 | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Scope clarity        | ready  | Seven files, each with a concrete change: `src/cli.js` (a `USAGE` row at `:13-27`, a handler beside `status():238`, a `['new', …]` entry in the `COMMANDS` Map at `:345-349`), **new file** `commands/new.md` (frontmatter with `model`/`effort`, the `!` line, a `## Task` that invokes rather than stops), `tests/commands.test.js` (`DECLARED:32-41` gains `'new.md'` before `'next.md'`; a routing pin beside `:171-187`), `tests/cli.test.js` (a `describe('waybill new')` beside `:362`), `tests/waybill.test.js:155-168` (re-point the golden's description/wiring at `new`), `tests/fixtures/no-docket.js:3-13` (its doc comment still describes the golden as what the trunk printed), `README.md:67` and `:96-99`. |
 | Pattern familiarity  | ready  | Read all four shipped command files in full (`next.md`, `status.md`, `bay.md`, `cleanup.md`) plus `commands/spec/propose.md:1-6` — the only shipped files that *do* declare `model:`/`effort:`, which is the shape `new.md` follows. Read `src/cli.js` end to end, `tests/commands.test.js` end to end (`DECLARED`, `shipped()`, `problems()`, `scratch()`, the `${CLAUDE_PLUGIN_ROOT}` spelling check `:151-169`, the routing pin `:171-187`), `tests/waybill.test.js:117-191`, `tests/cli.test.js:1-100,160-200,362-460`, `bookings/ideation-ideate.md` in full, and design §§1, 6 (`docs/superpowers/specs/2026-09-08-waybill-new-and-fleet-design.md:76-90,207-238`). |
-| Dependency awareness | ready  | `run()`/`COMMANDS` — consumed by `bin/waybill:12`, `tests/cli.test.js:7`, and the four command files' `!` lines. `tests/golden/no-docket.txt` — consumed by `tests/waybill.test.js:156` and `:164-167` **only** (`tests/cli.test.js` reads just `specs.txt:87` and `status.txt:369`). `tests/fixtures/no-docket.js` — consumed by `tests/waybill.test.js:12` only. `DECLARED` — consumed by six cases in `tests/commands.test.js` including `scratch():97-105`. The `waybill new` literal already exists at `src/cli.js:205`, `README.md:130`, `tests/cli.test.js:188`. `USAGE`'s `status` row is additionally pinned by `tests/commands.test.js:303`. `README.md` has no automated consumer. |
-| Edge case coverage   | ready  | Twenty concrete items below, several established by running code today rather than by reading: the in-a-bay resolution (`refine`, index 3, `docketOpen: true`), the header a forced leg-1 state produces from a bay (`feat/x · no docket open`), and the byte-exact CLI composition that reproduces the golden. |
-| Test strategy        | ready  | Measured on this tree today at `22e30ef`: `node --test tests/commands.test.js` **0.18s**, `node --test tests/waybill.test.js` **2.8s**, `node --test tests/cli.test.js` **13.3s** (it has grown from Phase 3's 5.7s — the tasks.md §0 table is stale), `npm test` **45.8s → 359 pass / 0 fail**, **422 TAP ok** (criterion 0 floor is 372). Phase 4's three acceptance probes (criteria 5, 6, 7) were each executed against this tree and **all three exit 1**; criterion 11 (`no-docket.txt` byte-unchanged) passes today and must still pass after. Criteria 0, 8, 9, 10, 15 all pass today. `verify.mjs` is present at `/Users/tinetti/.claude/plugins/cache/nicknisi/ideation/0.26.1/scripts/verify.mjs`. |
+| Dependency awareness | ready  | `run()`/`COMMANDS` — consumed by `bin/waybill:12`, `tests/cli.test.js:7`, and the four command files' `!` lines. `tests/golden/no-docket.txt` — consumed by `tests/waybill.test.js:156` and `:164-167` **only**. `tests/fixtures/no-docket.js` — consumed by `tests/waybill.test.js:12` only. `DECLARED` — consumed by six cases in `tests/commands.test.js` including `scratch():97-105`. The `waybill new` literal already exists at `src/cli.js:205`, `README.md:130`, `tests/cli.test.js:188`. `USAGE`'s `status` row is additionally pinned by `tests/commands.test.js:303`. `README.md` has no automated consumer. |
+| Edge case coverage   | ready  | Twenty concrete items below, several established by running code rather than by reading: the in-a-bay resolution (`refine`, index 3, `docketOpen: true`), the header a forced leg-1 state produces from a bay (`feat/x · no docket open`), and the byte-exact CLI composition that reproduces the golden. |
+| Test strategy        | ready  | `node --test tests/commands.test.js` **0.18s**, `node --test tests/waybill.test.js` **2.8s**, `node --test tests/cli.test.js` **13.3s**, `npm test` **45.8s → 359 pass / 0 fail**, **422 TAP ok**. Phase 4's three acceptance probes (criteria 5, 6, 7) each confirmed failing first; criterion 11 passing before and after. |
 
 ## Key Patterns (Phase 4)
 
-- `src/cli.js:13-27` — `USAGE`. Verb column is 16 characters wide (`'  bay <branch>    Create…'`, `'  next [<branch>] Where…'`, `'  status          Where…'`); descriptions start at column 19. Criterion 5 counts `grep -cE '^  (new|bay|next|status) '` and demands **4** — it is **3** today, and the regex requires at least one space *after* the verb, so `  new` with its description on the next line fails the gate.
-- `src/cli.js:238-262` — `status(cwd, args, io)`, the option-free verb: `if (args.length > 0)` → `waybill: unknown option \`${args[0]}\` for \`status\`` + `USAGE` to **stderr**, exit 2; then `repoRoot`, `resolveBookings`, `resolveLeg`, `checkIgnored`, render, exit 0. The nearest template for `new`.
-- `src/cli.js:345-349` — `const COMMANDS = new Map([['bay', bay], ['next', next], ['status', status]])`. `new` is a **JavaScript reserved word**, so the handler function cannot be named `new`; the Map *key* stays the string `'new'`, which is what criterion 6's `grep -q "\['new'" src/cli.js` anchors on.
-- `src/cli.js:198-221` — the trunk path `new` reproduces. `resolveLeg(cwd, bookings)` with `docketOpen === false` returns leg 1: `src/inference.js:117` (`done.fill(false)`) forces `leg: 'ideate'`, `index: 1`, `completed: []`, `skipped: []`, and `:138` forces `changeId: null`. **Verified live today**: composing `renderWaybill(resolveLeg(dir, resolveBookings(dir, KNOWN_LEGS)), checkIgnored(dir, paperPaths(bookings)))` over `noDocketFixture()` produced a string **byte-identical** to `tests/golden/no-docket.txt`, with the inspection coming back `{"ignored":[],"warnings":[]}`.
-- `src/inference.js:66-76` — the no-repository early return, the one place in the tree that hand-builds a leg-1 `Inference` (`leg: LEGS[0].id, index: 1, completed: [], skipped: [], booking: bookings.get(LEGS[0].id), branch: null, docketOpen: false, changeId: null, warnings`). It is the shape to copy for the in-a-bay case — **copy it into `src/cli.js`, do not export a new helper from `src/inference.js`** (criterion 8 is a zero-diff on that file).
-- `commands/status.md` — the no-argument command-file template: `description` + `allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)` frontmatter, an HTML comment explaining *why* there is no `model:`/`effort:`, the `!` line, then `## Task`. `commands/new.md` inverts the model comment and the "then stop" instruction, and keeps everything else.
-- `commands/spec/propose.md:1-6` — `description`, `model: opus`, `effort: high`, `allowed-tools:`. The frontmatter shape `new.md` follows, and the one already pinned by a routing test.
-- The `!` line, shipped in all three node-driven commands verbatim except the verb: `` !`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" <verb>; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi` ``. The spelling is pinned by `tests/commands.test.js:151-169`.
-- `tests/commands.test.js:32-41` — `DECLARED`, sorted. `'new.md'` sorts **before** `'next.md'` (`w` < `x`), and `shipped(COMMANDS)` is `deepEqual`'d against it in both directions at `:111`.
-- `tests/commands.test.js:171-187` — "keeps the vendored routing commands byte-identical to what they encode": `parseFrontmatter(fs.readFileSync(file))` then `assert.equal(meta.model, …)`. The template for §5.3's pin, with one change: assert `commands/new.md`'s values against `bookings/ideation-ideate.md`'s *parsed* values, not against literals, or a rebooking reds the test for the wrong reason and the spec's "the command now disagrees with the booking" scenario goes untested.
-- `bookings/ideation-ideate.md:1-7` — `leg: ideate`, `command: /ideation:brainstorm`, `model: opus`, `effort: high`, `handover: transfer`, `stampCmd: false`. Its body is the prose in `tests/golden/no-docket.txt:8-14`.
-- `tests/waybill.test.js:155-168` — the two assertions that hold the golden: `assertGolden('no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN))` at `:156`, and the byte-identity with `ideate.txt` at `:164-167`. (tasks.md §5.1 cites `:118` and `:121-129`; those line numbers are stale after Phases 2 and 3 — same two assertions, moved.)
-- `tests/cli.test.js:61-78` (`cli(argv, cwd)`) and `:164-167` (`trunkWith(...branches)`) — the harnesses every new CLI case goes through.
+- `src/cli.js:13-27` — `USAGE`. Verb column is 16 characters wide; descriptions start at column 19. Criterion 5 counts `grep -cE '^  (new|bay|next|status) '` and demands **4**.
+- `src/cli.js:238-262` — `status(cwd, args, io)`, the option-free verb, the nearest template for `new`.
+- `src/cli.js:345-349` — `const COMMANDS = new Map([...])`. `new` is a **JavaScript reserved word**, so the handler cannot be named `new`; the Map *key* stays the string `'new'`, which is what criterion 6's `grep -q "\['new'" src/cli.js` anchors on.
+- `src/cli.js:198-221` — the trunk path `new` reproduces. `resolveLeg(cwd, bookings)` with `docketOpen === false` returns leg 1 (`src/inference.js:117` `done.fill(false)`, `:138` `changeId: null`).
+- `src/inference.js:66-76` — the no-repository early return, the one place that hand-builds a leg-1 `Inference`. Copy the shape into `src/cli.js`; **do not export a new helper from `src/inference.js`** (criterion 8 is a zero-diff on that file).
+- `commands/status.md` — the no-argument command-file template. `commands/new.md` inverts the model comment and the "then stop" instruction, and keeps everything else.
+- `commands/spec/propose.md:1-6` — `description`, `model: opus`, `effort: high`, `allowed-tools:`. The frontmatter shape `new.md` follows.
+- The `!` line, shipped in all node-driven commands verbatim except the verb, spelling `${CLAUDE_PLUGIN_ROOT}` bare. Pinned by `tests/commands.test.js:151-169`.
+- `tests/commands.test.js:32-41` — `DECLARED`, sorted. `'new.md'` sorts **before** `'next.md'`.
+- `tests/commands.test.js:171-187` — the vendored-routing pin, the template for §5.3's pin.
+- `bookings/ideation-ideate.md:1-7` — `leg: ideate`, `command: /ideation:brainstorm`, `model: opus`, `effort: high`, `handover: transfer`, `stampCmd: false`.
+- `tests/waybill.test.js:155-168` — the two assertions that hold `no-docket.txt`.
 
 ## Dependencies (Phase 4)
 
-- `src/cli.js:359` (`run`) / `:345` (`COMMANDS`) — consumed by → `bin/waybill:12`, `tests/cli.test.js:7`, and the `!` lines in `commands/{next,status,bay}.md`. Adding a Map entry breaks nothing; `COMMANDS.get(name)` at `:376` is the only reader.
-- `src/cli.js:13` (`USAGE`) — consumed by → every parse-error path in the file, `run():368,373,378`, and **`tests/commands.test.js:302-303`**, which spawns `bin/waybill --help` and matches `/^Usage: waybill <command> \[options\]$/m` and `/^ {2}status +Where this docket stands, without the waybill$/m`. Re-padding the description column is safe (`+` matches any run of spaces); rewording the `status` description is not.
-- `tests/golden/no-docket.txt` — consumed by → `tests/waybill.test.js:156` and `:164-167` only. `tests/cli.test.js` reads only `specs.txt` (`:87`) and `status.txt` (`:369`), so a CLI-level assertion against `no-docket.txt` would be the third consumer and the first outside the renderer suite.
-- `tests/fixtures/no-docket.js` — consumed by → `tests/waybill.test.js:12` (used at `:156` and `:165`). Nothing else imports it. Its doc comment (`:3-13`) still frames the fixture as "the state that used to report `leg 2 of 7 (bay)`" and names `tests/waybill.test.js` as the place the twin-render identity is asserted — that prose is what "re-point the fixture" means in the contract's file list.
-- `tests/commands.test.js:32` (`DECLARED`) — consumed by → `:111` (both-directions equality), `:115` (frontmatter/description check), `:99` (`scratch()` copies each entry), `:159` (the `${CLAUDE_PLUGIN_ROOT}` sweep). Adding `'new.md'` puts the new file under all four automatically.
-- `bookings/ideation-ideate.md` — consumed by → `loadBookings(BUILTIN_BOOKINGS)` at runtime (`src/bookings.js`), `tests/inference.test.js`'s shipped-bookings suite, and `tests/golden/{no-docket,ideate}.txt` (its body *is* their prose). Editing it changes two pinned goldens.
-- The `waybill new` literal — already at `src/cli.js:205` (the zero-docket pointer), `README.md:130`, `tests/cli.test.js:188` (asserts that exact line). Phase 4 makes the pointer resolvable; none of the three needs editing.
-- `README.md:67` (the slash-command list: `/waybill:bay`, `/waybill:next`, `/waybill:status`) and `:96-99` (the Commands table) — **no automated consumer**; tasks.md §5.6 says "verified by review". `README.md:143` ("All three warn…") counts verbs and becomes arguable once there are four, though `new`'s block does carry the same `IGNORED BY GIT:` section.
-- `.claude-plugin/plugin.json` — declares **no** `commands` key, and `tests/commands.test.js:205-207` asserts it stays that way. `commands/new.md` is discovered by convention; do not add a key.
-- `tests/index.js` — Phase 4 adds no new suite file; no edit needed.
+- `src/cli.js:359` (`run`) / `:345` (`COMMANDS`) — consumed by → `bin/waybill:12`, `tests/cli.test.js:7`, and the `!` lines in `commands/{next,status,bay}.md`.
+- `src/cli.js:13` (`USAGE`) — consumed by → every parse-error path, `run()`, and **`tests/commands.test.js:302-303`**, which spawns `bin/waybill --help` and matches `/^ {2}status +Where this docket stands, without the waybill$/m`.
+- `tests/golden/no-docket.txt` — consumed by → `tests/waybill.test.js:156` and `:164-167` only.
+- `tests/fixtures/no-docket.js` — consumed by → `tests/waybill.test.js:12` only.
+- `tests/commands.test.js:32` (`DECLARED`) — consumed by → `:111`, `:115`, `:99`, `:159`.
+- `bookings/ideation-ideate.md` — consumed by → `loadBookings` at runtime, `tests/inference.test.js`, and `tests/golden/{no-docket,ideate}.txt` (its body *is* their prose).
+- `.claude-plugin/plugin.json` — declares **no** `commands` key, and `tests/commands.test.js:205-207` asserts it stays that way.
 
 ## Conventions (re-verified at `22e30ef`, plus one inversion)
 
 - Unchanged from Phases 1–3 — naming, ESM imports, the three error tiers, JSDoc-only types, `node:test` fixtures, no linter, renderer purity, `io.out` for exit-2 answers about the repository and `io.err` for the CLI's own parse complaints.
-- **Inverted for this one file**: every shipped command file declares **no** `model:`/`effort:` and says so in a comment, because its waybill is for the *next* session. `commands/new.md` must declare both, because its waybill is for **this** session and a session cannot switch its own model (design `:243-251`, spec "Requirement: `new` runs at the model and effort its booking names"). The comment block in `new.md` should state that inversion explicitly, the way `next.md:6-9` states the rule it is inverting.
-- **Also inverted**: `next.md`, `status.md` and `bay.md` all end with "Then stop." `new.md` shows the block and then *invokes*. Design decision 2 (`:37-40`) is the justification to cite.
+- **Inverted for `commands/new.md` only**: it declares `model:`/`effort:` because its waybill is for **this** session; every other command refuses them.
+- **Also inverted**: `next.md`, `status.md` and `bay.md` all end with "Then stop." `new.md` shows the block and then *invokes*.
 
 ## Edge Cases for Phase 4
 
-1. **`new` is a reserved word.** `function new(...)` is a syntax error; `COMMANDS` needs `['new', someOtherName]`. Criterion 6 greps only for `['new'`, so the handler's name is free.
-2. **Inside a bay, `resolveLeg(cwd)` answers for the bay, not for leg 1.** Verified today against a fixture bay: `{leg: 'refine', index: 3, branch: 'feat/x', docketOpen: true}`. `new` therefore cannot simply print `resolveLeg`'s output the way `next` does — leg 1 has to be forced.
-3. **Forcing leg 1 from inside a bay leaves the bay's branch on the header.** Verified today: the forced state renders `feat/x · no docket open` as its first line, which is false — that branch does carry a docket. Decide deliberately between keeping it (and letting the warning explain), naming the trunk instead, or dropping the branch (which yields the bare `no docket open` and would *not* match the trunk golden). Neither design §6 nor the spec settles this; it is the one genuinely undesigned behaviour in the phase.
-4. **The leg-1 construction must not touch `src/inference.js`.** Criterion 8 is `git diff --quiet` on that file and it passes today. Copy the shape of `src/inference.js:66-76` into `src/cli.js`; do not export a `resolveFirstLeg` from the inference module.
-5. **The in-a-bay warning belongs on stdout, not stderr.** Phase 3's rule (`src/cli.js:109-118`) exists because the `!` invocation captures stdout only. Routing it through `state.warnings` puts it in the block's own `WARNINGS:` section (`withFindings`, `src/waybill.js:180`), which is both on stdout and testable by a golden-free regex. §5.4 requires exit **0** either way.
-6. **`tests/golden/no-docket.txt` must stay byte-identical twice over**: criterion 11 (`git diff --quiet` against merge-base `08d0c6f`, passing today) and `tests/waybill.test.js:164-167`, which asserts it renders identically to `ideate.txt`. `UPDATE_GOLDEN=1` rewrites all fourteen goldens at once — after any regeneration run `git diff --stat tests/golden/` and expect it empty.
-7. **Do not edit `bookings/ideation-ideate.md`.** Its body is the golden's prose, its `model`/`effort` is one half of §5.3's pin, and its `handover: transfer` is what produces the `/clear, then run:` line in both pinned goldens.
-8. **The block `new` prints says `/clear, then run:` while `/waybill:new` invokes immediately.** That is `handover: transfer` (`src/waybill.js`'s NEXT block) meeting design decision 2 — "there is no previous leg, and a session sitting on the trunk about to ideate is already empty". `commands/new.md`'s Task section has to address it, or a session will either `/clear` (destroying the invocation) or refuse. Changing the booking to `handover: through` to dodge it would rewrite two pinned goldens.
-9. **Invoking a slash command may need a permission the restrictive `allowed-tools` line does not carry.** This is precisely the failure mode §6.2 exists to prevent for `AskUserQuestion` on `next.md` (design `:203-205`: "the list is restrictive, so it must be added or the prompt is silently unavailable"). tasks.md §5.2 says nothing about it for `new.md`. Decide what the invocation actually uses and declare it on the `allowed-tools:` **line**.
-10. **`commands/new.md`'s `!` line must spell the plugin root exactly `${CLAUDE_PLUGIN_ROOT}`.** `tests/commands.test.js:151-169` sweeps every `DECLARED` file's lines beginning `` !` `` and rejects any other spelling — including the defensive `${CLAUDE_PLUGIN_ROOT:-}`. Copy the shipped guard verbatim from `status.md`.
-11. **Do not "fix" the shipped guard's shape.** `if [ -f … ]; then node …; else echo …; fi` does not obviously prefix-match `allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)`; that mismatch is a known pre-existing finding (`docs/ideation/pitwall/run-2026-08-24.json:64`) and is out of this change's scope. Match the three shipped files.
-12. **`DECLARED` sort position**: `'new.md'` goes between `'cleanup.md'` and `'next.md'`. `shipped()` returns `.sort()`ed paths and `:111` is a `deepEqual`, so a misplaced entry reds immediately.
-13. **`tests/commands.test.js:303` pins the `status` usage row.** Adding a `new` row is safe; rewording `status`'s description in `USAGE` is not.
-14. **`new` outside a git repository.** Every other verb calls `repoRoot(cwd, io)` first and exits 2 on null, while `resolveLeg` would happily return leg 1 with a `not a git repository` warning. Reusing `repoRoot` unchanged is the safe route — it also keeps criterion 15 (no `is not inside a git repository` string in the `src/cli.js` diff) trivially satisfied, since calling an existing function adds no such line.
-15. **A CLI-level golden comparison for `new` is available and byte-exact** — verified today over `noDocketFixture()`, whose inspection is `{ignored: [], warnings: []}`. Keep the renderer-level assertion at `tests/waybill.test.js:156` as well; the two answer different questions ("the renderer still produces this" vs "the verb still routes here").
-16. **Add no file under `tests/fixtures/`.** `tests/inference.test.js:70-73` asserts `readdirSync(FIXTURES).length === LEGS.length + 1` and the directory holds exactly 8 files today. The contract lists `tests/fixtures/no-docket.js` as *modified*, not new. Build repositories with `createRepo`/`addWorktree` (`tests/helpers/repo-fixture.js:69,120`).
-17. **`new` takes no options, and there is no `new --json`.** `NEXT_FLAGS` (`src/cli.js:33`) is `next`-only, and the "no second machine-readable surface" rule (`src/cli.js:229-231`) argues against adding one. Rejecting every argument the way `status` does is the consistent choice; nothing in the spec requires it, so state the choice in the JSDoc.
-18. **`new` on a trunk with bays open still prints leg 1's waybill and exits 0.** Design §1's route table gives `new` the same answer in all four columns. It must not acquire an exit-contract branch of its own — `next`'s exit contract is about issuing a waybill *for a docket*, and `new` has none.
-19. **Phase 5 (tasks.md §6) owns `commands/next.md` and `commands/status.md`.** Do not add the `SELECT A DOCKET:` branch or `AskUserQuestion` here; criteria 13 and 14 are Phase 5's gates and are expected to stay red through Phase 4.
-20. **`src/inference.js:113`'s stale `/waybill:start` comment stays stale** (decision-log entry 5, tasks.md §2.6). It is inside the file criterion 8 pins to a zero diff.
+1. **`new` is a reserved word.** 2. **Inside a bay, `resolveLeg(cwd)` answers for the bay, not for leg 1.** 3. **Forcing leg 1 from inside a bay leaves the bay's branch on the header** — the one undesigned behaviour in the phase. 4. **The leg-1 construction must not touch `src/inference.js`.** 5. **The in-a-bay warning belongs on stdout, not stderr** — route it through `state.warnings`. 6. **`tests/golden/no-docket.txt` must stay byte-identical twice over.** 7. **Do not edit `bookings/ideation-ideate.md`.** 8. **The block says `/clear, then run:` while `/waybill:new` invokes immediately.** 9. **Invoking a slash command may need a permission the restrictive `allowed-tools` line does not carry.** 10. **`commands/new.md`'s `!` line must spell the plugin root exactly `${CLAUDE_PLUGIN_ROOT}`.** 11. **Do not "fix" the shipped guard's `if … fi` shape** — a known pre-existing finding (`docs/ideation/pitwall/run-2026-08-24.json:64`), out of scope. 12. **`DECLARED` sort position.** 13. **`tests/commands.test.js:303` pins the `status` usage row.** 14. **`new` outside a git repository** — reuse `repoRoot`. 15. **A CLI-level golden comparison for `new` is available and byte-exact.** 16. **Add no file under `tests/fixtures/`.** 17. **`new` takes no options, and there is no `new --json`.** 18. **`new` on a trunk with bays open still prints leg 1's waybill and exits 0.** 19. **Phase 5 (tasks.md §6) owns `commands/next.md` and `commands/status.md`.** 20. **`src/inference.js:113`'s stale `/waybill:start` comment stays stale.**
 
 ## Risks (Phase 4)
 
-- **The in-a-bay header is the one undesigned output in this phase** (edge case 3). Whatever is chosen, pin it with a CLI case so the choice is recorded somewhere a future reader will run.
-- **The slash command's invocation permission is unstated** (edge case 9). The design names the problem for `next.md` and the contract turns it into criterion 13; nothing does the same for `new.md`, and an undeclared tool fails *silently*. This is the most likely way Phase 4 ships something that passes every check and does not work in a session.
-- **Forcing leg 1 tempts a change to `src/inference.js`.** A `resolveFirstLeg(bookings)` export would be the obvious refactor and would red criterion 8 — the check on the whole approach, per design §Decisions and decision-log entries 2 and 5.
-- **`UPDATE_GOLDEN=1` is the fastest way to break criterion 11.** The golden must survive this phase byte-for-byte; it passes today, and the CLI composition that reproduces it has been verified, so any diff means the ideate waybill was altered by accident.
-- **tasks.md §0's inner-loop table is stale.** `tests/cli.test.js` is **13.3s** on this tree, not 5.4s, and `npm test` is **45.8s**, not 36.5s — Phase 3's cases roughly doubled the CLI suite. `tests/commands.test.js` (0.18s) is the real inner loop for §5.2, §5.3 and §5.6.
-- **tasks.md §5.1's line references are stale** (`tests/waybill.test.js:118` and `:121-129`). The assertions are now at `:156` and `:159-168`. Same facts, moved by Phases 2 and 3.
-- **No decision-log contradiction found for Phase 4.** All nine entries in `contract-data.json → decisions` were re-checked against the tree at `22e30ef`. Entry 5 is directly load-bearing and still holds: the deliberately stale `/waybill:start` comment is still at `src/inference.js:113` and the zero-diff check passes. Entry 7 (sequential phases because every phase edits `src/cli.js`) holds — Phase 4 edits it again. Entry 4's `fleet-empty.txt` and entry 1's rename-first are both shipped. Entry 8's `dockets` array is intact at `src/cli.js:126-144`.
+- The in-a-bay header is the one undesigned output in this phase.
+- The slash command's invocation permission is unstated; an undeclared tool fails *silently*.
+- Forcing leg 1 tempts a change to `src/inference.js` that would red criterion 8.
+- `UPDATE_GOLDEN=1` is the fastest way to break criterion 11.
+- tasks.md §0's inner-loop table is stale.
+- No decision-log contradiction found for Phase 4.
 
-## Verification (Phase 4)
+## Phase 4 outcome (verified today at `1ce2528`)
+
+- `commands/new.md` exists (68 lines): `model: opus`, `effort: high`, `allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), SlashCommand, Skill` (`:5`), the shipped `!` guard with verb `new` (`:39`), and a `## Task` (`:41-67`) that shows the block verbatim, then runs the command the `NEXT:` block names, explicitly overriding the `/clear, then run:` line (`:51-55`), reporting an unresolvable command (`:57-60`), and relaying `WARNINGS`/`IGNORED BY GIT`.
+- `tests/commands.test.js:190-210` — *"runs `new` at the model and effort the ideate booking names, and nothing else at any"*: `new.md`'s `model`/`effort` asserted against `bookings/ideation-ideate.md`'s **parsed** values, plus the inversion sweep over every other declared non-`spec/` file.
+- `DECLARED` is nine entries with `'new.md'` between `'cleanup.md'` and `'next.md'` (`tests/commands.test.js:32-42`).
+- Criteria 5, 6, 7 now **pass**; criterion 11 still passes; all boundary checks still green.
+- Baseline after the phase: `npm test` → **368 pass / 0 fail**, **432 TAP ok**, 46.6s.
+
+---
+
+# Phase 5 — The session-facing branch (tasks.md §6.1–6.3)
+
+Contract phase entry: `contract-data.json → execution.phases[4]`, title "The session-facing branch", risk **medium**, prereq "new: the trunk-side entry point", files `commands/next.md`, `commands/status.md`, `tests/commands.test.js`.
+
+**This is the only phase that does not touch `src/`.** It is entirely command-file text plus the static assertions that hold that text. Nothing it changes can be observed by the CLI suite; the tests are file-content pins.
+
+## Gates (Phase 5)
+
+| Gate                 | Status | Evidence                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | ready  | Three files, each with a concrete change: `commands/next.md:3` (append `, AskUserQuestion` to the `allowed-tools` line) and `:28-38` (the `## Task` section gains the `SELECT A DOCKET:` branch, verbatim staying the default); `commands/status.md:2,14-22,31-33` (the trunk fleet view — description, the "`status` is `next` minus the NEXT block" comment, and the "Then stop / do not infer the next leg" paragraph); `tests/commands.test.js` (a new case beside `:190-210` pinning both the literal and the surviving verbatim rule, and the `allowed-tools` entry). No `src/` file, no golden, no new suite file, no `DECLARED` change. |
+| Pattern familiarity  | ready  | Read all five shipped command files in full — `next.md` (38 lines), `status.md` (36), `bay.md`, `new.md` (68, the Phase 4 output and the closest precedent for a Task section that branches), `cleanup.md` (the only shipped file with a numbered, conditional, multi-step Task). Read `tests/commands.test.js` end to end, `src/frontmatter.js:9-90` (why `allowed-tools` must stay one flat line), `src/waybill.js:331-350` (`renderSelect` and its comment naming `commands/next.md` as the consumer of the literal), `tests/waybill.test.js:237-250` (the renderer half of the same pin), design §5 (`docs/superpowers/specs/2026-09-08-waybill-new-and-fleet-design.md:191-205`), and the change's own spec requirement *"Verbatim rendering, with one keyed exception"* (`openspec/changes/new-bay-and-fleet/specs/command-surface/spec.md:142-158`). |
+| Dependency awareness | ready  | `commands/next.md` — consumed by → Claude Code's loader by convention, `tests/commands.test.js` `DECLARED:32-42` (which puts it under `shipped()` equality `:112`, `problems()` `:116`, `scratch()` `:99`, the plugin-root sweep `:159-169`, and the no-model sweep `:206-209`), and acceptance criteria 13 and 14. `commands/status.md` — the same five sweeps, plus it is the file `scratch()`'s three negative cases mutate (`:121,137,145`), so its *name* is load-bearing there but its *contents* are not. Nothing in `src/`, `bin/`, or any other suite reads either file. `src/waybill.js:348` owns the `SELECT A DOCKET:` string the branch keys on and `tests/waybill.test.js:238` already pins it — the command file becomes the second half of a two-sided pin. `src/cli.js` `USAGE`'s `status` row is pinned by `tests/commands.test.js:326` and is **not** the same string as `commands/status.md:2`'s `description`; nothing asserts the two agree. |
+| Edge case coverage   | ready  | Twenty concrete items below, including the design's own internal contradiction about how the re-run is spelled (verified against the `allowed-tools` line and the pitwall finding), the frontmatter parser's refusal of list syntax, and the exit-2 visibility question that only a live session can answer. |
+| Test strategy        | ready  | Measured on this tree today at `1ce2528`: `node --test tests/commands.test.js` **0.19s / 19 pass** (the whole inner loop for this phase — tasks.md §0 already names it), `npm test` **46.6s → 368 pass / 0 fail**, **432 TAP ok** (criterion 0's floor is 372). `verify.mjs` run in full today: **pass=14 fail=2 judgment=1**, and the two failures are exactly criteria 13 and 14 — this phase's gates, confirmed red before the work. Every boundary check (8, 9, 10, 11, 15) passes today and must still pass; none of them can be disturbed by a phase that edits no `src/` file. |
+
+## Key Patterns (Phase 5)
+
+- `commands/next.md:3` — `allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)`. One flat comma-separated line. Criterion 13 is `grep -qE '^allowed-tools:.*AskUserQuestion' commands/next.md` — line-anchored, so the tool name must be **on this line**, not in the HTML comment above it.
+- `commands/next.md:28-38` — the `## Task` section as it stands: three paragraphs. `:30-31` is the verbatim rule ("Show the block above to me **verbatim** — same lines, same order, same glyphs"). `:33-35` is "Then stop", with the reason (the waybill belongs to the *next* session). `:37-38` is the `IGNORED BY GIT` clause. Design §5's prescribed branch is: *"If the block contains `SELECT A DOCKET:`, ask which docket, then re-run … and show that block verbatim. Otherwise show the block verbatim and stop."*
+- `commands/new.md:41-67` — the Phase 4 precedent for a Task section that does more than stop: it states the exception, names the rule it is inverting, and gives the failure path (`:57-60`) in one line. Same register for `next.md`'s branch.
+- `commands/cleanup.md` `## Task` — the only shipped file with numbered conditional steps and fenced command blocks the session is expected to run. Note its habit: when the session cannot act, it *prints the command and asks the operator to re-run the slash command* rather than improvising.
+- `src/waybill.js:331-350` — `renderSelect`. Its doc comment already names `commands/next.md` as the consumer: *"`SELECT A DOCKET:` is an exact literal rather than prose: `commands/next.md` keys its one exception to the verbatim rule on finding it, so rewording the heading silently turns the selection prompt off."* The heading is built at `:348` via `docketBlock('SELECT A DOCKET:', dockets)`, and the block's last line is `` `${INDENT}waybill next <branch>` ``.
+- `tests/golden/select.txt` — the exact block a session will see: header `main · 3 dockets open`, blank line, `SELECT A DOCKET:`, three padded branch lines, blank line, `  waybill next <branch>`.
+- `tests/waybill.test.js:237-240` — *"carries the exact literal `commands/next.md` branches on"*. The renderer half. The new commands-suite case is the command-file half; together they are the two-sided pin the contract's criterion 14 greps for.
+- `tests/commands.test.js:190-210` — the **shape to copy** for §6.1's test: assert the command file against a *derived* value rather than a second hard-coded literal, so the two sides cannot drift. `tests/commands.test.js:9` already imports from `../src/waybill.js`, so `renderSelect` is importable there and the assertion can be "the heading `renderSelect` actually emits appears in `commands/next.md`" instead of a repeated string.
+- `tests/commands.test.js:152-169` — the `${CLAUDE_PLUGIN_ROOT}` sweep. It inspects **only** lines beginning `` !` ``. Prose elsewhere in the file is unpinned by it.
+- `src/frontmatter.js:70-90` — the parser throws on an indented line, a `- ` list item, a block scalar, or a duplicate key. `tests/commands.test.js:116` runs it over every declared file. `allowed-tools` therefore **must** stay a single `key: value` line.
+- `src/cli.js:240-264` — what `status` actually prints now: on the trunk, `renderFleet(trunkName(state), fleet(root, bookings), inspection)` and exit 0; inside a bay, `renderPosition(state, inspection)`, unchanged. Chosen by where the operator stands, not by a flag.
+- `README.md:99` — the wording already shipped for this verb: *"Where this docket stands, or the whole fleet from the trunk"*. `README.md:143-145` — *"`waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag."*
+
+## Dependencies (Phase 5)
+
+- `commands/next.md` — consumed by → the Claude Code loader (by convention; `.claude-plugin/plugin.json` declares no `commands` key and `tests/commands.test.js:228-230` asserts it stays that way), `tests/commands.test.js` `DECLARED` and its five sweeps (`:112`, `:116`, `:99`, `:159-169`, `:206-209`), and acceptance criteria **13** and **14**. No `src/` module, no other suite, and no README line reads it.
+- `commands/status.md` — consumed by → the same five sweeps. Additionally, `scratch()`'s three negative cases (`:121`, `:137`, `:145`) rename or overwrite `status.md` inside a throwaway copy: they depend on the file *existing* and being copyable, never on its text. Editing its prose cannot red them.
+- `src/waybill.js:348` (`SELECT A DOCKET:`) — consumed by → `tests/waybill.test.js:238`, `tests/cli.test.js:216,231,391`, `tests/golden/select.txt:3`, and (after this phase) `commands/next.md`. Criterion 14 greps `src/` for it as well as the command file, so the renderer side must not be reworded while the command side is written.
+- `tests/commands.test.js` — consumed by → `tests/index.js:11` only. No new suite file is added; `tests/index.js` needs no edit.
+- `src/cli.js` — **not a dependency of this phase and must not be edited.** Criterion 15 (no `is not inside a git repository` in its diff) and `tests/commands.test.js:326` (the `status` USAGE row, byte-exact) both sit on it, and the contract's file list for this phase excludes it.
+- `README.md` — already rewritten in Phase 3 to describe the fleet view and the exit contract (`:93-146`). Nothing in §6 asks for a README change, and no test reads it.
+
+## Conventions (re-verified at `1ce2528`)
+
+- Unchanged from Phases 1–4.
+- **Command-file register**: frontmatter → an HTML comment explaining *why* the frontmatter is what it is → `# Waybill: <verb>` → an HTML comment explaining the `!` line → the `!` line → `## Task`. Prose is second person, addressed to the model, with the operator as "me". Every rule states its reason; nothing is asserted without a because.
+- **The one rule that outranks the others**: the block is shown verbatim. Both `next.md:30-31` and `status.md:28-29` spell it identically, and `src/waybill.js:335` names it as the thing the exact literal exists to protect. Phase 5 adds the first exception in the tool's history — it stays keyed on a string match, never on judgment.
+- **`model:`/`effort:` remain absent** from `next.md` and `status.md`; `tests/commands.test.js:206-209` sweeps every declared non-`spec/`, non-`new.md` file for both.
+
+## Edge Cases for Phase 5
+
+1. **The design contradicts itself about how the re-run is spelled, and this is the phase's central decision.** Design `:197-198` prescribes re-running `waybill next <branch>`; design `:203-204` asserts *"The second invocation needs no new permission — `allowed-tools: Bash(node:*)` already covers it"*. Both cannot hold: `waybill next feat/x` prefix-matches none of `Bash(node:*)`, `Bash(test:*)`, `Bash(echo:*)`, and a marketplace plugin install never runs `npm link` (`README.md:74-76`), so the `waybill` binary may not exist on PATH at all. The permission claim is only true if the re-run is spelled `node "<plugin root>/src/cli.js" next <branch>`. Resolve toward the node spelling; the printed `waybill next <branch>` line stays what the *operator* is told, not what the session runs.
+2. **Naming the plugin root in prose is unpinned and may be unsubstituted.** `3d42e07`'s commit message says Claude Code *"rewrites the literal out of a command body"* — a command body, not merely the `!` line — which suggests a `${CLAUDE_PLUGIN_ROOT}` in the Task section does resolve. But `tests/commands.test.js:159-169` only sweeps lines beginning `` !` ``, so a prose `${CLAUDE_PLUGIN_ROOT:-}` would slip through the one test that exists to prevent exactly that bug. Two safe routes: (a) phrase the re-run as "the same command as the `!` line above, with the branch appended", which needs no path literal at all; (b) spell it and widen the sweep to every line containing the token. Do not spell it and leave the sweep narrow.
+3. **The whole branch depends on a block from an exit-2 command reaching the session.** `waybill next` on an ambiguous trunk exits 2 (`src/cli.js:212`), and the shipped `if … then node …; else echo …; fi` compound propagates that exit status to the `!` invocation. Whether Claude Code surfaces the stdout of a non-zero `!` line is not observable from this repository — it is the same class of question as §7.2's stderr finding, and it is worth recording alongside it in Phase 6 rather than guessing here.
+4. **`allowed-tools` must stay one flat line.** `src/frontmatter.js:70-76` throws on `- ` list items and on indentation, and `tests/commands.test.js:116` parses every declared file. Append `, AskUserQuestion` to `commands/next.md:3`; do not reformat it into a YAML list.
+5. **Criterion 13's regex is line-anchored and case-sensitive**: `^allowed-tools:.*AskUserQuestion`. The tool name in an HTML comment does not satisfy it — that is stated in the criterion's own `expect`. Note `commands/new.md:20-23` already discusses `AskUserQuestion` in prose; that file is not what criterion 13 greps and does not make this work done.
+6. **Criterion 14 has three parts and one is already green**: `grep -q 'SELECT A DOCKET' commands/next.md` (red today), `grep -rq 'SELECT A DOCKET' src/` (green — `src/waybill.js:334,348`), and `node --test tests/commands.test.js` (green today, must stay green with the new case). Both greps omit the trailing colon; the command file should still carry the full `SELECT A DOCKET:` so it matches what `renderSelect` emits.
+7. **Pin the literal by derivation, not by a second hard-coded string.** `tests/commands.test.js:190-210` set the precedent for exactly this problem (`new.md` vs the booking): assert `commands/next.md` contains the heading `renderSelect` actually produces. A repeated literal is a second place to state the same routing, free to drift from the first — and drift is the failure `src/waybill.js:335` warns about.
+8. **"The surviving verbatim rule" is half of §6.1's verification.** The new test must assert both that the branch exists *and* that verbatim is still the default — a test that only greps the new literal would pass on a file whose verbatim rule had been deleted.
+9. **`next.md:33-35`'s "Then stop" reasoning becomes conditional, not false.** The handover argument still holds for every ordinary waybill; it does not hold for a selection block, which hands off nothing. Rewrite so a reader sees one rule with one keyed exception, not two contradictory rules.
+10. **The re-run must show the *second* block verbatim, and only that.** Spec `:156-158`: ask, re-run against that branch, show the result verbatim. A session that summarises the second block, or shows both, has broken the rule the exception was carved out of.
+11. **The re-run can itself fail.** `next <branch>` exits 2 with `no bay for <branch> — cut one with \`waybill bay <branch>\`` (`src/cli.js:190-196`) when the named branch has no bay — reachable if a bay is removed between the two invocations, or if the session mistypes the branch. The instruction should say to show that verbatim too, and not to loop back into another prompt.
+12. **The options offered must come from the block's own list, never invented.** The branch names are in the printed block; a session that guesses a branch name will hit edge case 11. A fleet larger than one prompt can comfortably present needs a stated fallback (ask in plain text) rather than a truncated list presented as complete.
+13. **§6.3's content is not spelled out anywhere.** tasks.md `:137` says only "Update `commands/status.md` for the trunk fleet view". The concrete gaps in the file today: `:2`'s description says "Where this docket stands, without the waybill" (`README.md:99` already words it "or the whole fleet from the trunk"); `:15` says "`status` is `next` minus the NEXT block", which is still true but says nothing about the two answers; `:31-33`'s "Do not infer what the next leg's command would be" now needs to also mean "do not offer to run `next` for a docket in the list".
+14. **Do not touch `src/cli.js`'s `USAGE` while aligning the description.** `tests/commands.test.js:326` matches `/^ {2}status +Where this docket stands, without the waybill$/m` against `bin/waybill --help`, and `src/cli.js` is not in this phase's file list. The `.md` description and the `USAGE` row are allowed to differ; nothing asserts they agree.
+15. **`status` inside a bay is unchanged** (`src/cli.js:263`, spec `:98-100`). The command file must not read as though the fleet were the only answer — the answer depends on where the operator stands.
+16. **Trunk warnings are already branch-prefixed** (`src/waybill.js:306-310`, rendered as `⚠ <branch>: <text>`). If `status.md` says anything about relaying warnings, it should note the branch is already named in the line rather than asking the session to attribute them itself.
+17. **Both files' `!` lines are byte-pinned** by `tests/commands.test.js:152-169` and must not be retouched while editing around them — including the `if … fi` shape, which is a known pre-existing finding (`docs/ideation/pitwall/run-2026-08-24.json:64`) and out of this change's scope.
+18. **`DECLARED` does not change in this phase.** No command file is added or renamed; `tests/index.js` needs no edit; `tests/fixtures/` is untouched.
+19. **`commands/next.md` has no `argument-hint` and its `!` line passes no `$ARGUMENTS`.** Making `/waybill:next feat/x` work directly would change the pinned `!` line and is not in §6 — out of scope.
+20. **Phase 6 (tasks.md §7) owns the full-suite verification and the stderr finding.** Criterion 17 is judgment-only and stays uncounted until a human looks; do not attempt to close it here.
+
+## Risks (Phase 5)
+
+- **The re-run spelling is the one genuinely undesigned decision, and getting it wrong fails silently in exactly the way the phase exists to prevent** (edge case 1). If the session is told to run `waybill next <branch>`, it hits either a permission prompt or a missing binary, and the operator sees the selection block followed by nothing. The design asserts both the wrong spelling and the permission claim that only the right spelling satisfies. Whatever is chosen, state the reason in the file the way `new.md:20-23` states its own.
+- **Every test this phase can write is a static text assertion.** Nothing in the suite can prove a session actually branches on the literal, asks, and re-runs — the tests prove the *file says so*. The real verification is a live session, which makes this phase's honest boundary the same one §7.2 draws. Say so in the commit rather than implying the pins are behavioural.
+- **The verbatim rule gaining a branch is the design's own stated main risk** (`openspec/changes/new-bay-and-fleet/design.md:52-55`). The mitigation is already chosen — an exact string match, verbatim as the default — and the phase's job is to not weaken it while writing the exception.
+- **Exit 2 and block visibility** (edge case 3) is unverifiable from here and unaddressed by any criterion. If a non-zero `!` line's stdout is suppressed, both this branch and the already-shipped zero-docket pointer are invisible in a session. Record it alongside the §7.2 finding.
+- **Decision-log check against reality**: eight of nine entries hold at `1ce2528`. Entry 6 is load-bearing and verified — `src/inference.js:113` still reads `/waybill:start` and the zero-diff criterion passes. Entry 5's `fleet-empty.txt` exists; entry 9's `dockets` array is intact; entries 2, 3, 4, 7 are all shipped as stated. **One contradiction, and it is inert**: entry 8 rejects parallel phases because *"Every phase edits `src/cli.js`"* — this phase's own file list (`commands/next.md`, `commands/status.md`, `tests/commands.test.js`) contains no `src/` file, and criterion 15's note already concedes "edited by five of six phases". The decision itself still stands (this phase's prereq is shipped, and there is nothing left to parallelise it against), so the mismatch changes no plan — but the stated reason is not universally true, and a reader who trusts it will expect a `src/cli.js` diff that must not appear.
+
+## Verification (Phase 5)
 
 ```bash
-# inner loop
-node --test tests/commands.test.js         # 0.18s — DECLARED, the routing pin, the plugin-root spelling
-node --test tests/waybill.test.js          # 2.8s  — no-docket.txt and its ideate.txt twin
-node --test tests/cli.test.js              # 13.3s — the new verb, the in-a-bay warning, usage
+# inner loop — the whole phase
+node --test tests/commands.test.js         # 0.19s / 19 pass today
 
-# phase acceptance gates — 5, 6 and 7 confirmed FAILING (exit 1) against this tree today
-# criterion 5 — the usage block lists exactly the four verbs (3 today)
-test "$(node bin/waybill nosuchverb 2>&1 | grep -cE '^  (new|bay|next|status) ')" = 4 && ! node bin/waybill nosuchverb 2>&1 | grep -qE '^  start '
-# criterion 6 — the dispatch table registers bay and new, never start
-grep -q "\['bay'" src/cli.js && grep -q "\['new'" src/cli.js && ! grep -q "\['start'" src/cli.js
-# criterion 7 — the command files match the new surface
-test ! -e commands/start.md && test -e commands/bay.md && test -e commands/new.md
-# criterion 11 — PASSES today and must still pass after the re-point
-git diff --quiet $(git merge-base main HEAD) -- tests/golden/no-docket.txt
+# phase acceptance gates — both confirmed FAILING (exit 1) against this tree today
+# criterion 13 — AskUserQuestion on the allowed-tools line itself
+grep -qE '^allowed-tools:.*AskUserQuestion' commands/next.md
+# criterion 14 — the literal in both the renderer and the command file, suite green
+grep -q 'SELECT A DOCKET' commands/next.md && grep -rq 'SELECT A DOCKET' src/ && node --test tests/commands.test.js
 
-# all sixteen checks at once
+# all seventeen checks at once — pass=14 fail=2 judgment=1 today, the two failures being the above
 node ~/.claude/plugins/cache/nicknisi/ideation/0.26.1/scripts/verify.mjs docs/ideation/new-bay-and-fleet/contract-data.json
 
 # section boundary
-npm test                                   # 45.8s — expect 359+ pass, 0 fail
-node --test --test-reporter=tap tests/ 2>/dev/null | grep -cE '^ *ok '   # >= 372 (422 today)
-MB=$(git merge-base main HEAD)             # 08d0c6f today
+npm test                                   # 46.6s — expect 368+ pass, 0 fail
+node --test --test-reporter=tap tests/ 2>/dev/null | grep -cE '^ *ok '   # >= 372 (432 today)
+
+# boundary checks — all green today, and a phase that edits no src/ file cannot move them
+MB=$(git merge-base main HEAD)             # 08d0c6f
 git diff --quiet $MB -- src/inference.js
 git diff --quiet $MB -- src/legs.js src/bookings.js src/frontmatter.js src/inspection.js src/progress.js src/openspec.js
 git diff --quiet $MB -- tests/golden/ideate.txt tests/golden/contract.txt tests/golden/specs.txt tests/golden/execute.txt tests/golden/cleanup.txt tests/golden/complete.txt tests/golden/refine.txt tests/golden/status.txt tests/golden/no-docket.txt
 ! git diff $MB -- src/cli.js | grep -q 'is not inside a git repository'
-git diff --stat tests/golden/              # expect empty — no golden may move in this phase
+git diff --stat src/ tests/golden/          # expect empty — this phase touches neither
 ```
 
-Measured on this tree today at `22e30ef`: `npm test` → **359 pass / 0 fail**, 45.8s, **422 TAP ok**. Every boundary check above passes; criteria 5, 6 and 7 fail, as they should before implementation; criterion 11 passes and is a regression guard rather than a gate to turn green.
+Measured on this tree today at `1ce2528`: `npm test` → **368 pass / 0 fail**, 46.6s, **432 TAP ok**. `verify.mjs` → **commits=6/6 pass=14 fail=2 judgment=1**, the two failures being criteria 13 and 14 — this phase's gates, red as they should be before implementation.
