@@ -1,0 +1,264 @@
+{
+  "projectName": "Paste-Ready Waybills",
+  "slug": "paste-ready-waybills",
+  "date": "2026-09-10",
+  "status": "Approved",
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "At every handover the operator retypes `/model` and `/effort` from the `└ opus · high effort` caption and picks the leg command out of an indented prose block (tests/golden/execute.txt); the user asked for copy-paste blocks instead."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "User confirmed three goals: 0 retyped commands per handover (down from 2), plain CLI prints the NEXT commands one per line without the caption, and select/status/fleet output byte-identical with `--json` state untouched."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "User approved the command checks (suite, markdown tests, caption gone, slash commands pass `--markdown`) plus one desktop-app judgment; the success-criteria critic's fence-shape, unindented-lines, unchanged-golden and flag-conflict checks were folded in."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "User chose `--markdown` echoed by /waybill:next and /waybill:bay; /waybill:new only gets its run-the-leg-command instruction fixed (critic finding); status, the SELECT menu, the release bump and a context-window field are explicitly out."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "The user's live paste test (`/model haiku` + newline + `/effort low` → \"Model 'haiku     /effort low' not found\") resolved the one-block-vs-many conflict in favour of one fence per command, and the user accepted the drafted output as-is."
+      }
+    ]
+  },
+  "problem": [
+    "Waybill's whole job is to hand the next session its orders, but the NEXT block hands them over as prose. The model and effort arrive as a caption — `└ opus · high effort` — that the operator has to translate into `/model opus` and `/effort high` by hand, and `/clear, then run:` fuses an instruction to a sentence. Every leg of every docket pays that translation at the exact moment the operator is switching context.",
+    "The obvious fix — one block holding `/model`, `/effort` and the command, as the request sketched it — does not work: Claude Code submits a multi-line paste as one input, so `/model` receives the following lines as its argument. The user's live test returned `Model 'haiku     /effort low' not found`. Each slash command therefore has to be its own paste, which makes one copy button per command the thing worth building."
+  ],
+  "goals": [
+    "Every command a handover needs — `/clear` (transfer legs), `/model`, `/effort` (when booked), the leg command, and `cd` (when present) — arrives as its own fenced block in /waybill:next and /waybill:bay: 0 commands retyped per handover, down from 2.",
+    "Plain `waybill next` (and `new`, `bay`) prints the NEXT commands one per line, unindented, and the `└ model · effort` caption and `/clear, then run:` line are gone.",
+    "No regressions: the SELECT A DOCKET, status, fleet and complete goldens are byte-identical to main, and `--json` is untouched because the change is render-only."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "The full suite passes, including new `.md` goldens for every booked leg.",
+      "check": {
+        "cmd": "node --test tests/",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "Markdown-mode tests exist and run.",
+      "check": {
+        "cmd": "node --test --test-reporter=spec --test-name-pattern=markdown tests/ 2>&1 | grep -qE 'pass [1-9]'",
+        "expect": "exits 0 (at least one matching test passed)"
+      }
+    },
+    {
+      "criterion": "In the execute markdown golden, every handover command sits alone between bare fences — `/model` and `/effort` never share a block.",
+      "check": {
+        "cmd": "for c in '/clear' '/model opus' '/effort high' '/spec:apply add-thing'; do [ \"$(grep -Fx -B1 -A1 -- \"$c\" tests/golden/execute.md | grep -cx '```')\" -eq 2 ] || exit 1; done",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "Plain output lists the NEXT commands unindented, one per line, with no `then run:` line left in any golden.",
+      "check": {
+        "cmd": "grep -qx '/model opus' tests/golden/execute.txt && grep -qx '/effort high' tests/golden/execute.txt && grep -qx '/spec:apply add-thing' tests/golden/execute.txt && ! grep -q 'the[n].run:' tests/golden/*.txt",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "No golden carries the `└ model · effort` caption.",
+      "check": {
+        "cmd": "! grep -l '└ ' tests/golden/*.txt tests/golden/*.md",
+        "expect": "exits 0 (grep lists no file)"
+      }
+    },
+    {
+      "criterion": "The select, status, fleet and complete goldens are unchanged from main.",
+      "check": {
+        "cmd": "git diff --exit-code main -- tests/golden/select.txt tests/golden/status.txt tests/golden/fleet.txt tests/golden/fleet-empty.txt tests/golden/complete.txt",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "`--json` with `--markdown` is rejected with exit 2 and an error naming the conflict.",
+      "check": {
+        "cmd": "node src/cli.js next --json --markdown >/dev/null 2>&1; [ $? -eq 2 ] && node src/cli.js next --json --markdown 2>&1 | grep -q -- '--markdown'",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "Both handover slash commands ask the CLI for the markdown form, including the `next <branch>` re-run in /waybill:next's SELECT A DOCKET step.",
+      "check": {
+        "cmd": "grep -q 'cli.js\" next --markdown' commands/next.md && grep -q 'next --markdown <branch>' commands/next.md && grep -q 'cli.js\" bay --markdown' commands/bay.md",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "`waybill bay --markdown` puts its `cd` line in a fence of its own.",
+      "check": {
+        "cmd": "node --test --test-reporter=spec --test-name-pattern='bay --markdown' tests/ 2>&1 | grep -qE 'pass [1-9]'",
+        "expect": "exits 0 (the bay markdown CLI test ran and passed)"
+      }
+    },
+    {
+      "criterion": "No command file still points the model at the removed `/clear, then run:` handover line.",
+      "check": {
+        "cmd": "! grep -q 'the[n].run:' commands/new.md commands/next.md commands/bay.md README.md",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "In a real session the blocks are usable as intended.",
+      "check": {
+        "judgment": "The operator runs /waybill:next from a real bay in the Claude desktop app and confirms each command renders as its own code block with a copy button, and that pasting them in order hands off cleanly."
+      }
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "Plain renderer: NEXT lists `/clear` (transfer only), `/model <model>`, `/effort <effort>` (when booked) and the leg command one per line, unindented; the `└` caption and the `/clear, then run:` / `run:` lines are removed; an unrecognised `handover` string is kept as an indented prose line above the commands; the booking body stays indented below; the plain `IN BAY:` cd line is unchanged.",
+        "reason": "The commands become the handover itself rather than a caption to translate — goal 2."
+      },
+      {
+        "item": "`waybill next --markdown`: position block in a ```text fence, a **NEXT** line, a custom handover string as a paragraph, one ``` fence per command in order, `IN BAY:` cd as its own fence, body as unindented prose, IGNORED BY GIT / WARNINGS as bullets.",
+        "reason": "One copy button per command is the only shape that survives the paste test — goal 1."
+      },
+      {
+        "item": "`waybill bay --markdown`: bay renders its own `bay created at …` heading and its cd line in markdown (cd in its own fence) in src/cli.js, using a bare-command form of `cdLines`, then the markdown waybill.",
+        "reason": "`bay` prints the cd via its own heading, not the renderer's IN BAY section, so goal 1's fenced cd needs its own path."
+      },
+      {
+        "item": "commands/next.md and commands/bay.md invoke the CLI with `--markdown`, including next.md's step-2 `next <branch>` re-run; their 'the handover line says whether to /clear' wording points at the `/clear` block instead; the verbatim-echo rule stays.",
+        "reason": "Two output modes asked for at once is a caller error, and the CLI already rejects rather than ignores."
+      },
+      {
+        "item": "commands/next.md and commands/bay.md invoke the CLI with `--markdown`, including next.md's step-2 `next <branch>` re-run, and keep the verbatim-echo rule.",
+        "reason": "The model's job stays echo-verbatim; the fences are produced by code a golden can pin."
+      },
+      {
+        "item": "commands/new.md: of the NEXT block's command lines, run only the last (the leg command) — never `/clear`, `/model` or `/effort`; a commands.test.js assertion pins it.",
+        "reason": "new.md's 'ignore the `/clear, then run:` line' instruction targets a line this change removes; left alone, the session could run /clear or /model."
+      },
+      {
+        "item": "Tests: `assertGolden` gains an extension parameter; every booked-leg `.txt` golden regenerated; a `.md` golden per booked leg plus IN BAY and IGNORED/WARNINGS cases; the hand-written shape assertions in tests/waybill.test.js, booking-swap, bookings-overlay, cli.test.js and commands.test.js updated; markdown tests live in existing suites (or are registered in tests/index.js); README examples updated.",
+        "reason": "Golden files are how this repo pins every byte of output."
+      }
+    ],
+    "outOfScope": [
+      {
+        "item": "Stopping `/model` and `/effort` from saving as the default for new sessions.",
+        "reason": "That is Claude Code's behaviour (observed in the user's paste test), not Waybill's; noted, not addressed."
+      },
+      {
+        "item": "`--markdown` for `/waybill:new`.",
+        "reason": "It runs its command in the current session, so there is nothing to paste — though its plain output does change under goal 2, which is why commands/new.md is in MVP."
+      },
+      {
+        "item": "The SELECT A DOCKET menu and `waybill status`.",
+        "reason": "Neither carries a command for the next session."
+      },
+      {
+        "item": "Placeholders for arguments Waybill cannot supply (e.g. the bay leg's branch name).",
+        "reason": "A pasted placeholder submits literally; the bare command plus the booking prose is safer."
+      },
+      {
+        "item": "A booking field for context window (e.g. `[1m]`).",
+        "reason": "`/model opus[1m]` is the documented alias; a booking overlay can say `model: opus[1m]` and it passes through verbatim."
+      },
+      {
+        "item": "The version bump.",
+        "reason": "This repo releases in its own `chore: release` PR."
+      }
+    ],
+    "full": [],
+    "stretch": [],
+    "future": []
+  },
+  "decisions": [
+    {
+      "decision": "One fenced block per slash command.",
+      "rejected": "One block holding `/model`, `/effort` and the leg command together, as the request sketched it.",
+      "reason": "The user's live paste test showed Claude Code submits a multi-line paste as one input: `/model haiku` + newline + `/effort low` returned \"Model 'haiku     /effort low' not found\"."
+    },
+    {
+      "decision": "Fences only in the slash surface; the plain CLI prints bare, unindented command lines.",
+      "rejected": "Emitting ``` fences in the plain CLI output too.",
+      "reason": "A plain terminal would show literal backticks around every command."
+    },
+    {
+      "decision": "A `--markdown` flag on `next` (and `bay`) produces the fenced form; the slash command echoes it verbatim.",
+      "rejected": "Having the model wrap each unindented `/` line in a fence per instructions in commands/next.md.",
+      "reason": "Model-side transformation cannot be pinned by a golden and drifts between runs."
+    },
+    {
+      "decision": "Commands with an argument Waybill cannot supply are fenced bare.",
+      "rejected": "A placeholder in the fence, e.g. `/waybill:bay feat/<name>`.",
+      "reason": "Paste-and-Enter would submit the literal placeholder as a branch name."
+    },
+    {
+      "decision": "/waybill:next and /waybill:bay switch to markdown; /waybill:new stays plain.",
+      "rejected": "Markdown on all three waybill-printing commands.",
+      "reason": "/waybill:new runs its command in the current session, so its fences would never be clicked."
+    },
+    {
+      "decision": "The booking's `model` value is passed to `/model` verbatim.",
+      "rejected": "A new booking field for context window to produce forms like `opus5[1m]`.",
+      "reason": "Claude Code's documented 1M alias is `opus[1m]`, which a booking can already hold as its `model` value."
+    },
+    {
+      "decision": "The position block (header + leg strip) goes inside a ```text fence in markdown mode.",
+      "rejected": "Leaving it as bare markdown lines.",
+      "reason": "Markdown collapses the leg strip's single newlines into one paragraph."
+    },
+    {
+      "decision": "commands/new.md is updated to run only the leg command.",
+      "rejected": "Leaving /waybill:new entirely out of scope (the pre-critic plan).",
+      "reason": "Scope-creep and hidden-dependency critics: new.md's skip instruction names the `/clear, then run:` line this change deletes, and the session could run /clear or /model."
+    },
+    {
+      "decision": "`bay --markdown` renders its own heading and fenced cd in src/cli.js.",
+      "rejected": "Relying on the renderer's IN BAY section (the pre-critic plan).",
+      "reason": "Hidden-dependency critic: `bay` never passes cd to renderWaybill and prints `bay created at …` itself, so the renderer's fence could not reach /waybill:bay."
+    },
+    {
+      "decision": "An unrecognised `handover` string stays as a prose line above the commands; `through` renders nothing, `transfer` renders the `/clear` command.",
+      "rejected": "Dropping the handover line for every value.",
+      "reason": "Hidden-dependency critic: custom handovers are printed verbatim on purpose (tests/waybill.test.js 'hand the laptop to Dave', README) and dropping them silently loses a booking's instruction."
+    },
+    {
+      "decision": "The plain `IN BAY:` / bay cd line keeps its current indented form.",
+      "rejected": "Unindenting cd in plain mode too.",
+      "reason": "cd is a shell command, not a slash command; the fenced form in markdown mode covers copying, and cli.test.js already pins the indent."
+    },
+    {
+      "decision": "Success criteria check fence shape, unindented plain lines, unchanged non-waybill goldens and the flag conflict directly.",
+      "rejected": "Relying on goldens generated by the same PR plus a single name-pattern test (the pre-critic criteria).",
+      "reason": "Success-criteria critic: UPDATE_GOLDEN rewrites whatever the code prints, so a merged /model+/effort fence would have passed every command check."
+    }
+  ],
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      {
+        "title": "Paste-ready NEXT block in plain and markdown modes",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/paste-ready-waybills/spec.md",
+        "notes": "Single phase: renderer (src/waybill.js), `--markdown` on next and bay plus bay's own markdown heading (src/cli.js), commands/next.md + bay.md + new.md, assertGolden extension parameter, regenerated and new goldens, hand-written shape assertions in five test files, README examples. Rebase note: the in-flight ideation/waybill-help spec edits src/cli.js USAGE, tests/commands.test.js and README.md; whichever lands second rebases those three."
+      }
+    ]
+  },
+  "approvalMode": "express",
+  "branch": "ideation/paste-ready-waybills"
+}
