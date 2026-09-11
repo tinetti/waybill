@@ -2,7 +2,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from './legs.js';
-import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from './waybill.js';
+import {
+  cdCommand,
+  cdLines,
+  renderFleet,
+  renderPosition,
+  renderSelect,
+  renderWaybill,
+  renderWaybillMarkdown,
+} from './waybill.js';
 import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
@@ -23,6 +31,7 @@ const USAGE = [
   '',
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
+  '  --markdown        Fence each handover command for pasting (`next`, `bay`)',
   '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
   '                    `git config waybill.baydir`. Relative paths resolve against the main',
   '                    checkout; the default is .claude/worktrees',
@@ -33,7 +42,7 @@ const USAGE = [
  * Options `next` accepts. Anything else is rejected rather than ignored: `--jsonn` silently
  * printing the human waybill would be misparsed by the very script `--json` exists for.
  */
-const NEXT_FLAGS = new Set(['--json']);
+const NEXT_FLAGS = new Set(['--json', '--markdown']);
 
 /**
  * The repository every subcommand answers for, or `null` once the operator has been told there is
@@ -87,10 +96,11 @@ function trunkName(state) {
  * @param {import('./fleet.js').Docket} docket
  * @param {string} cwd where the operator actually is
  * @param {boolean} json
+ * @param {boolean} markdown
  * @param {{out:(text:string)=>void}} io
  * @returns {number} exit code
  */
-function issueWaybill(docket, cwd, json, io) {
+function issueWaybill(docket, cwd, json, markdown, io) {
   const bookings = resolveBookings(docket.path, KNOWN_LEGS);
   const state = resolveLeg(docket.path, bookings);
 
@@ -99,12 +109,12 @@ function issueWaybill(docket, cwd, json, io) {
     return 0;
   }
 
+  const inspection = checkIgnored(docket.path, paperPaths(bookings));
+  const alreadyThere = isInside(docket.path, cwd);
   io.out(
-    renderWaybill(
-      state,
-      checkIgnored(docket.path, paperPaths(bookings)),
-      cdLines(docket.path, isInside(docket.path, cwd)),
-    ),
+    markdown
+      ? renderWaybillMarkdown(state, inspection, alreadyThere ? [] : [cdCommand(docket.path)])
+      : renderWaybill(state, inspection, cdLines(docket.path, alreadyThere)),
   );
   return 0;
 }
@@ -172,6 +182,15 @@ function next(cwd, args, io) {
     positional.push(arg);
   }
 
+  // Before the repository is looked up, so the operator hears about their actual mistake wherever
+  // they typed it rather than being told they are not in a checkout.
+  const json = args.includes('--json');
+  const markdown = args.includes('--markdown');
+  if (json && markdown) {
+    io.err(`waybill: \`--json\` and \`--markdown\` cannot be combined\n${USAGE}\n`);
+    return 2;
+  }
+
   const [named, ...extra] = positional;
   if (extra.length > 0) {
     io.err(`waybill: \`next\` takes at most one branch name\n${USAGE}\n`);
@@ -181,7 +200,6 @@ function next(cwd, args, io) {
   const root = repoRoot(cwd, io);
   if (root === null) return 2;
 
-  const json = args.includes('--json');
   const bookings = resolveBookings(cwd, KNOWN_LEGS);
 
   // A named branch is answered the same way from anywhere — the trunk, or another bay — so it is
@@ -195,7 +213,7 @@ function next(cwd, args, io) {
       const remedy = `no bay for ${named} — cut one with \`waybill bay ${named}\``;
       return noWaybill(remedy, dockets, json, io);
     }
-    return issueWaybill(docket, cwd, json, io);
+    return issueWaybill(docket, cwd, json, markdown, io);
   }
 
   const state = resolveLeg(cwd, bookings);
@@ -207,7 +225,7 @@ function next(cwd, args, io) {
     if (dockets.length === 0) {
       return noWaybill('no dockets open — begin one with `waybill new`', dockets, json, io);
     }
-    if (dockets.length === 1) return issueWaybill(dockets[0], cwd, json, io);
+    if (dockets.length === 1) return issueWaybill(dockets[0], cwd, json, markdown, io);
     if (json) {
       const remedy = 'more than one docket open — name one with `waybill next <branch>`';
       return noWaybill(remedy, dockets, json, io);
@@ -221,7 +239,8 @@ function next(cwd, args, io) {
     return 0;
   }
 
-  io.out(renderWaybill(state, checkIgnored(root, paperPaths(bookings))));
+  const inspection = checkIgnored(root, paperPaths(bookings));
+  io.out(markdown ? renderWaybillMarkdown(state, inspection) : renderWaybill(state, inspection));
   return 0;
 }
 
@@ -360,8 +379,13 @@ function bay(cwd, args, io) {
   const positional = [];
   /** @type {string|undefined} */
   let bayDir;
+  let markdown = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === '--markdown') {
+      markdown = true;
+      continue;
+    }
     if (arg === '--bay-dir') {
       // A missing value would otherwise swallow the branch name, or the flag itself.
       bayDir = args[index + 1];
@@ -403,22 +427,31 @@ function bay(cwd, args, io) {
 
   const bookings = resolveBookings(result.path, KNOWN_LEGS);
   const state = resolveLeg(result.path, bookings);
+  const inspection = checkIgnored(result.path, paperPaths(bookings));
 
   // The `cd` line itself comes from the renderer, so this block and the one a trunk-resolved
   // `next` prints cannot drift into two shapes of the same instruction. Only the heading above it
   // is `bay`'s own: this surface reports what it just created, and that block is frozen.
   const alreadyThere = isInside(result.path, cwd);
-  const lines = alreadyThere
-    ? [`already inside the ${branch} bay at ${result.path} — nothing to do`]
-    : [
-        result.created
-          ? `bay created at ${result.path}`
-          : `bay already exists at ${result.path}`,
-        ...cdLines(result.path, alreadyThere),
-      ];
+  const heading = alreadyThere
+    ? `already inside the ${branch} bay at ${result.path} — nothing to do`
+    : result.created
+      ? `bay created at ${result.path}`
+      : `bay already exists at ${result.path}`;
 
-  io.out(`${lines.join('\n')}\n\n`);
-  io.out(renderWaybill(state, checkIgnored(result.path, paperPaths(bookings))));
+  // The renderer's own IN BAY section never sees this `cd`, since `bay` reports the move itself, so
+  // markdown mode fences it here — as a paragraph, a line, and a fence, the shape `next` prints.
+  if (markdown) {
+    const move = alreadyThere
+      ? []
+      : ['**IN BAY** — run this in your shell first:', `\`\`\`\n${cdCommand(result.path)}\n\`\`\``];
+    io.out(`${[heading, ...move].join('\n\n')}\n\n`);
+    io.out(renderWaybillMarkdown(state, inspection));
+    return 0;
+  }
+
+  io.out(`${[heading, ...cdLines(result.path, alreadyThere)].join('\n')}\n\n`);
+  io.out(renderWaybill(state, inspection));
   return 0;
 }
 

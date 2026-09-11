@@ -109,7 +109,7 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 3. CLI flags
 
-- [ ] 3.1 Add failing tests to `tests/cli.test.js`, with names containing `markdown`:
+- [x] 3.1 Add failing tests to `tests/cli.test.js`, with names containing `markdown`:
   - `next --markdown` in a bay prints a ` ```text ` fence and a bare ``` fence around the leg command,
     and exits 0
   - `next --markdown <branch>` from the trunk prints `**IN BAY**` and a fence holding only
@@ -122,7 +122,7 @@ The exact output shapes, expected strings and file:line anchors are in
   - `new --markdown` is rejected as an unknown option
 
   Verify: these fail.
-- [ ] 3.2 In `src/cli.js` `next()`: add `--markdown` to `NEXT_FLAGS`. Right after the flag loop and
+- [x] 3.2 In `src/cli.js` `next()`: add `--markdown` to `NEXT_FLAGS`. Right after the flag loop and
   before `repoRoot`, when both `--json` and `--markdown` are present, write
   ``io.err(`waybill: \`--json\` and \`--markdown\` cannot be combined\n${USAGE}\n`)`` and return 2.
   Thread a `markdown` boolean through `issueWaybill` (markdown uses `renderWaybillMarkdown` with
@@ -130,7 +130,7 @@ The exact output shapes, expected strings and file:line anchors are in
   (~224). Leave `noWaybill` and `renderSelect` untouched. Add one USAGE Options row,
   `'  --markdown        Fence each handover command for pasting (`next`, `bay`)'`, and do not touch
   the Commands block. Verify: 3.1's tests pass.
-- [ ] 3.3 Add failing `bay` tests to `tests/cli.test.js`. At least one test name must contain the
+- [x] 3.3 Add failing `bay` tests to `tests/cli.test.js`. At least one test name must contain the
   literal `bay --markdown`, because a contract check selects it by that name.
   - `bay --markdown feat/x` from the trunk prints `bay created at <path>` as a paragraph, then
     `**IN BAY** — run this in your shell first:`, a fence holding only `cd <path>`, a blank line,
@@ -140,13 +140,13 @@ The exact output shapes, expected strings and file:line anchors are in
   - `bay --markdown` still honours `--bay-dir`
 
   Verify: these fail with ``unknown option `--markdown` ``.
-- [ ] 3.4 In `bay()`: accept `--markdown` in the argument loop. In markdown mode, print the heading
+- [x] 3.4 In `bay()`: accept `--markdown` in the argument loop. In markdown mode, print the heading
   line, then (unless already inside) the IN BAY line and a fence of `cdCommand(result.path)`, then
   `\n` and `renderWaybillMarkdown(state, inspection)`. Plain `bay` output stays unchanged, so the
   existing cd assertions (~553–625) still pass. Verify: 3.3's tests pass, and
   `node --test --test-reporter=spec --test-name-pattern='bay --markdown' tests/ 2>&1 | grep -qE '✔ .*bay --markdown'`
   exits 0.
-- [ ] 3.5 Section boundary: `npm test` passes, and
+- [x] 3.5 Section boundary: `npm test` passes, and
   `node src/cli.js next --json --markdown >/dev/null 2>&1; [ $? -eq 2 ]` succeeds. Commit.
 
 ## 4. Session command files
