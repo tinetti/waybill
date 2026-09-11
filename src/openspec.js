@@ -135,16 +135,17 @@ function fromInstructions(cwd, changeId) {
  * `openspec list --json` reports every active change with its counts in one call, so it doubles as
  * change-id discovery when the caller has none. Archived changes are already excluded by the CLI.
  *
- * When no id is given the first unfinished change by name wins, falling back to the last name when
- * every change is finished — the same rule the `tasks.md` path applies, so the two sources rank the
- * changes they both see identically. The CLI still lists changes with no `tasks.md`, which the
- * filesystem walk cannot see at all.
+ * When no id is given the first unfinished change among `candidates` by name wins, falling back to
+ * the last name when every candidate is finished — the same rule the `tasks.md` path applies, so the
+ * two sources rank the changes they both see identically. The CLI still lists changes with no
+ * `tasks.md`, which the filesystem walk cannot see at all.
  *
  * @param {string} cwd
- * @param {string} [changeId]
+ * @param {string|undefined} changeId
+ * @param {Set<string>} candidates the only ids that may be picked when `changeId` is omitted
  * @returns {{done:number,total:number,changeId:string}|null}
  */
-function fromList(cwd, changeId) {
+function fromList(cwd, changeId, candidates) {
   const result = run(cwd, ['list', '--json']);
   if (!result.ok) return null;
 
@@ -160,7 +161,8 @@ function fromList(cwd, changeId) {
 
   if (rows.length === 0) return null;
   if (changeId) return rows.find((row) => row.changeId === changeId) ?? null;
-  return rows.find((row) => row.done < row.total || row.total === 0) ?? rows[rows.length - 1];
+  const owned = rows.filter((row) => candidates.has(row.changeId));
+  return owned.find((row) => row.done < row.total || row.total === 0) ?? owned[owned.length - 1] ?? null;
 }
 
 /**
@@ -171,13 +173,14 @@ function fromList(cwd, changeId) {
  * has not seen.
  *
  * @param {string} cwd
- * @param {string} [changeId] when omitted, the CLI's own change list picks one
+ * @param {string|undefined} changeId when omitted, the CLI's own change list picks one
+ * @param {Set<string>} candidates the ids that pick may choose from
  * @returns {{done:number,total:number,changeId:string}|null}
  */
-export function changeStatus(cwd, changeId) {
+export function changeStatus(cwd, changeId, candidates) {
   if (changeId) {
     const direct = fromInstructions(cwd, changeId);
     if (direct) return direct;
   }
-  return fromList(cwd, changeId);
+  return fromList(cwd, changeId, candidates);
 }

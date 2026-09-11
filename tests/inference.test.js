@@ -8,6 +8,7 @@ import { LEGS } from '../src/legs.js';
 import { resolveLeg } from '../src/inference.js';
 import { executeProgress } from '../src/progress.js';
 import { loadBookings } from '../src/bookings.js';
+import { renderWaybill } from '../src/waybill.js';
 import {
   addSubmodule,
   addWorktree,
@@ -177,9 +178,11 @@ describe('resolveLeg', () => {
   it('adopts the CLI change id when the filesystem walk found none', () => {
     // The one case where the two sources disagree: `discoverChangeId` skips `archive` while the
     // specs stamp's `openspec/changes/*/tasks.md` still matches it, so the leg is `execute`
-    // with no id from disk. Phase 3 interpolates this id into the waybill command.
+    // with no id from disk. Phase 3 interpolates this id into the waybill command. The change is the
+    // branch's own through its proposal alone, which the walk cannot see and the CLI can.
     const { dir } = specsFixture();
     writeFile(path.join(dir, 'openspec', 'changes', 'archive', 'tasks.md'), '- [ ] a\n');
+    writeFile(path.join(dir, 'openspec', 'changes', CHANGE_ID, 'proposal.md'), '# Proposal\n');
 
     const listing = JSON.stringify({
       changes: [{ name: CHANGE_ID, completedTasks: 4, totalTasks: 9 }],
@@ -397,6 +400,97 @@ describe('shipped papers do not stamp a docket', () => {
   });
 });
 
+describe('the change id is scoped to the branch', () => {
+  /**
+   * A docket that branched after `inherited` shipped to the trunk, with its ideation papers written.
+   *
+   * @param {Record<string,string>} inherited path relative to the repo root -> contents, committed
+   *   to the trunk before the docket branches
+   * @returns {string} the bay
+   */
+  function docketAfter(inherited) {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, inherited);
+    const bay = addWorktree(repo, 'feat/thing');
+    writeFile(path.join(bay, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
+    writeFile(path.join(bay, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    return bay;
+  }
+
+  const listStub = (rows) =>
+    stubBin(
+      'openspec',
+      [
+        'if [ "$1" = "--version" ]; then echo "1.9.0"; exit 0; fi',
+        `echo '${JSON.stringify({ changes: rows, root: { path: '.', source: 'x' } })}'`,
+      ].join('\n'),
+    );
+
+  it('names no change when the only one on disk shipped before the docket branched', () => {
+    const bay = docketAfter({ 'openspec/changes/shipped/tasks.md': '- [x] a\n- [x] b\n' });
+
+    const state = resolve(bay);
+    assert.equal(state.leg, 'specs');
+    assert.equal(state.changeId, null);
+    const lines = renderWaybill(state).split('\n').map((line) => line.trim());
+    assert.equal(lines.includes('/spec:propose'), true, lines.join('\n'));
+    assert.equal(lines.some((line) => line.includes('shipped')), false, lines.join('\n'));
+  });
+
+  it('names no inherited change even when it is unfinished', () => {
+    const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
+
+    const state = resolve(bay);
+    assert.equal(state.leg, 'specs');
+    assert.equal(state.changeId, null);
+  });
+
+  it('chooses the docket\'s own change over an inherited one, for the id and the count', () => {
+    // `a-inherited` sorts first and is unfinished, so an unscoped walk would pick it.
+    const bay = docketAfter({ 'openspec/changes/a-inherited/tasks.md': '- [ ] a\n- [ ] b\n' });
+    writeFile(path.join(bay, 'openspec', 'changes', 'mine', 'tasks.md'), '- [x] a\n- [ ] b\n- [ ] c\n');
+
+    const state = resolve(bay);
+    assert.equal(state.leg, 'execute');
+    assert.equal(state.changeId, 'mine');
+    assert.deepEqual(state.progress, { done: 1, total: 3, source: 'tasks-md', changeId: 'mine' });
+  });
+
+  it('owns a change the branch touched through any file, not just tasks.md', () => {
+    const bay = docketAfter({
+      'openspec/changes/a-other/tasks.md': '- [ ] a\n',
+      'openspec/changes/continued/tasks.md': '- [ ] a\n',
+      'openspec/changes/continued/proposal.md': '# Proposal\n',
+    });
+    writeFile(path.join(bay, 'openspec', 'changes', 'continued', 'proposal.md'), '# Proposal, revised\n');
+
+    assert.equal(resolve(bay).changeId, 'continued');
+  });
+
+  it('does not adopt an inherited change the openspec CLI lists', () => {
+    // The specs stamp matches the archive's tasks.md, so the leg is execute with no id from disk —
+    // exactly the case where the CLI's own pick would otherwise be taken.
+    const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
+    writeFile(path.join(bay, 'openspec', 'changes', 'archive', 'tasks.md'), '- [ ] a\n');
+    const stub = listStub([{ name: 'inherited', completedTasks: 0, totalTasks: 1 }]);
+
+    const state = withPath(`${stub}:${absent()}`, () => resolveLeg(bay));
+    assert.equal(state.leg, 'execute');
+    assert.equal(state.changeId, null);
+    assert.equal(state.progress.changeId, null);
+  });
+
+  it('names no change when the branch diff cannot be computed', () => {
+    const repo = createRepo({ branch: 'wip', remote: false });
+    writeFile(path.join(repo, 'openspec', 'changes', 'add-thing', 'tasks.md'), '- [ ] a\n');
+
+    const state = resolve(repo);
+    assert.equal(state.docketOpen, true);
+    assert.ok(state.warnings.some((text) => /no leg will stamp/.test(text)));
+    assert.equal(state.changeId, null);
+  });
+});
+
 describe('executeProgress', () => {
   /**
    * @param {string} tasks contents of `tasks.md`, or `null` to omit the file entirely
@@ -408,7 +502,16 @@ describe('executeProgress', () => {
     return root;
   }
 
-  const count = (tasks) => withPath(absent(), () => executeProgress(changeRepo(tasks)));
+  /**
+   * A branch diff touching each change's `tasks.md`, so the changes are this branch's own.
+   *
+   * @param {...string} ids
+   * @returns {Set<string>}
+   */
+  const onBranch = (...ids) => new Set(ids.map((id) => `openspec/changes/${id}/tasks.md`));
+
+  const count = (tasks) =>
+    withPath(absent(), () => executeProgress(changeRepo(tasks), undefined, onBranch(CHANGE_ID)));
 
   it('reports an empty tasks list as 0 of 0 rather than as complete', () => {
     assert.deepEqual(count('# Tasks\n'), { done: 0, total: 0, source: 'tasks-md', changeId: CHANGE_ID });
@@ -451,7 +554,8 @@ describe('executeProgress', () => {
     const root = tempRoot();
     writeFile(path.join(root, 'openspec', 'changes', 'archive', '2026-01-01-old', 'tasks.md'), '- [ ] a\n');
     writeFile(path.join(root, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n');
-    const result = withPath(absent(), () => executeProgress(root));
+    const changed = onBranch('archive/2026-01-01-old', CHANGE_ID);
+    const result = withPath(absent(), () => executeProgress(root, undefined, changed));
     assert.equal(result.changeId, CHANGE_ID);
     assert.deepEqual([result.done, result.total], [1, 1]);
   });
@@ -461,7 +565,8 @@ describe('executeProgress', () => {
     writeFile(path.join(root, 'openspec', 'changes', 'a-done', 'tasks.md'), '- [x] a\n');
     writeFile(path.join(root, 'openspec', 'changes', 'b-open', 'tasks.md'), '- [ ] a\n');
     writeFile(path.join(root, 'openspec', 'changes', 'c-open', 'tasks.md'), '- [ ] a\n');
-    assert.equal(withPath(absent(), () => executeProgress(root)).changeId, 'b-open');
+    const changed = onBranch('a-done', 'b-open', 'c-open');
+    assert.equal(withPath(absent(), () => executeProgress(root, undefined, changed)).changeId, 'b-open');
   });
 
   describe('with the openspec CLI on PATH', () => {
@@ -473,7 +578,7 @@ describe('executeProgress', () => {
     function withStub(script, tasks = '- [ ] a\n- [ ] b\n') {
       const root = changeRepo(tasks);
       const stub = stubBin('openspec', ['if [ "$1" = "--version" ]; then echo "1.9.0"; exit 0; fi', script].join('\n'));
-      return withPath(`${stub}:${absent()}`, () => executeProgress(root));
+      return withPath(`${stub}:${absent()}`, () => executeProgress(root, undefined, onBranch(CHANGE_ID)));
     }
 
     const listJson = (rows) => `echo '${JSON.stringify({ changes: rows, root: { path: '.', source: 'x' } })}'`;

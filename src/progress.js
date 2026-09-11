@@ -92,20 +92,38 @@ function changeIds(repoRoot) {
 }
 
 /**
- * The change a repository is currently working on.
+ * @param {Set<string>|null} changed the branch's diff against the default branch
+ * @returns {Set<string>} ids of the active changes the branch touched, through any file in them
+ */
+function branchChangeIds(changed) {
+  /** @type {Set<string>} */
+  const ids = new Set();
+  for (const file of changed ?? []) {
+    const [top, sub, id, ...rest] = file.split('/');
+    if (top === 'openspec' && sub === 'changes' && id && id !== ARCHIVE && rest.length > 0) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * The change the current branch is working on.
  *
- * A repository may hold several active changes and nothing in the tree says which one is live, so
- * the rule is fixed and stated rather than guessed: the first unfinished change by name, falling
- * back to the last name when every change is finished. `openspec list --json` is picked from by the
- * same rule, so the two sources agree whenever they see the same changes — but they need not see the
- * same ones: this walk requires a `tasks.md` and the CLI does not, so the CLI can name a change this
- * function returns `null` for. `resolveLeg` resolves that one-sided case in the CLI's favour.
+ * Only changes the branch's own diff touches are candidates, so a change inherited from the trunk —
+ * shipped but never archived, or someone else's in flight — is never named; `null` for `changed`
+ * (the diff could not be computed) means no candidates at all. Among the candidates nothing says
+ * which one is live, so the rule is fixed and stated rather than guessed: the first unfinished
+ * change by name, falling back to the last name when every change is finished. `openspec list
+ * --json` is picked from by the same rule over the same candidates, but this walk requires a
+ * `tasks.md` and the CLI does not, so the CLI can name a change this function returns `null` for.
+ * `resolveLeg` resolves that one-sided case in the CLI's favour.
  *
  * @param {string} repoRoot
+ * @param {Set<string>|null} changed the branch's diff against the default branch
  * @returns {string|null}
  */
-export function discoverChangeId(repoRoot) {
-  const ids = changeIds(repoRoot);
+export function discoverChangeId(repoRoot, changed) {
+  const owned = branchChangeIds(changed);
+  const ids = changeIds(repoRoot).filter((id) => owned.has(id));
   if (ids.length === 0) return null;
   for (const id of ids) {
     const { done, total } = countTasks(readTasks(repoRoot, id));
@@ -122,16 +140,17 @@ export function discoverChangeId(repoRoot) {
  * `0 of 0` complete would hide it.
  *
  * @param {string} repoRoot
- * @param {string|null} [changeId] `null` means "already looked, there is none"; omit it to have
- *   {@link discoverChangeId} pick one, so a caller that has resolved an id never pays for a second
- *   walk of `openspec/changes/`
+ * @param {string|null|undefined} changeId `null` means "already looked, there is none"; `undefined`
+ *   has {@link discoverChangeId} pick one, so a caller that has resolved an id never pays for a
+ *   second walk of `openspec/changes/`
+ * @param {Set<string>|null} changed the branch's diff; the CLI may only name a change it touches
  * @returns {{done:number,total:number,source:'openspec'|'tasks-md',changeId:string|null}}
  */
-export function executeProgress(repoRoot, changeId) {
-  const id = changeId === undefined ? discoverChangeId(repoRoot) : changeId;
+export function executeProgress(repoRoot, changeId, changed) {
+  const id = changeId === undefined ? discoverChangeId(repoRoot, changed) : changeId;
 
   if (openspecAvailable(repoRoot)) {
-    const status = changeStatus(repoRoot, id ?? undefined);
+    const status = changeStatus(repoRoot, id ?? undefined, branchChangeIds(changed));
     if (status) {
       return { done: status.done, total: status.total, source: 'openspec', changeId: status.changeId };
     }
