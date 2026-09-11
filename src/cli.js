@@ -134,10 +134,11 @@ function issueWaybill(docket, cwd, json, markdown, io) {
 /**
  * The answer when no waybill could be issued: one line naming the way forward, and exit 2.
  *
- * On **stdout**, against this file's habit of putting every exit-2 message on stderr. The primary
- * consumer is the `` ! `` invocation in `commands/next.md`, which captures stdout only — a message
- * telling the operator how to proceed is useless in a stream the session never shows. Argument
- * parse errors keep stderr: those are the CLI's own complaint, not an answer about the repository.
+ * On **stdout**, against this file's habit of putting every exit-2 message on stderr: a message
+ * telling the operator how to proceed is an answer about the repository, and belongs in the stream
+ * a terminal caller reads. (The `` ! `` invocation in `commands/next.md` folds stderr in with
+ * `2>&1`, so the session no longer depends on this.) Argument parse errors keep stderr: those are
+ * the CLI's own complaint, not an answer about the repository.
  *
  * `--json` keeps the fleet alongside the message rather than dropping to a bare error, because
  * that array is why `status` needs no machine-readable surface of its own.
@@ -311,7 +312,7 @@ function status(cwd, args, io) {
  * a branch that plainly carries one, and `feat/x · leg 1 of 7 (ideate)` a false claim about where
  * that docket stands; this waybill belongs to the trunk, and the warning says why it was printed
  * here anyway. The warning rides in `state.warnings` rather than going to stderr so it lands in the
- * block's own `WARNINGS:` section — the `` ! `` invocation captures stdout only.
+ * block's own `WARNINGS:` section, where the Task reads it, rather than wherever stderr falls.
  *
  * @param {string} cwd
  * @param {string} root the working tree root {@link repoRoot} resolved

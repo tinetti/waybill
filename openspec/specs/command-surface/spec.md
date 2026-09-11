@@ -46,8 +46,8 @@ its collision handling, and the block it prints on success.
 `next` SHALL exit 0 if and only if it issued exactly one waybill. Both "no docket to report on" and
 "more than one docket to choose between" SHALL exit 2, giving callers a single condition to test.
 
-Non-zero cases SHALL print to standard output rather than standard error, because the primary
-consumer captures stdout only.
+Non-zero cases SHALL print to standard output rather than standard error, because they are an
+answer about the repository that terminal and `--json` callers read there.
 
 #### Scenario: Exactly one docket
 - **WHEN** `next` is run on the trunk and one bay exists

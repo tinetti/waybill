@@ -34,9 +34,13 @@ Guarding the guard is what breaks it. `tests/commands.test.js` holds the spellin
 No `:-.` fallback either: falling back to the operator's cwd points the command at `./src/cli.js`
 in *their* repository, where it does not exist, and hands the model a raw node MODULE_NOT_FOUND
 dump in place of the block below.
+
+`2>&1 || echo "waybill: exited $?"` for the same reason as `next`: Claude Code discards a command
+file whose `!` line exits non-zero, and `new` exits 2 on stderr outside a repository. Folded in
+here, the refusal reaches the session and the Task below still renders.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" new; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" new 2>&1 || echo "waybill: exited $?"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
@@ -61,6 +65,10 @@ If the command cannot be resolved — the plugin that provides it is not install
 say so in one line, name the command, and leave the waybill on screen as the instruction. Do not
 substitute a command you can resolve, and do not improvise the leg yourself: the booking is what
 decides how this leg is run, and guessing at it is the failure this whole tool exists to prevent.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without issuing a waybill and
+that line only records its exit code. There is then no `NEXT:` block, so there is nothing to run.
+Show the block verbatim, as above, and stop — do not run a command, and do not improvise the leg.
 
 If the block reports `WARNINGS`, relay them before you run anything. A warning that new efforts
 begin on the trunk is not a reason to stop — the ideate leg writes nothing to disk, so the wrong

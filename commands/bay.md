@@ -31,9 +31,15 @@ usage error, and should stay one — the menu is only useful where there is a se
 
 No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next`: falling back to the
 operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not exist.
+
+`2>&1 || echo "waybill: exited $?"` on both `node` calls, for the same reason as `next`: Claude Code
+discards a command file whose `!` line exits non-zero, and every `bay` error — an invalid branch
+name, a `--list` outside a repository — exits 2 on stderr. Folded in here, the error reaches the
+session and the Task below still renders. `bay --list` exits 0 even with nothing to list, so a
+branch menu never carries the marker.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then if [ -z "$ARGUMENTS" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --list; else node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --markdown "$ARGUMENTS"; fi; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then if [ -z "$ARGUMENTS" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --list 2>&1 || echo "waybill: exited $?"; else node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --markdown "$ARGUMENTS" 2>&1 || echo "waybill: exited $?"; fi; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
@@ -50,6 +56,10 @@ path is printed.
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
 would spend the context the waybill is trying to hand over.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without cutting a bay or issuing
+a waybill, and that line only records its exit code. There is no `cd` command in that case: relay the
+error verbatim, as shown, and stop — do not run a command, and do not improvise the leg.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.

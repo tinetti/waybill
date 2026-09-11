@@ -24,9 +24,13 @@ same command rather than two — `status` reports, `next` hands off.
 No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next` and `bay`: falling back
 to the operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not
 exist, and hands the model a raw node MODULE_NOT_FOUND dump in place of the block below.
+
+`2>&1 || echo "waybill: exited $?"` for the same reason as `next`: Claude Code discards a command
+file whose `!` line exits non-zero, and `status` exits 2 on stderr outside a repository. Folded in
+here, the refusal reaches the session and the Task below still renders.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" status; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" status 2>&1 || echo "waybill: exited $?"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
@@ -43,6 +47,10 @@ answers "where am I", and `/waybill:next` is the command that answers "what now"
 waybill here would bypass the booking that owns it. On the trunk that carries one step further —
 do not offer to run `next` for a docket in the listing, and do not ask me to choose between them.
 Choosing is `/waybill:next`'s job, and it asks for itself.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without reporting a position and
+that line only records its exit code. Show the block verbatim, as above, and stop — do not run a
+command, and do not improvise the answer.
 
 If the block reports `WARNINGS`, relay them as they are printed. On the trunk each line already
 names the branch it came from, so there is nothing left for you to attribute — re-attributing them,
