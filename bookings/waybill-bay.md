@@ -7,8 +7,9 @@ handover: through
 stampCmd: false
 ---
 Cut the feature branch and its isolated bay, then move into it — every leg after this one happens
-in the new bay. Pass the branch name as the argument (`feat/<short-name>`) and read the `cd` line
-the command prints: a tool-invoked shell cannot change your directory for you.
+in the new bay. Pass the branch name as the argument (`feat/<short-name>`). In a session, the
+handover it prints ends in `/waybill:next <branch>/<leg>`, which moves the next session into the bay
+after `/clear`; in a terminal, read the `cd` line it prints instead.
 
 This leg's `stampCmd` never succeeds on purpose, exactly as the ideate leg's does not: Waybill takes
 the bay's stamp from repository state — `git worktree list` and the configured bay path — never from a

@@ -19,7 +19,7 @@ feat/thing · leg 6 of 7 (execute)
 ```
 
 ```
-/spec:apply add-thing
+/waybill:next feat/thing/execute
 ```
 
 Work the tasks list top to bottom, test first, ticking each box as it lands. A phase is roughly one

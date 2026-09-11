@@ -3,9 +3,9 @@ waybill — the route, the words, and the four verbs
 FROM ZERO
   1. On the trunk:        waybill new         leg 1's waybill; run what it names
   2. Once the idea holds: waybill bay feat/x  create the branch and its bay
-  3. Move in:             cd <the path bay printed>
+  3. Move in:             cd <the path bay printed> — a session skips this step
   4. Every new session:   waybill next        the waybill for the next leg
-  5. Run what it names, /clear, and ask again — until cleanup retires the bay.
+  5. Run what it names — in a session its /waybill:next <branch>/<leg> moves you
 
 ROUTE
   1  ideate    /ideation:brainstorm  repo state

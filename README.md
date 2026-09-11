@@ -26,6 +26,11 @@ The NEXT block is the handover itself rather than a description of it: each comm
 line, to be pasted on its own, in order. They cannot share one paste — Claude Code submits a
 multi-line paste as a single input, so `/model` would take the lines after it as its argument.
 
+That is the terminal's waybill. Inside a session, `/waybill:next` ends a `/clear` handover in
+`/waybill:next <branch>/<leg>` instead — here, `/waybill:next feat/session-handover/specs` — because
+`/clear` drops the session back to the main checkout. Pasted from anywhere, that line moves the
+session into the docket's bay and runs the leg there.
+
 There is no state file and nothing to keep in sync, because nothing is being tracked. Every leg is
 judged by its **stamp** — a mark left on the docket itself: a branch, a bay, a file on disk, a
 command that exits 0. Waybill reads the last stamp off repository reality, so a leg done by hand is
@@ -103,7 +108,7 @@ step.
 | `waybill new` | `/waybill:new` | Begin an effort: the first leg's waybill, and nothing else |
 | `waybill bay <branch>` | `/waybill:bay [<branch>]` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
-| `waybill next [<branch>]` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
+| `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
 | `waybill help` | `/waybill:help` | The route, the words, and the four verbs on one screen |
 
@@ -159,8 +164,12 @@ issued.
 `waybill next --json` prints the raw resolved state for scripts, and an object in the non-zero cases
 too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so the fleet is machine-
 readable without a second surface. `waybill next --markdown` and `waybill bay --markdown` print the
-same waybill as markdown instead, the position in a `text` fence and each command — the bay's `cd`
-included — in a fence of its own, so a chat client gives every one its own copy button.
+same waybill as markdown instead, the position in a `text` fence and each command in a fence of its
+own, so a chat client gives every one its own copy button. Markdown prints no `cd`: a docket with a
+bay hands a `/clear` leg over to `/waybill:next <branch>/<leg>`. Given that argument, `next
+--markdown` prints `ENTER BAY: <path>` when you are not in the bay, then `RUN: <command>` when the
+leg is still the next one or `NEXT LEG: <leg>` when it is not — the lines `/waybill:next` acts on, by
+moving the session with `EnterWorktree` and invoking the command. A stale leg runs nothing.
 `/waybill:next` and `/waybill:bay` ask for that form; `--json` and `--markdown` cannot be combined.
 `waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag.
 

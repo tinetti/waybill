@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
 import {
+  ENTER_BAY,
+  NEXT_LEG,
+  RUN,
   cdCommand,
   cdLines,
   renderBaySelect,
@@ -105,6 +108,9 @@ function dockets() {
   ];
 }
 
+/** The legs whose fixture is a linked worktree: everything after the bay is cut. */
+const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'cleanup']);
+
 describe('renderWaybill golden output', () => {
   const cases = [
     ['ideate', ideateFixture],
@@ -122,7 +128,10 @@ describe('renderWaybill golden output', () => {
     });
 
     it(`renders the ${id} leg in markdown`, () => {
-      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir), CLEAN), 'md');
+      // Every leg after `bay` is resolved inside a linked worktree, so its session handover is told
+      // which bay it belongs to — the same fact the CLI passes from inside one.
+      const route = HAS_BAY.has(id) ? { bay: BAY } : {};
+      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir), CLEAN, route), 'md');
     });
   }
 
@@ -191,8 +200,78 @@ describe('fleet golden output', () => {
     assertGolden(GOLDEN, 'trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
   });
 
-  it('renders the one-docket trunk answer in markdown, the cd in a fence of its own', () => {
-    assertGolden(GOLDEN, 'trunk-one-docket', renderWaybillMarkdown(dockets()[0].state, CLEAN, [cdCommand(BAY)]), 'md');
+  it('renders the one-docket trunk answer in markdown, handing over to /waybill:next with no cd', () => {
+    assertGolden(GOLDEN, 'trunk-one-docket', renderWaybillMarkdown(dockets()[0].state, CLEAN, { bay: BAY }), 'md');
+  });
+});
+
+/**
+ * The execute leg's synthetic state: the one leg whose RUN line carries a change id, which is what
+ * a pasted `/waybill:next <branch>/execute` has to hand `/spec:apply`.
+ */
+const executeState = () =>
+  state({
+    leg: 'execute',
+    index: 6,
+    completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+    booking: { ...state().booking, leg: 'execute', command: '/spec:apply' },
+  });
+
+/** The keyed goldens render a `feat/thing` state, so the bay they enter is `feat/thing`'s. */
+const THING_BAY = '/repo/.claude/worktrees/waybill-feat-thing';
+
+describe('renderWaybillMarkdown keyed lines', () => {
+  it('exports the literals commands/next.md keys on', () => {
+    assert.deepEqual([ENTER_BAY, RUN, NEXT_LEG], ['ENTER BAY:', 'RUN:', 'NEXT LEG:']);
+  });
+
+  it('enters the bay and runs the named leg when it is the next one', () => {
+    const route = { bay: THING_BAY, enter: true, token: 'execute' };
+    assertGolden(GOLDEN, 'next-run', renderWaybillMarkdown(executeState(), CLEAN, route), 'md');
+  });
+
+  it('enters the bay and runs nothing when no leg is named', () => {
+    const route = { bay: THING_BAY, enter: true };
+    assertGolden(GOLDEN, 'next-branch-only', renderWaybillMarkdown(executeState(), CLEAN, route), 'md');
+  });
+
+  it('names the actual next leg, and runs nothing, when the named one is stale', () => {
+    const route = { bay: THING_BAY, enter: true, token: 'execute' };
+    assertGolden(GOLDEN, 'next-stale-leg', renderWaybillMarkdown(state(), CLEAN, route), 'md');
+  });
+
+  it('puts the keyed lines above everything else, ENTER BAY first', () => {
+    const output = renderWaybillMarkdown(executeState(), CLEAN, { bay: BAY, enter: true, token: 'execute' });
+    assert.ok(output.startsWith(`ENTER BAY: ${BAY}\n\nRUN: /spec:apply add-thing\n\n\`\`\`text\n`));
+  });
+
+  it('carries the raw booking command on RUN, never the /waybill:next line that would loop', () => {
+    const output = renderWaybillMarkdown(executeState(), CLEAN, { bay: BAY, token: 'execute' });
+    assert.match(output, /^RUN: \/spec:apply add-thing$/m);
+    assert.equal(output.includes('ENTER BAY'), false);
+  });
+
+  it('runs cleanup with the branch as its argument, the one leg that takes a branch', () => {
+    const cleanup = state({
+      leg: 'cleanup',
+      index: 7,
+      completed: ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute'],
+      booking: { ...state().booking, leg: 'cleanup', command: '/waybill:cleanup', handover: 'through', argument: 'branch' },
+    });
+    const output = renderWaybillMarkdown(cleanup, CLEAN, { bay: THING_BAY, token: 'cleanup' });
+    assert.match(output, /^RUN: \/waybill:cleanup feat\/thing$/m);
+    assert.equal(output.includes('ENTER BAY'), false);
+  });
+
+  it('prints no keyed line for a token on a docket with every leg complete', () => {
+    const done = state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined });
+    const output = renderWaybillMarkdown(done, CLEAN, { bay: BAY, token: 'execute' });
+    assert.equal(/^(RUN|NEXT LEG):/m.test(output), false);
+  });
+
+  it('prints no RUN for a named leg with no booking bound, since there is nothing to run', () => {
+    const output = renderWaybillMarkdown(state({ booking: undefined }), CLEAN, { bay: BAY, token: 'specs' });
+    assert.equal(/^RUN:/m.test(output), false);
   });
 });
 
@@ -299,7 +378,7 @@ describe('renderWaybillMarkdown', () => {
   });
 
   it('never puts two lines in one fence in markdown', () => {
-    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
+    const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
     // The first fence is the position block; every fence after it holds exactly one command.
     const commandFences = fences(output).slice(1);
     assert.deepEqual(
@@ -307,11 +386,10 @@ describe('renderWaybillMarkdown', () => {
       commandFences.map(() => 1),
     );
     assert.deepEqual(commandFences.flat(), [
-      'cd /repo/bays/x',
       '/clear',
       '/model placeholder-model',
       '/effort high',
-      '/spec:propose add-thing',
+      '/waybill:next feat/thing/specs',
     ]);
   });
 
@@ -330,11 +408,24 @@ describe('renderWaybillMarkdown', () => {
     assert.equal(output.includes('/clear'), false);
   });
 
-  it('puts the bay before NEXT in markdown, because the shell has to move before the session does', () => {
-    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
-    assert.match(output, /\*\*IN BAY\*\* — run this in your shell first:\n\n```\ncd \/repo\/bays\/x\n```/);
-    assert.ok(output.indexOf('**IN BAY**') < output.indexOf('**NEXT**'));
-    assert.equal(markdown().includes('IN BAY'), false);
+  it('hands a transfer leg with a bay over to /waybill:next, and prints no cd in markdown', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
+    assert.match(output, /```\n\/effort high\n```\n\n```\n\/waybill:next feat\/thing\/specs\n```/);
+    assert.equal(output.includes('/spec:propose'), false);
+    assert.equal(output.includes('IN BAY'), false);
+    assert.equal(output.includes('cd '), false);
+  });
+
+  it('keeps the raw command in markdown when the docket has no bay to move into', () => {
+    assert.match(markdown(), /```\n\/spec:propose add-thing\n```/);
+    assert.equal(markdown().includes('/waybill:next'), false);
+  });
+
+  it('keeps the raw command on a through leg, whose session never leaves the bay', () => {
+    const through = { ...state().booking, command: '/ideation:ideation', handover: 'through' };
+    const output = renderWaybillMarkdown(state({ leg: 'contract', booking: through }), CLEAN, { bay: BAY });
+    assert.match(output, /```\n\/ideation:ideation add-thing\n```/);
+    assert.equal(output.includes('/waybill:next'), false);
   });
 
   it('carries the booking body unindented in markdown, after the last fence', () => {

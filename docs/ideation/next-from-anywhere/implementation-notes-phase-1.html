@@ -1,0 +1,123 @@
+<!doctype html>
+<!--
+  Implementation-notes shell — copied VERBATIM by execute-spec on the first logged entry.
+  This file is the single owner of the implementation-notes format. Do not restate its
+  structure or styles elsewhere; change the format here and every future phase inherits it.
+  Copier substitutes: 1 (phase number, twice), Next From Anywhere, 2026-09-10, Portable handover and switch-and-run —
+  then deletes the example entry and appends real ones inside <main class="doc-content">.
+-->
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 1</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f7f3;
+        --fg: #191b1d;
+        --muted: #50555a;
+        --border: #dededf;
+        --accent: #2b46c7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #131417;
+          --fg: #e9e9e4;
+          --muted: #a8aaa6;
+          --border: #2d3036;
+          --accent: #93a7ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        max-width: 46rem;
+        padding: 2rem 1.25rem 4rem;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      .doc-header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 2rem; }
+      .doc-header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+      .doc-meta { margin: 0; color: var(--muted); font-size: 0.875rem; }
+      .note-entry { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+      .note-entry h3 { margin: 0 0 0.75rem; font-size: 1.05rem; color: var(--accent); }
+      .note-entry dl { margin: 0; }
+      .note-entry dt { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 0.75rem; }
+      .note-entry dt:first-child { margin-top: 0; }
+      .note-entry dd { margin: 0.15rem 0 0; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9em;
+        background: color-mix(in srgb, var(--fg) 8%, transparent);
+        padding: 0.1em 0.3em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 1</h1>
+      <p class="doc-meta">Next From Anywhere · 2026-09-10 · Portable handover and switch-and-run</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>A token on a finished docket, or on a leg with no booking</h3>
+        <dl>
+          <dt>Context</dt><dd>The spec did not cover a leg token when <code>state.leg</code> is null or no booking is bound.</dd>
+          <dt>Decision</dt><dd>Print no keyed line: no RUN (nothing to run) and no NEXT LEG (no next leg to name). The waybill below already says which.</dd>
+          <dt>Alternative</dt><dd>Printing <code>NEXT LEG: null</code>, or a RUN with an empty command.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>A cleanup token never enters the bay</h3>
+        <dl>
+          <dt>Context</dt><dd>The spec suppressed ENTER BAY for a cleanup token but did not say whether that applies to a stale one.</dd>
+          <dt>Decision</dt><dd>Suppress it for any <code>cleanup</code> token, stale or matching (<code>src/cli.js</code> <code>issueWaybill</code>).</dd>
+          <dt>Alternative</dt><dd>Suppressing it only when RUN matches the cleanup leg.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>bay-cut.md minted from the CLI, not a pure render</h3>
+        <dl>
+          <dt>Context</dt><dd>The contract's MVP item said a pure render with a fixed path; the spec said the CLI output with the path normalised.</dd>
+          <dt>Decision</dt><dd>Use the CLI output, with the temp bay path replaced by <code>/repo/.claude/worktrees/waybill-feat-thing</code>, so the golden also pins <code>bay</code>'s heading.</dd>
+          <dt>Alternative</dt><dd>A pure <code>renderWaybillMarkdown</code> call, which would duplicate <code>refine.md</code>.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>USAGE keeps <code>next [&lt;branch&gt;]</code></h3>
+        <dl>
+          <dt>Context</dt><dd>Widening the USAGE row to <code>next [&lt;branch&gt;[/&lt;leg&gt;]]</code> needed two lines, and <code>tests/help.test.js</code> parses USAGE one row per subcommand.</dd>
+          <dt>Decision</dt><dd>Keep the one-line row. The leg form is documented in the README, the living spec, and <code>next.md</code>'s argument-hint.</dd>
+          <dt>Alternative</dt><dd>Change the help parser to accept wrapped rows.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Stale cd prose outside the spec's File Changes</h3>
+        <dl>
+          <dt>Context</dt><dd>The scout found four more places describing the removed markdown <code>cd</code>: <code>bookings/waybill-bay.md:10</code>, <code>commands/bay.md:80</code>, README <code>:160-163</code>, and a <code>cd</code>-fence test.</dd>
+          <dt>Decision</dt><dd>Updated all four. The bay booking's body now names both the session and terminal routes, which also changes the <code>bay.txt</code>/<code>bay.md</code> goldens.</dd>
+          <dt>Alternative</dt><dd>Leave them, and ship prose that contradicts the output.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>README <code>:19</code> example kept as plain output</h3>
+        <dl>
+          <dt>Context</dt><dd>That example is the terminal's waybill, which by decision keeps the raw command.</dd>
+          <dt>Decision</dt><dd>Leave it, and add a paragraph after it showing the session form <code>/waybill:next feat/session-handover/specs</code>.</dd>
+          <dt>Alternative</dt><dd>Rewrite the example, which would misstate plain output.</dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Help card steps 3 and 5</h3>
+        <dl>
+          <dt>Context</dt><dd>Adding the session route inside the 80-column and 45-line caps.</dd>
+          <dt>Decision</dt><dd>Step 3 keeps <code>cd &lt;the path bay printed&gt;</code> and adds "a session skips this step". Step 5 now reads "Run what it names until cleanup; in a session, /waybill:next &lt;branch&gt;/&lt;leg&gt;".</dd>
+          <dt>Alternative</dt><dd>Adding a line (it fits the cap, but the contract said the line count stays the same).</dd>
+        </dl>
+      </section>
+      </main>
+  </body>
+</html>

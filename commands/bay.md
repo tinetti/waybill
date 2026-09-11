@@ -49,17 +49,17 @@ re-word it, re-order it, or add commentary of your own. It is already the whole 
 It is markdown, with each command in a fence of its own so that each gets its own copy button: show
 it as markdown, and do not wrap it in a further fence.
 
-The `cd` command is the one instruction in Waybill meant for my shell rather than for a session: do not
-run it, and do not offer to. Nothing you do here can move me into the new bay — that is why the
-path is printed.
+There is no `cd` to relay: the handover ends in `/waybill:next <branch>/<leg>`, and that line is what
+moves the next session into the new bay, once I have typed `/clear`. Do not run it here and do not
+offer to — it is the next session's first command, not this one's last.
 
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
 would spend the context the waybill is trying to hand over.
 
 If the block ends with a line `waybill: exited N`, the CLI stopped without cutting a bay or issuing
-a waybill, and that line only records its exit code. There is no `cd` command in that case: relay the
-error verbatim, as shown, and stop — do not run a command, and do not improvise the leg.
+a waybill, and that line only records its exit code. Relay the error verbatim, as shown, and stop —
+do not run a command, and do not improvise the leg.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.
@@ -77,7 +77,7 @@ protect yet. Do not show that block; ask instead, in these three steps.
   bay?", and one option per listed branch, **in the order listed** and at most the first four. The
   label is the branch name exactly as printed. The description is `no bay yet — cuts one` for a row
   marked `no bay`, `new branch — cuts it and its bay` for a row marked `new`, and
-  `bay exists — prints its cd line` for a row marked `bay at …`. If the **first** row carries a
+  `bay exists — prints its waybill` for a row marked `bay at …`. If the **first** row carries a
   reason after its status (`· tmux window "…"`, `· shell history`, and so on), append
   ` (Recommended)` to that one label, and only that one: the reason is the CLI saying why it ranked
   that row first. The question always has an automatic "Other", which is how I type a branch that
@@ -101,6 +101,6 @@ single quotes exactly as shown. If the name I gave contains a single quote itsel
 escape it: say it cannot be used as given and ask me again. Not `waybill bay <branch>`: that line is
 printed for *me*, and assumes a `waybill` on my PATH that a plugin install never puts there.
 
-**3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, the
-`cd` command left for me, and then stop. If it fails instead, show its error verbatim and stop; do not
+**3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, its
+`/waybill:next` line left for me, and then stop. If it fails instead, show its error verbatim and stop; do not
 retry with a different name unless I give you one.

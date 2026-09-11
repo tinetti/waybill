@@ -1,5 +1,9 @@
+ENTER BAY: /repo/.claude/worktrees/waybill-feat-thing
+
+NEXT LEG: specs
+
 ```text
-feat/session-handover · leg 5 of 7 (specs)
+feat/thing · leg 5 of 7 (specs)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract
   ▶ specs
 ```
@@ -19,5 +23,5 @@ feat/session-handover · leg 5 of 7 (specs)
 ```
 
 ```
-/waybill:next feat/session-handover/specs
+/waybill:next feat/thing/specs
 ```
