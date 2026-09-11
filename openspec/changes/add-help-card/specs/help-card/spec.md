@@ -17,7 +17,7 @@ page SHALL present these parts in this order:
 4. A glossary.
 5. The commands.
 6. A Why footer of exactly two lines.
-7. One line pointing at the README for everything the page leaves out.
+7. One line pointing at the guide (docs/guide/ in the waybill repo) for everything the page leaves out.
 
 Each of the four sections SHALL open with its own heading, and the headings SHALL be distinct
 literals that tests can find.
@@ -26,12 +26,12 @@ No line SHALL be wider than 80 columns, because a wrapped line breaks the one-sc
 surely as an extra line does.
 
 The 45-line cap is a hard limit, not a target. Content that does not fit SHALL be left to the
-README rather than squeezed in.
+guide rather than squeezed in.
 
 #### Scenario: Shipped bookings
 - **WHEN** `help` is run with only the built-in bookings in force
 - **THEN** the page is at most 45 lines, no line is wider than 80 columns, and it contains all four
-  section headings in order, followed by the two-line footer and the README pointer
+  section headings in order, followed by the two-line footer and the guide pointer
 
 #### Scenario: A long carrier name
 - **WHEN** an overlay rebooks a leg to a carrier whose command is much longer than any built-in one

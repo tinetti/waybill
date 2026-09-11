@@ -52,7 +52,7 @@ const OUTRO = [
   'Why: nothing is tracked — every leg is judged by its stamp, read off the repo.',
   '     One waybill per session: the map is yours, the waybill is the handler\'s.',
   '',
-  'Bay locations, overlays, prerequisites and environment variables: README.md',
+  'Ride-along, glossary and reference: docs/guide/ in the waybill repo',
 ];
 
 /**
