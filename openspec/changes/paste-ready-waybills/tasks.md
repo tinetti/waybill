@@ -64,14 +64,14 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 2. Markdown renderer
 
-- [ ] 2.1 Add a failing test that `cdCommand('/repo/bays/x')` returns `'cd /repo/bays/x'`, next to the
+- [x] 2.1 Add a failing test that `cdCommand('/repo/bays/x')` returns `'cd /repo/bays/x'`, next to the
   `cdLines` describe (~260). Then export `cdCommand(target)` from `src/waybill.js` and rewrite
   `cdLines` as `alreadyThere ? [] : [\`${INDENT}${cdCommand(target)}\`]`. Verify: the new test and the
   existing `cdLines` tests pass.
-- [ ] 2.2 Give `assertGolden` an extension parameter, `assertGolden(name, actual, ext = 'txt')`,
+- [x] 2.2 Give `assertGolden` an extension parameter, `assertGolden(name, actual, ext = 'txt')`,
   reading and writing `tests/golden/<name>.<ext>`. Existing call sites stay unchanged. Verify:
   `node --test tests/waybill.test.js` is still green.
-- [ ] 2.3 Add failing markdown tests to `tests/waybill.test.js`. Every test name must contain
+- [x] 2.3 Add failing markdown tests to `tests/waybill.test.js`. Every test name must contain
   `markdown`, because a contract check selects them by name.
   - `renders the <id> leg in markdown` inside the existing fixture loop (~128), calling
     `assertGolden(id, renderWaybillMarkdown(resolve(build().dir), CLEAN), 'md')`, plus the same for
@@ -85,7 +85,7 @@ The exact output shapes, expected strings and file:line anchors are in
     exactly one `\n`
 
   Verify: the tests fail because `renderWaybillMarkdown` does not exist.
-- [ ] 2.4 Implement `export function renderWaybillMarkdown(state, inspection, cd = [])` in
+- [x] 2.4 Implement `export function renderWaybillMarkdown(state, inspection, cd = [])` in
   `src/waybill.js`. Keep it pure, and build its commands from `handoverCommands` only. The sections,
   separated by one blank line, are:
   1. ` ```text ` fence holding `header` + `strip`, header only when no docket is open
@@ -99,12 +99,12 @@ The exact output shapes, expected strings and file:line anchors are in
   No-booking reads `**NEXT** — no booking is bound to the <leg> leg — add one under bookings/ to
   give this leg a waybill`. Leave `withFindings` untouched (design decision 3). Verify: 2.3's
   hand-written asserts pass.
-- [ ] 2.5 Run `UPDATE_GOLDEN=1 node --test tests/waybill.test.js`. Then read every new `.md` golden,
+- [x] 2.5 Run `UPDATE_GOLDEN=1 node --test tests/waybill.test.js`. Then read every new `.md` golden,
   and check `tests/golden/execute.md` against the exact block in spec.md §2. Verify: no `.txt` golden
   changed (`git status tests/golden` shows only new `.md` files), and the contract's fence-shape check
   exits 0:
   `for c in '/clear' '/model opus' '/effort high' '/spec:apply add-thing'; do [ "$(grep -Fx -B1 -A1 -- "$c" tests/golden/execute.md | grep -cx '```')" -eq 2 ] || exit 1; done`
-- [ ] 2.6 Section boundary: `npm test` passes, and
+- [x] 2.6 Section boundary: `npm test` passes, and
   `test -z "$(cat tests/golden/*.txt tests/golden/*.md | grep '└ ')"` exits 0. Commit.
 
 ## 3. CLI flags

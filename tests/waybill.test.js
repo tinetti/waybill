@@ -5,7 +5,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from '../src/waybill.js';
+import {
+  cdCommand,
+  cdLines,
+  renderFleet,
+  renderPosition,
+  renderSelect,
+  renderWaybill,
+  renderWaybillMarkdown,
+} from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
@@ -30,16 +38,17 @@ const resolve = (dir) => withPath(pathWithout('openspec'), () => resolveLeg(dir)
 const CLEAN = { ignored: [], warnings: [] };
 
 /**
- * Compare against `tests/golden/<name>.txt`, or rewrite it when `UPDATE_GOLDEN=1`.
+ * Compare against `tests/golden/<name>.<ext>`, or rewrite it when `UPDATE_GOLDEN=1`.
  *
  * Regeneration is deliberately an environment flag rather than a CLI flag: a golden file that
  * rewrites itself during a normal run is a tautology, so the only way to update one is to ask.
  *
  * @param {string} name
  * @param {string} actual
+ * @param {string} [ext]
  */
-function assertGolden(name, actual) {
-  const file = path.join(GOLDEN, `${name}.txt`);
+function assertGolden(name, actual, ext = 'txt') {
+  const file = path.join(GOLDEN, `${name}.${ext}`);
   if (process.env.UPDATE_GOLDEN === '1') {
     fs.mkdirSync(GOLDEN, { recursive: true });
     fs.writeFileSync(file, actual);
@@ -129,7 +138,15 @@ describe('renderWaybill golden output', () => {
     it(`renders the ${id} leg`, () => {
       assertGolden(id, renderWaybill(resolve(build().dir), CLEAN));
     });
+
+    it(`renders the ${id} leg in markdown`, () => {
+      assertGolden(id, renderWaybillMarkdown(resolve(build().dir), CLEAN), 'md');
+    });
   }
+
+  it('renders no docket open on the base branch in markdown', () => {
+    assertGolden('no-docket', renderWaybillMarkdown(resolve(noDocketFixture().dir), CLEAN), 'md');
+  });
 
   it('renders the same leg as a position, which is what `waybill status` prints', () => {
     assertGolden('status', renderPosition(resolve(specsFixture().dir), CLEAN));
@@ -190,6 +207,10 @@ describe('fleet golden output', () => {
 
   it('renders the one-docket trunk answer: position, then the bay, then the waybill', () => {
     assertGolden('trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
+  });
+
+  it('renders the one-docket trunk answer in markdown, the cd in a fence of its own', () => {
+    assertGolden('trunk-one-docket', renderWaybillMarkdown(dockets()[0].state, CLEAN, [cdCommand(BAY)]), 'md');
   });
 });
 
@@ -254,6 +275,123 @@ describe('renderSelect', () => {
   it('lists the same dockets in the same order as the fleet view', () => {
     const rows = (text) => text.split('\n').filter((line) => line.includes(' · ') && line.startsWith('  '));
     assert.deepEqual(rows(renderSelect('main', dockets(), CLEAN)), rows(renderFleet('main', dockets(), CLEAN)));
+  });
+});
+
+describe('renderWaybillMarkdown', () => {
+  /**
+   * The body of every fence, opening and closing lines excluded.
+   *
+   * @param {string} output
+   * @returns {string[][]}
+   */
+  const fences = (output) => {
+    const bodies = [];
+    let open = null;
+    for (const line of output.split('\n')) {
+      if (line.startsWith('```')) {
+        if (open === null) open = [];
+        else {
+          bodies.push(open);
+          open = null;
+        }
+      } else if (open !== null) open.push(line);
+    }
+    return bodies;
+  };
+
+  /** @param {Partial<import('../src/bookings.js').Booking>} booking */
+  const markdown = (booking = {}, rest = {}) =>
+    renderWaybillMarkdown(state({ ...rest, booking: { ...state().booking, ...booking } }), CLEAN);
+
+  it('renders the findings in markdown as bullets, WARNINGS last', () => {
+    assertGolden(
+      'findings',
+      renderWaybillMarkdown(state({ warnings: ['inference said so'] }), {
+        ignored: ['openspec/'],
+        warnings: ['inspection said so'],
+      }),
+      'md',
+    );
+  });
+
+  it('never puts two lines in one fence in markdown', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
+    // The first fence is the position block; every fence after it holds exactly one command.
+    const commandFences = fences(output).slice(1);
+    assert.deepEqual(
+      commandFences.map((body) => body.length),
+      commandFences.map(() => 1),
+    );
+    assert.deepEqual(commandFences.flat(), [
+      'cd /repo/bays/x',
+      '/clear',
+      '/model placeholder-model',
+      '/effort high',
+      '/spec:propose add-thing',
+    ]);
+  });
+
+  it('keeps the position in a text fence in markdown, so the strip keeps its line breaks', () => {
+    const output = markdown();
+    assert.ok(output.startsWith('```text\nfeat/thing · leg 5 of 7 (specs)\n  ✓ ideate'));
+  });
+
+  it('has no /effort fence in markdown when the booking declares no effort', () => {
+    assert.equal(markdown({ effort: undefined }).includes('/effort'), false);
+  });
+
+  it('puts custom handover prose in markdown as a paragraph before the first command fence', () => {
+    const output = markdown({ handover: 'hand the laptop to Dave' });
+    assert.match(output, /in order:\n\nhand the laptop to Dave\n\n```\n\/model placeholder-model\n```/);
+    assert.equal(output.includes('/clear'), false);
+  });
+
+  it('puts the bay before NEXT in markdown, because the shell has to move before the session does', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
+    assert.match(output, /\*\*IN BAY\*\* — run this in your shell first:\n\n```\ncd \/repo\/bays\/x\n```/);
+    assert.ok(output.indexOf('**IN BAY**') < output.indexOf('**NEXT**'));
+    assert.equal(markdown().includes('IN BAY'), false);
+  });
+
+  it('carries the booking body unindented in markdown, after the last fence', () => {
+    const output = markdown({ body: 'Do the thing.\n\nThen do the other thing.\n' });
+    assert.ok(output.endsWith('```\n/spec:propose add-thing\n```\n\nDo the thing.\n\nThen do the other thing.\n'));
+  });
+
+  it('says there is nothing to hand off in markdown, with no fence', () => {
+    const output = renderWaybillMarkdown(
+      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      CLEAN,
+    );
+    assert.match(output, /^\*\*NEXT\*\* — nothing to hand off — every leg is complete$/m);
+    assert.equal(fences(output).length, 1);
+  });
+
+  it('names the missing booking in markdown, with no fence', () => {
+    const output = renderWaybillMarkdown(state({ leg: 'bay', index: 2, booking: undefined }), CLEAN);
+    assert.match(
+      output,
+      /^\*\*NEXT\*\* — no booking is bound to the bay leg — add one under bookings\/ to give this leg a waybill$/m,
+    );
+    assert.equal(fences(output).length, 1);
+  });
+
+  it('shows only the header in markdown when no docket is open', () => {
+    assert.ok(markdown({}, { docketOpen: false }).startsWith('```text\nfeat/thing · no docket open\n```\n'));
+  });
+
+  it('ends markdown with exactly one newline', () => {
+    for (const output of [markdown(), markdown({ body: 'Body.\n\n' })]) {
+      assert.equal(output.endsWith('\n'), true);
+      assert.equal(output.endsWith('\n\n'), false);
+    }
+  });
+});
+
+describe('cdCommand', () => {
+  it('is the bare shell command, with no indent to ride along into a paste', () => {
+    assert.equal(cdCommand('/repo/bays/x'), 'cd /repo/bays/x');
   });
 });
 

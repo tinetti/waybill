@@ -230,7 +230,18 @@ function withFindings(sections, warnings, inspection) {
  * @returns {string[]} the one line, or none at all
  */
 export function cdLines(target, alreadyThere = false) {
-  return alreadyThere ? [] : [`${INDENT}cd ${target}`];
+  return alreadyThere ? [] : [`${INDENT}${cdCommand(target)}`];
+}
+
+/**
+ * The same instruction bare, for the markdown rendering, where the indent would ride along into the
+ * paste. {@link cdLines} is built on it so the two shapes differ by the indent and nothing else.
+ *
+ * @param {string} target absolute path to the bay
+ * @returns {string}
+ */
+export function cdCommand(target) {
+  return `cd ${target}`;
 }
 
 /**
@@ -255,6 +266,91 @@ export function renderWaybill(state, inspection = { ignored: [], warnings: [] },
   // session over — a `/clear` acted on from the wrong directory answers for the wrong docket.
   const bay = cd.length > 0 ? [['IN BAY:', ...cd].join('\n')] : [];
   return withFindings([where, ...bay, nextBlock(state).join('\n')], state.warnings, inspection);
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} [info] the fence's info string
+ * @returns {string}
+ */
+function fence(lines, info = '') {
+  return ['```' + info, ...lines, '```'].join('\n');
+}
+
+/**
+ * The NEXT section in markdown: one fence per command, so a chat client gives each its own copy
+ * button and no paste ever carries two commands.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @returns {string[]} paragraphs, to be joined with a blank line
+ */
+function nextMarkdown(state) {
+  if (state.leg === null) return ['**NEXT** — nothing to hand off — every leg is complete'];
+
+  const booking = state.booking;
+  if (!booking) {
+    return [
+      `**NEXT** — no booking is bound to the ${state.leg} leg — ` +
+        'add one under bookings/ to give this leg a waybill',
+    ];
+  }
+
+  // The body comes after every command fence, so a body carrying a fence of its own cannot break
+  // the pairing of the fences the operator actually copies.
+  const { prose, commands } = handoverCommands(booking, state);
+  const body = booking.body.trim();
+  return [
+    '**NEXT** — paste each block on its own, in order:',
+    ...(prose === null ? [] : [prose]),
+    ...commands.map((command) => fence([command])),
+    ...(body === '' ? [] : [body]),
+  ];
+}
+
+/**
+ * The same waybill as {@link renderWaybill}, as markdown for a chat client: `/waybill:next` and
+ * `/waybill:bay` ask for it and echo it verbatim, so the fences come from here, where a golden file
+ * pins them, rather than from a session reformatting plain text.
+ *
+ * A renderer of its own rather than a flag on {@link renderWaybill}: the two share almost no
+ * formatting, and a branch on every line of the functions behind `status` and the fleet is how one
+ * of those surfaces would change without anyone asking it to. The findings are formatted here for
+ * the same reason, in the same text and order as {@link withFindings}.
+ *
+ * Pure, like {@link renderWaybill}.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @param {import('./inspection.js').Inspection} [inspection]
+ * @param {string[]} [cd] bare {@link cdCommand} instructions, empty when the operator is already in
+ *   the bay
+ * @returns {string} ends with exactly one newline
+ */
+export function renderWaybillMarkdown(state, inspection = { ignored: [], warnings: [] }, cd = []) {
+  // A text fence, because markdown would fold the strip's single line breaks into one paragraph and
+  // drop its indent.
+  const sections = [fence([header(state), ...(state.docketOpen ? strip(state) : [])], 'text')];
+
+  if (cd.length > 0) {
+    sections.push('**IN BAY** — run this in your shell first:', ...cd.map((line) => fence([line])));
+  }
+
+  sections.push(...nextMarkdown(state));
+
+  if (inspection.ignored.length > 0) {
+    sections.push(
+      '**IGNORED BY GIT**',
+      inspection.ignored
+        .map((query) => `- ⚠ ${query} — papers written here will never be committed`)
+        .join('\n'),
+    );
+  }
+
+  const warnings = [...state.warnings, ...(inspection.warnings ?? [])];
+  if (warnings.length > 0) {
+    sections.push('**WARNINGS**', warnings.map((text) => `- ⚠ ${text}`).join('\n'));
+  }
+
+  return `${sections.join('\n\n')}\n`;
 }
 
 /**
