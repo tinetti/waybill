@@ -13,9 +13,9 @@ cannot be combined. The check SHALL run before the repository is looked up, so t
 given inside and outside a repository.
 
 With `--markdown`, `bay` SHALL print its own heading (the bay created, the bay already existing, or
-the operator already standing in it) as a paragraph. When the operator is not already inside the
-bay, it SHALL then print an IN BAY line and a fence holding only the `cd <path>` command. The
-markdown waybill SHALL follow.
+the operator already standing in it) as a paragraph, followed by the markdown waybill. It SHALL print
+no `cd`: the waybill's handover ends in `/waybill:next <branch>/<leg>`, which moves the next session
+into the bay.
 
 `new` SHALL NOT accept `--markdown`. It continues to reject every argument.
 
@@ -25,7 +25,8 @@ markdown waybill SHALL follow.
 
 #### Scenario: Markdown for a named branch from the trunk
 - **WHEN** `next --markdown feat/x` is run from the trunk and a bay for `feat/x` exists
-- **THEN** the markdown waybill is printed with its `cd` command in a fence of its own
+- **THEN** the markdown waybill is printed after an `ENTER BAY:` line naming that bay, and no `cd`
+  fence is printed
 
 #### Scenario: Markdown with several dockets open
 - **WHEN** `next --markdown` is run on the trunk with three bays open
@@ -41,12 +42,11 @@ markdown waybill SHALL follow.
 
 #### Scenario: Cutting a bay in markdown
 - **WHEN** `bay --markdown feat/x` is run from the trunk
-- **THEN** the heading names the new bay, the `cd` command sits alone in a fence, and the markdown
-  waybill follows
+- **THEN** the heading names the new bay, the markdown waybill follows, and no `cd` fence is printed
 
 #### Scenario: Markdown from inside the bay
 - **WHEN** `bay --markdown feat/x` is run from inside the `feat/x` bay
-- **THEN** the heading says the operator is already inside it and no `cd` fence is printed
+- **THEN** the heading says the operator is already inside it, and the markdown waybill follows
 
 #### Scenario: `new` refuses the option
 - **WHEN** `new --markdown` is run
@@ -88,19 +88,29 @@ in:
 - **WHEN** `new` is run from inside a bay
 - **THEN** it warns that efforts begin on the trunk and proceeds anyway
 
-### Requirement: Verbatim rendering, with one keyed exception
+### Requirement: Verbatim rendering, with keyed exceptions
 
 The session-facing commands that show a waybill for the next session, `/waybill:next` and
 `/waybill:bay`, SHALL request the markdown form from the command line tool, show it verbatim, and
 stop. The fences SHALL come from the tool's output, never from the session reformatting plain text,
 and the session SHALL NOT wrap the output in a further fence.
 
-The single exception SHALL be keyed on an exact literal in the output: when the block contains the
-docket-selection heading, the session SHALL ask which docket is meant, re-run the command against
-that branch in the markdown form, and show *that* block verbatim.
+The exceptions SHALL each be keyed on an exact literal at the start of a line in the output:
 
-Any permission the selection prompt requires SHALL be declared, since the permission list is
-restrictive and an undeclared prompt is silently unavailable.
+- the docket-selection heading: the session SHALL ask which docket is meant, re-run the command
+  against that branch in the markdown form, and show *that* block verbatim — acting on no
+  `ENTER BAY:` it carries, since a selection never switches;
+- `ENTER BAY: <path>`: the session SHALL move into that path with `EnterWorktree`. If the move fails
+  or is denied, it SHALL show a fenced `cd <path>` followed by the block verbatim, and stop without
+  acting on any `RUN:` line;
+- `RUN: <command> [<argument>]`: after a successful move, the session SHALL invoke that command with
+  that argument, and never `/clear`, `/model` or `/effort`; a command it cannot resolve SHALL be named
+  in one line, with no substitute run;
+- `NEXT LEG: <leg>`: the session SHALL say that the named leg is not next, show the block verbatim,
+  and stop.
+
+Every tool these exceptions require SHALL be declared, since the permission list is restrictive and
+an undeclared tool is silently unavailable.
 
 #### Scenario: An ordinary waybill
 - **WHEN** the block does not contain the selection heading
@@ -110,6 +120,18 @@ restrictive and an undeclared prompt is silently unavailable.
 - **WHEN** the block contains the selection heading
 - **THEN** the session asks which docket, re-runs against that branch in the markdown form, and
   shows the result verbatim
+
+#### Scenario: A selection re-run never switches
+- **WHEN** the re-run after a selection begins with `ENTER BAY:`
+- **THEN** the session shows it verbatim, does not move, and stops
+
+#### Scenario: A pasted `<branch>/<leg>` from the main checkout
+- **WHEN** the block begins with `ENTER BAY:` and then `RUN:`
+- **THEN** the session enters the bay and invokes the `RUN:` command there
+
+#### Scenario: The bay cannot be entered
+- **WHEN** the move into the `ENTER BAY:` path fails or is denied
+- **THEN** the session shows `cd <path>` and the block, and runs nothing
 
 #### Scenario: Cutting a bay from a session
 - **WHEN** `/waybill:bay` is run

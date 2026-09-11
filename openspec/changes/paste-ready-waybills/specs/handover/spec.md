@@ -21,7 +21,10 @@ no command and SHALL instead be shown verbatim as prose ahead of the commands, s
 ask for something the tool never anticipated.
 
 The same list SHALL drive every rendering, so no two renderings of one waybill can disagree about
-which commands the handover needs.
+which commands the handover needs. The one sanctioned difference is the markdown rendering of a
+`transfer` leg for a docket with a bay, whose last command SHALL be `/waybill:next <branch>/<leg>`
+in place of the leg command: `/clear` drops a session back to the main checkout, and only that line
+carries it back into the bay.
 
 #### Scenario: A transfer leg with a declared effort
 - **WHEN** the current leg's booking reads `handover: transfer`, `model: opus`, `effort: high` and
@@ -97,9 +100,14 @@ order.
 
 #### Scenario: An execute leg in markdown
 - **WHEN** the markdown waybill is rendered for the transfer leg booked with `model: opus`,
-  `effort: high` and `/spec:apply` against change `add-thing`
+  `effort: high` and `/spec:apply` against change `add-thing`, for a docket with no bay
 - **THEN** `/clear`, `/model opus`, `/effort high` and `/spec:apply add-thing` each appear on a line
   whose previous and next lines are both a bare fence
+
+#### Scenario: An execute leg with a bay in markdown
+- **WHEN** the same waybill is rendered for docket `feat/thing`, which has a bay
+- **THEN** the fenced commands are `/clear`, `/model opus`, `/effort high` and
+  `/waybill:next feat/thing/execute`
 
 #### Scenario: Model and effort are never fenced together
 - **WHEN** a booking declares both a model and an effort
@@ -110,11 +118,10 @@ order.
 The markdown rendering SHALL be a complete markdown document with the following sections, separated
 by one blank line:
 
+- **Keyed lines**: the `ENTER BAY:`, `RUN:` and `NEXT LEG:` lines the `command-surface` capability
+  defines, present only when `next` was given a docket by name, each a paragraph of its own.
 - **Position**: the same header and leg-strip lines as the plain rendering, inside a `text` fence so
   their line breaks survive. With no docket open, only the header is shown.
-- **IN BAY**: present only when the docket was resolved from outside its bay. A line saying to run
-  the command in the shell first, then a fence holding the bare `cd <path>` command. It SHALL come
-  before NEXT, because the directory must change before the session is handed over.
 - **NEXT**: the introducing line, any custom handover prose as a plain paragraph, then the command
   fences.
 - **Booking body**: unindented prose after the last command fence.
@@ -122,7 +129,8 @@ by one blank line:
   text and order as the plain rendering, WARNINGS last.
 
 When there is no current leg, or no booking for it, the NEXT section SHALL state that in one line with
-no fences. The document SHALL end with exactly one newline.
+no fences. The document SHALL end with exactly one newline. It SHALL contain no `cd`: a session cannot
+act on one, and the plain rendering keeps it for the shell.
 
 #### Scenario: Position survives markdown rendering
 - **WHEN** a markdown waybill is rendered for a docket with completed legs
@@ -130,7 +138,8 @@ no fences. The document SHALL end with exactly one newline.
 
 #### Scenario: Resolved from the trunk
 - **WHEN** the markdown waybill is rendered for a docket whose bay the operator is not standing in
-- **THEN** an IN BAY section with the `cd <path>` command alone in a fence appears before NEXT
+- **THEN** no IN BAY section and no `cd` appear, and a transfer handover ends in
+  `/waybill:next <branch>/<leg>`
 
 #### Scenario: Findings in markdown
 - **WHEN** a paper path is ignored by git and a warning was raised
