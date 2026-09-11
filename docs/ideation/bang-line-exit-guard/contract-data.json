@@ -64,9 +64,9 @@
       }
     },
     {
-      "criterion": "`bay` with no argument: the real `!` snippet exits 0 and its output carries the CLI's stderr usage text plus `waybill: exited 2` (today it exits 2 with the text on stderr)",
+      "criterion": "`bay` with an invalid branch name: the real `!` snippet exits 0 and its output carries the CLI's stderr rejection plus `waybill: exited 2` (retargeted from `bay` with no argument, which #20 routes to the branch menu)",
       "check": {
-        "cmd": "R=$PWD; D=$(mktemp -d); trap 'rm -rf \"$D\"' EXIT; snip() { grep -m1 \"^!\\`\" \"$R/commands/$1.md\" | sed -e \"s/^!\\`//\" -e \"s/\\`\\$//\" -e \"s|\\${CLAUDE_PLUGIN_ROOT}|$R|g\" -e \"s/\\$ARGUMENTS//g\"; }; repo() { d=$D/r; git init -q -b main \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; echo \"$d\"; }; d=$(repo); s=$(snip bay); out=$(cd \"$d\" && bash -c \"$s\"); test $? -eq 0 && echo \"$out\" | grep -qi \"usage\" && echo \"$out\" | grep -q \"waybill: exited 2\"",
+        "cmd": "R=$PWD; D=$(mktemp -d); trap 'rm -rf \"$D\"' EXIT; snip() { grep -m1 \"^!\\`\" \"$R/commands/$1.md\" | sed -e \"s/^!\\`//\" -e \"s/\\`\\$//\" -e \"s|\\${CLAUDE_PLUGIN_ROOT}|$R|g\" -e \"s/\\$ARGUMENTS//g\"; }; repo() { d=$D/r; git init -q -b main \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; echo \"$d\"; }; d=$(repo); s=$(snip bay | sed 's/\"\"/\"bad..name\"/g'); out=$(cd \"$d\" && bash -c \"$s\"); test $? -eq 0 && echo \"$out\" | grep -q \"is not a valid branch name\" && echo \"$out\" | grep -q \"waybill: exited 2\"",
         "expect": "exits 0"
       }
     },
@@ -129,7 +129,7 @@
     {
       "criterion": "Live session: the Task loads for the two cases that lose it today",
       "check": {
-        "judgment": "The operator starts `claude --plugin-dir <this bay>` (with the installed waybill@tinetti disabled so the bay's commands are the ones resolved) on a trunk with two dockets, runs `/waybill:next` (Task loads; the model offers the SELECT A DOCKET choice) and `/waybill:bay` with no argument (Task loads; the model relays the usage error and stops) — neither shows `Shell command failed for pattern`."
+        "judgment": "The operator starts `claude --plugin-dir <this bay>` (with the installed waybill@tinetti disabled so the bay's commands are the ones resolved) on a trunk with two dockets, runs `/waybill:next` (Task loads; the model offers the SELECT A DOCKET choice) and `/waybill:bay bad..name` (Task loads; the model relays the rejection and stops) — neither shows `Shell command failed for pattern`."
       }
     }
   ],

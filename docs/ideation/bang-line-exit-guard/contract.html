@@ -2507,7 +2507,7 @@ body {
           </li>
           <li class="crit">
             <span class="crit-n">03</span>
-            <span class="crit-text">`bay` with no argument: the real `!` snippet exits 0 and its output carries the CLI's stderr usage text plus `waybill: exited 2` (today it exits 2 with the text on stderr)<code class="crit-check">R=$PWD; D=$(mktemp -d); trap 'rm -rf &quot;$D&quot;' EXIT; snip() { grep -m1 &quot;^!\`&quot; &quot;$R/commands/$1.md&quot; | sed -e &quot;s/^!\`//&quot; -e &quot;s/\`\$//&quot; -e &quot;s|\${CLAUDE_PLUGIN_ROOT}|$R|g&quot; -e &quot;s/\$ARGUMENTS//g&quot;; }; repo() { d=$D/r; git init -q -b main &quot;$d&quot;; git -C &quot;$d&quot; -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; echo &quot;$d&quot;; }; d=$(repo); s=$(snip bay); out=$(cd &quot;$d&quot; &amp;&amp; bash -c &quot;$s&quot;); test $? -eq 0 &amp;&amp; echo &quot;$out&quot; | grep -qi &quot;usage&quot; &amp;&amp; echo &quot;$out&quot; | grep -q &quot;waybill: exited 2&quot;</code></span>
+            <span class="crit-text">`bay` with an invalid branch name: the real `!` snippet exits 0 and its output carries the CLI's stderr rejection plus `waybill: exited 2` (retargeted from `bay` with no argument, which #20 routes to the branch menu)<code class="crit-check">R=$PWD; D=$(mktemp -d); trap 'rm -rf &quot;$D&quot;' EXIT; snip() { grep -m1 &quot;^!\`&quot; &quot;$R/commands/$1.md&quot; | sed -e &quot;s/^!\`//&quot; -e &quot;s/\`\$//&quot; -e &quot;s|\${CLAUDE_PLUGIN_ROOT}|$R|g&quot; -e &quot;s/\$ARGUMENTS//g&quot;; }; repo() { d=$D/r; git init -q -b main &quot;$d&quot;; git -C &quot;$d&quot; -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; echo &quot;$d&quot;; }; d=$(repo); s=$(snip bay | sed 's/""/"bad..name"/g'); out=$(cd &quot;$d&quot; &amp;&amp; bash -c &quot;$s&quot;); test $? -eq 0 &amp;&amp; echo &quot;$out&quot; | grep -q &quot;is not a valid branch name&quot; &amp;&amp; echo &quot;$out&quot; | grep -q &quot;waybill: exited 2&quot;</code></span>
           </li>
           <li class="crit">
             <span class="crit-n">04</span>
@@ -2548,7 +2548,7 @@ body {
         <ul class="crits">
           <li class="crit crit-judge">
             <span class="crit-n">12</span>
-            <span class="crit-text">Live session: the Task loads for the two cases that lose it today<span class="crit-check">The operator starts `claude --plugin-dir &lt;this bay&gt;` (with the installed waybill@tinetti disabled so the bay's commands are the ones resolved) on a trunk with two dockets, runs `/waybill:next` (Task loads; the model offers the SELECT A DOCKET choice) and `/waybill:bay` with no argument (Task loads; the model relays the usage error and stops) — neither shows `Shell command failed for pattern`.</span></span>
+            <span class="crit-text">Live session: the Task loads for the two cases that lose it today<span class="crit-check">The operator starts `claude --plugin-dir &lt;this bay&gt;` (with the installed waybill@tinetti disabled so the bay's commands are the ones resolved) on a trunk with two dockets, runs `/waybill:next` (Task loads; the model offers the SELECT A DOCKET choice) and `/waybill:bay bad..name` (Task loads; the model relays the rejection and stops) — neither shows `Shell command failed for pattern`.</span></span>
           </li>
         </ul>
       </div>
