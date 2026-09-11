@@ -227,7 +227,7 @@ Trivial text edits with no feedback loop:
 
 - [ ] Live, from a bay at the execute leg: run `/waybill:next`, then `/clear`, `/model opus`, `/effort high` and `/waybill:next <branch>/execute`. EnterWorktree should report the bay path, and spec:apply should complete at least one Edit/Write and one non-openspec Bash call inside the bay. (Precondition: the README's `/spec:*` symlinks.)
 - [ ] Live fallback: deny the EnterWorktree prompt once. No Skill call should follow, and `cd <bay path>` should be shown.
-- [ ] Frontmatter spike (Full tier): make a throwaway `probe` command with `model: haiku` / `effort: low` and invoke it through Skill from a command without frontmatter. Record whether the model indicator switched under Open Items below.
+- [x] Frontmatter spike (Full tier): make a throwaway `probe` command with `model: haiku` / `effort: low` and invoke it through Skill from a command without frontmatter. Record whether the model indicator switched under Open Items below.
 
 ## Error Handling
 
@@ -269,4 +269,4 @@ There's no lint, typecheck or build step in `package.json`.
 
 ## Open Items
 
-- [ ] Frontmatter spike result (Full tier): _not yet run_. A yes opens a follow-up for the 2-line handover; a no closes it.
+- [x] Frontmatter spike result (Full tier): **no**, run 2026-09-10 on Claude Code 2.1.268. A throwaway user command with `model: haiku` / `effort: low` was invoked through Skill from a command with no frontmatter, in an interactive Opus 5 session. The operator saw no switch on the model indicator, and the probe reported `claude-opus-5` as its system-prompt model. So a Skill invocation doesn't apply command frontmatter routing. This closes the 2-line handover item in Future: the handover keeps its `/model` and `/effort` lines.
