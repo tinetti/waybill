@@ -1,18 +1,6 @@
 import { LEGS } from './legs.js';
 
 /**
- * What the `handover` key means for the operator. An unrecognised value is rendered verbatim rather
- * than dropped, so a booking can ask for something Waybill never anticipated and still be obeyed.
- */
-const HANDOVER_LINES = {
-  transfer: '/clear, then run:',
-  through: 'run:',
-};
-
-/** Used when a booking declares no `handover` at all — the command still needs introducing. */
-const DEFAULT_HANDOVER = 'run:';
-
-/**
  * The repository fact a booking's `argument` names. Every value returns `null` when the repository
  * cannot supply it, and a null argument is omitted rather than interpolated empty — a command with
  * a blank argument is one the next session cannot run.
@@ -123,6 +111,44 @@ function waybillText(body) {
 }
 
 /**
+ * The handover as the commands the operator pastes, in the order they paste them — the one place
+ * both renderings learn which commands a leg needs, so a plain and a markdown waybill cannot come
+ * to disagree about whether `/effort` is due.
+ *
+ * Each command is its own entry because each has to be its own paste: the host submits a
+ * multi-line paste as one input, so `/model` would take every line after it as its argument.
+ *
+ * @param {import('./bookings.js').Booking} booking
+ * @param {import('./inference.js').Inference} state
+ * @returns {{ prose: string|null, commands: string[] }} `prose` is a `handover` value that is
+ *   neither `transfer` nor `through`, rendered verbatim rather than dropped, so a booking can ask
+ *   for something Waybill never anticipated and still be obeyed
+ */
+function handoverCommands(booking, state) {
+  // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
+  // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
+  // it is the only honest option: an empty one would hand the next session a command it cannot run.
+  const source =
+    ARGUMENT_SOURCES.get(booking.argument ?? DEFAULT_ARGUMENT) ??
+    ARGUMENT_SOURCES.get(DEFAULT_ARGUMENT);
+  const argument = source(state);
+  const command = argument ? `${booking.command} ${argument}` : booking.command;
+
+  const known = booking.handover === 'transfer' || booking.handover === 'through';
+  return {
+    prose: known ? null : (booking.handover ?? null),
+    commands: [
+      ...(booking.handover === 'transfer' ? ['/clear'] : []),
+      `/model ${booking.model}`,
+      // Only what the booking declares. A default effort would be a choice nobody made, attributed
+      // to a booking that never made it.
+      ...(booking.effort ? [`/effort ${booking.effort}`] : []),
+      command,
+    ],
+  };
+}
+
+/**
  * @param {import('./inference.js').Inference} state
  * @returns {string[]}
  */
@@ -140,24 +166,13 @@ function nextBlock(state) {
     ];
   }
 
-  // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
-  // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
-  // it is the only honest option: an empty one would hand the next session a command it cannot run.
-  const source =
-    ARGUMENT_SOURCES.get(booking.argument ?? DEFAULT_ARGUMENT) ??
-    ARGUMENT_SOURCES.get(DEFAULT_ARGUMENT);
-  const argument = source(state);
-  const command = argument ? `${booking.command} ${argument}` : booking.command;
-
-  // Only what the booking declares. A default effort would be a choice nobody made, attributed to
-  // a booking that never made it.
-  const detail = booking.effort ? `${booking.model} · ${booking.effort} effort` : booking.model;
-
+  // Unindented, unlike every other line in the block: a line is copied whole, and a leading indent
+  // would ride along into the paste.
+  const { prose, commands } = handoverCommands(booking, state);
   return [
     'NEXT:',
-    `${INDENT}${HANDOVER_LINES[booking.handover] ?? booking.handover ?? DEFAULT_HANDOVER}`,
-    `${INDENT}${command}`,
-    `${INDENT}└ ${detail}`,
+    ...(prose === null ? [] : [`${INDENT}${prose}`]),
+    ...commands,
     ...waybillText(booking.body),
   ];
 }

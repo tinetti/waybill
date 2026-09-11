@@ -3,9 +3,10 @@ feat/thing · leg 6 of 7 (execute)
   ▶ execute (1 of 3 tasks)
 
 NEXT:
-  /clear, then run:
-  /spec:apply add-thing
-  └ opus · high effort
+/clear
+/model opus
+/effort high
+/spec:apply add-thing
 
   Work the tasks list top to bottom, test first, ticking each box as it lands. A phase is roughly one
   session's context — stop and hand the docket on when the remaining tasks no longer fit, rather than

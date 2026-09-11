@@ -362,60 +362,92 @@ describe('renderWaybill NEXT block', () => {
   const next = (booking, rest = {}) =>
     renderWaybill(state({ ...rest, booking: { ...state().booking, ...booking } }), CLEAN);
 
+  /**
+   * The lines between `NEXT:` and the first blank line after it — the handover itself.
+   *
+   * @param {string} output
+   * @returns {string[]}
+   */
+  const handover = (output) =>
+    output
+      .trimEnd()
+      .split('\n\n')
+      .find((section) => section.startsWith('NEXT:'))
+      .split('\n')
+      .slice(1);
+
   it('interpolates the command and the change id', () => {
-    assert.match(next({}), /^ {2}\/spec:propose add-thing$/m);
+    assert.match(next({}), /^\/spec:propose add-thing$/m);
   });
 
-  it('omits the argument when no change has been scaffolded yet', () => {
-    assert.match(next({}, { changeId: null }), /^ {2}\/spec:propose$/m);
+  it('omits the argument when no change has been scaffolded yet, with no trailing space', () => {
+    assert.match(next({}, { changeId: null }), /^\/spec:propose$/m);
   });
 
   it('takes the branch instead when the booking asks for it', () => {
     // The cleanup leg's target finishes a *branch*; handing it a change id would name the wrong
     // thing entirely, and both facts are on the inference already.
-    assert.match(next({ command: '/mar', argument: 'branch' }), /^ {2}\/mar feat\/thing$/m);
+    assert.match(next({ command: '/mar', argument: 'branch' }), /^\/mar feat\/thing$/m);
   });
 
   it('interpolates nothing at all when the booking asks for no argument', () => {
     const output = next({ command: 'superpowers:some-skill', argument: 'none' });
-    assert.match(output, /^ {2}superpowers:some-skill$/m);
+    assert.match(output, /^superpowers:some-skill$/m);
     assert.equal(output.includes('add-thing'), false);
   });
 
   it('omits a requested argument the repository cannot supply', () => {
-    assert.match(next({ command: '/mar', argument: 'branch' }, { branch: null }), /^ {2}\/mar$/m);
+    assert.match(next({ command: '/mar', argument: 'branch' }, { branch: null }), /^\/mar$/m);
   });
 
-  it('sources model and effort from the booking', () => {
-    assert.match(next({ model: 'some-model', effort: 'low' }), /^ {2}└ some-model · low effort$/m);
+  it('lists a transfer handover as /clear, /model, /effort and the command, unindented, in order', () => {
+    assert.deepEqual(handover(next({ model: 'some-model', effort: 'low', handover: 'transfer' })), [
+      '/clear',
+      '/model some-model',
+      '/effort low',
+      '/spec:propose add-thing',
+    ]);
   });
 
-  it('omits the effort entirely when the booking declares none, rather than defaulting', () => {
-    const output = next({ model: 'some-model', effort: undefined });
-    assert.match(output, /^ {2}└ some-model$/m);
-    assert.equal(output.includes('effort'), false);
-  });
-
-  for (const [handover, line] of [
-    ['transfer', '/clear, then run:'],
-    ['through', 'run:'],
-  ]) {
-    it(`renders the ${handover} handover as "${line}"`, () => {
-      assert.equal(next({ handover }).split('\n').includes(`  ${line}`), true);
+  for (const value of ['through', undefined]) {
+    it(`lists no /clear for a ${value ?? 'missing'} handover`, () => {
+      assert.deepEqual(handover(next({ model: 'some-model', effort: 'low', handover: value })), [
+        '/model some-model',
+        '/effort low',
+        '/spec:propose add-thing',
+      ]);
     });
   }
 
-  it('renders an unrecognised handover verbatim rather than dropping the line', () => {
-    assert.match(next({ handover: 'hand the laptop to Dave' }), /^ {2}hand the laptop to Dave$/m);
+  it('omits /effort entirely when the booking declares none, rather than defaulting', () => {
+    const output = next({ model: 'some-model', effort: undefined });
+    assert.deepEqual(handover(output), ['/clear', '/model some-model', '/spec:propose add-thing']);
+    assert.equal(output.includes('effort'), false);
   });
 
-  it('falls back to a bare instruction when the booking declares no handover', () => {
-    assert.match(next({ handover: undefined }), /^ {2}run:\n {2}\/spec:propose/m);
+  it('passes the model value through verbatim, qualifier and all', () => {
+    assert.match(next({ model: 'some-model[1m]' }), /^\/model some-model\[1m\]$/m);
   });
 
-  it('carries the booking body through as the waybill prose', () => {
+  it('renders an unrecognised handover verbatim, indented above the commands, with no /clear', () => {
+    assert.deepEqual(handover(next({ handover: 'hand the laptop to Dave', effort: undefined })), [
+      '  hand the laptop to Dave',
+      '/model placeholder-model',
+      '/spec:propose add-thing',
+    ]);
+  });
+
+  it('prints no caption and no "then run:" line under any handover', () => {
+    for (const value of ['transfer', 'through', undefined, 'hand the laptop to Dave']) {
+      const output = next({ handover: value });
+      assert.equal(/^.*└ /m.test(output), false, `caption under ${value}`);
+      assert.equal(/run:/.test(output), false, `run: line under ${value}`);
+    }
+  });
+
+  it('carries the booking body through as the waybill prose, one blank line after the commands', () => {
     const output = next({ body: 'Do the thing.\n\nThen do the other thing.\n' });
-    assert.match(output, /^ {2}Do the thing\.$/m);
+    assert.match(output, /^\/spec:propose add-thing\n\n {2}Do the thing\.$/m);
     assert.match(output, /^ {2}Then do the other thing\.$/m);
     // A blank separator line must stay blank; indenting it would leave trailing whitespace.
     assert.equal(output.includes('  \n'), false);

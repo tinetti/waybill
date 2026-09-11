@@ -332,7 +332,7 @@ describe('the worked alternative binding in examples/', () => {
       warnings: [],
     });
 
-    assert.match(waybill, /^ {2}superpowers:subagent-driven-development$/m);
+    assert.match(waybill, /^superpowers:subagent-driven-development$/m);
     assert.equal(waybill.includes('subagent-driven-development add-thing'), false);
   });
 });

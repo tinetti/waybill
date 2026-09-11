@@ -1,9 +1,10 @@
 main · no docket open
 
 NEXT:
-  /clear, then run:
-  /ideation:brainstorm
-  └ opus · high effort
+/clear
+/model opus
+/effort high
+/ideation:brainstorm
 
   Talk the idea through before committing to it. Name the problem, argue for the smallest version
   that could work, and surface the assumptions you have not tested yet. Nothing is written to disk

@@ -21,7 +21,7 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 1. The handover command list, plain rendering
 
-- [ ] 1.1 In `tests/waybill.test.js`'s `next(...)` helper block (~358–420), replace the caption
+- [x] 1.1 In `tests/waybill.test.js`'s `next(...)` helper block (~358–420), replace the caption
   assertions (~390, ~395) and the `HANDOVER_LINES` loop (~399–409) with failing tests for the new
   plain NEXT block:
   - `handover: transfer` gives unindented lines `/clear`, `/model <m>`, `/effort <e>`, `<command>`,
@@ -36,7 +36,7 @@ The exact output shapes, expected strings and file:line anchors are in
   - the booking body follows the commands after one blank line, still indented
 
   Verify: `node --test tests/waybill.test.js` fails on exactly these cases.
-- [ ] 1.2 Update the hand-written shape assertions in other suites to the unindented form, so they
+- [x] 1.2 Update the hand-written shape assertions in other suites to the unindented form, so they
   fail now:
   - `tests/cli.test.js` ~380 and ~415: `/^\/ideation:brainstorm$/m`
   - `tests/booking-swap.test.js` ~93–95: `/^\/ideation:execute-spec/m` and `/^\/clear$/m`, replacing
@@ -46,20 +46,20 @@ The exact output shapes, expected strings and file:line anchors are in
 
   Leave the `cd` assertions in `tests/cli.test.js` (~553–625) indented. Verify: each edited assertion
   fails against the current renderer.
-- [ ] 1.3 In `src/waybill.js`, extract `handoverCommands(booking, state) → { prose, commands }`,
+- [x] 1.3 In `src/waybill.js`, extract `handoverCommands(booking, state) → { prose, commands }`,
   keeping the `ARGUMENT_SOURCES` Map lookup and the drop-a-null-argument rule. Rewrite `nextBlock`
   to print `NEXT:`, then the prose (indented, if any), then each command unindented, then
   `waybillText(body)`. Delete `HANDOVER_LINES` and `DEFAULT_HANDOVER`, and update the file's opening
   comment. Leave the complete-state and no-booking branches byte-for-byte as they are. Verify: 1.1
   and 1.2's assertions pass, and `node --test tests/waybill.test.js` reports only golden mismatches.
-- [ ] 1.4 Run `UPDATE_GOLDEN=1 node --test tests/waybill.test.js`, then read
+- [x] 1.4 Run `UPDATE_GOLDEN=1 node --test tests/waybill.test.js`, then read
   `git diff tests/golden` line by line. Only the booked-leg goldens (`ideate bay refine contract
   specs execute cleanup no-docket trunk-one-docket`) may change, and only in their NEXT block.
   Verify: `git diff --exit-code main -- tests/golden/select.txt tests/golden/status.txt
   tests/golden/fleet.txt tests/golden/fleet-empty.txt tests/golden/complete.txt` exits 0, and
   `grep -qx '/model opus' tests/golden/execute.txt && grep -qx '/effort high' tests/golden/execute.txt`
   exits 0.
-- [ ] 1.5 Section boundary: `npm test` passes. Commit (`feat: list the handover as commands in the
+- [x] 1.5 Section boundary: `npm test` passes. Commit (`feat: list the handover as commands in the
   plain waybill`, body naming `docs/ideation/paste-ready-waybills/spec.md`).
 
 ## 2. Markdown renderer

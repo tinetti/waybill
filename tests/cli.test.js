@@ -377,7 +377,7 @@ describe('waybill new', () => {
 
     assert.equal(result.code, 0);
     assert.match(result.out, /^NEXT:$/m);
-    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
   });
 
   it('answers identically with dockets in flight — `new` has no exit contract of its own', () => {
@@ -412,7 +412,7 @@ describe('waybill new', () => {
 
     const result = cli(['new'], bays[0]);
 
-    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
     assert.ok(result.out.indexOf('NEXT:') < result.out.indexOf('WARNINGS:'), 'the warning buried it');
   });
 
