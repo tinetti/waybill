@@ -69,8 +69,8 @@ The two surfaces install separately, and neither one brings the other.
 /plugin install waybill@tinetti
 ```
 
-That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, and the four
-routing commands as **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces
+That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:help`,
+and the four routing commands as **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces
 every plugin command under the plugin name, and a `commands/` subdirectory becomes one more segment
 — measured against a scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an
 unknown command.
@@ -105,6 +105,7 @@ step.
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>]` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
+| `waybill help` | `/waybill:help` | The route, the words, and the four verbs on one screen |
 
 The **docket** is the branch. It is open whenever a branch other than the default one is checked
 out, and there is no state file to keep in step: git already tracks what is in flight. The

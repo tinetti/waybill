@@ -161,8 +161,8 @@ describe('the `!` lines that shell out to the CLI', () => {
       .sort();
 
     // Pinned rather than `length > 0`, so an extraction that silently finds nothing cannot pass —
-    // a fifth command that shells out to the CLI is added here alongside its wrapper.
-    assert.deepEqual(invoking, ['bay.md', 'new.md', 'next.md', 'status.md']);
+    // a sixth command that shells out to the CLI is added here alongside its wrapper.
+    assert.deepEqual(invoking, ['bay.md', 'help.md', 'new.md', 'next.md', 'status.md']);
     // Every `node` call is wrapped, not just the first: `bay` has one per branch of its `if`.
     assert.deepEqual(
       invoking.filter((rel) => {
