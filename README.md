@@ -147,7 +147,13 @@ waybill: no dockets open — begin one with `waybill new`
 With more than one it prints the same list under `SELECT A DOCKET:` and names the way to pick:
 `waybill next <branch>` resolves that branch's bay from anywhere — the trunk, or another bay — and
 says so when the branch has no bay at all. Both non-zero cases print to stdout, not stderr, because
-the session's `` ! `` invocation captures stdout only.
+they are an answer about the repository rather than a complaint — the stream a terminal caller reads,
+and the one `--json` writes its object to.
+
+Inside a session the commands run `node … 2>&1 || echo "waybill: exited $?"`, because Claude Code
+discards a command file whose `` ! `` line exits non-zero, Task and all. The marker line
+`waybill: exited N` appears only when the CLI exited non-zero, and tells the session no waybill was
+issued.
 
 `waybill next --json` prints the raw resolved state for scripts, and an object in the non-zero cases
 too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so the fleet is machine-

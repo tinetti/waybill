@@ -27,9 +27,14 @@ and working. Guarding the guard is what breaks it. `tests/commands.test.js` hold
 No `:-.` fallback either: falling back to the operator's cwd points the command at `./src/cli.js`
 in *their* repository, where it does not exist, and hands the model a raw node MODULE_NOT_FOUND
 dump in place of the block below. One line of guidance is the honest failure.
+
+`2>&1 || echo "waybill: exited $?"` because Claude Code discards a command file whose `!` line exits
+non-zero — the Task below never renders — and `next` exits 2 on a trunk with no docket or several.
+The CLI's exit code stays 2 for terminal callers; here it is folded into a final marker line.
+`tests/bang-lines.test.js` runs this line.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown 2>&1 || echo "waybill: exited $?"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
@@ -42,6 +47,11 @@ it as markdown, and do not wrap it in a further fence.
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
 would spend the context the waybill is trying to hand over.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without issuing a waybill and
+that line only records its exit code. Show the block verbatim, as above, and stop — do not run a
+command, and do not improvise the leg. The exception below still applies: a `SELECT A DOCKET:`
+block ends with `waybill: exited 2` too, and the literal string wins.
 
 There is exactly one exception, and it is keyed on an exact string rather than on your reading of
 the situation — a verbatim rule that bends whenever a model decides it should is not a rule.
