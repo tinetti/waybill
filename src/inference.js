@@ -131,20 +131,19 @@ export function resolveLeg(cwd, bookings) {
     booking: leg === null ? undefined : bookings.get(leg),
     branch: state.branch,
     docketOpen: state.docketOpen,
-    // Same reasoning as the cleared walk above: `discoverChangeId` reads the whole
-    // `openspec/changes` directory, so a shipped change left in history would be interpolated into
-    // the ideate waybill as `/ideation:brainstorm <that id>` — a handoff naming work that is done.
-    // No docket, no change in flight.
-    changeId: docketOpen ? discoverChangeId(root) : null,
+    // A change inherited from the trunk would be interpolated into the waybill as the docket's own —
+    // `/spec:propose <shipped id>` — so only a change the branch's diff touches is named, the same
+    // scope the path stamps use. No docket, no change in flight.
+    changeId: docketOpen ? discoverChangeId(root, changed) : null,
     warnings,
   };
 
   if (leg === 'execute') {
-    result.progress = executeProgress(root, result.changeId);
+    result.progress = executeProgress(root, result.changeId, changed);
     // The filesystem walk only sees changes that already carry a `tasks.md`; `openspec list --json`
     // names active changes regardless. When only the CLI found one, take its id — phase 3
     // interpolates `changeId` into the waybill's command, and an empty one beside a progress line
-    // for a named change is worse than no progress at all.
+    // for a named change is worse than no progress at all. The CLI's pick is branch-scoped too.
     result.changeId ??= result.progress.changeId;
   }
   return result;
