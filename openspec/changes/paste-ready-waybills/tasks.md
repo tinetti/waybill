@@ -178,7 +178,7 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 5. README
 
-- [ ] 5.1 Update `README.md`:
+- [x] 5.1 Update `README.md`:
   - rewrite every sample waybill (~12–20, the trunk example and any others) in the new plain form,
     using real output from `node src/cli.js next` where possible
   - document `--markdown` beside `--json`
