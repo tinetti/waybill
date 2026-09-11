@@ -1,6 +1,6 @@
 ---
 leg: bay
-command: /waybill:start
+command: /waybill:bay
 model: haiku
 effort: low
 handover: through

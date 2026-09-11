@@ -1,11 +1,17 @@
 ---
 description: "Waybill — where this docket stands, and the waybill for the next leg"
-allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)
+allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), AskUserQuestion
 ---
 
 <!--
 No `model:` or `effort:` frontmatter on purpose. The waybill below names the model and effort for the
 *next* session; declaring one here would silently override the booking's choice with this session's.
+
+`AskUserQuestion` is on the `allowed-tools` line, and it has to be on the line rather than mentioned
+here: the list is restrictive, so a tool left off it is not merely unmentioned but unavailable, with
+nothing raised to explain the silence. The Task section has exactly one case that asks anything — a
+trunk with more than one docket open — and undeclared, that prompt simply never happens, leaving the
+selection block on screen and the session looking as though it had ignored its own instruction.
 -->
 
 # Waybill: next
@@ -33,6 +39,43 @@ re-word it, re-order it, or add commentary of your own. It is already the whole 
 Then stop. Running the command the waybill names is the next session's job, not this one's: the
 handover line says whether to `/clear` first, and acting on it here would spend the context the
 waybill is trying to hand over.
+
+There is exactly one exception, and it is keyed on an exact string rather than on your reading of
+the situation — a verbatim rule that bends whenever a model decides it should is not a rule.
+**If the block contains the literal `SELECT A DOCKET:`**, it is not a waybill at all: it is the
+trunk reporting that more than one effort is in flight and that it cannot tell which one I meant.
+Nothing has been handed over, so there is no context to protect and nothing to stop for. Show that
+block as above, and then work these three steps.
+
+**1. Ask me which docket.** Use `AskUserQuestion`, and offer the branch names the block itself
+listed — those and no others. Do not pick one for me and do not infer it from whatever we were last
+working on: a branch you invented is a branch with no bay, and step 2 will fail on it. If the fleet
+is too long to present comfortably, ask in plain text rather than offering a truncated list as
+though it were the whole of it.
+
+**2. Re-run `next` against the branch I chose**, by appending it to the same command that produced
+the block above:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next <branch>
+```
+
+Not `waybill next <branch>`. That line is printed for *me* — it is what I would type in a terminal,
+and it assumes a `waybill` on my PATH that a plugin install never puts there. The `allowed-tools`
+line above permits `node`, not `waybill`, which is the whole reason the second invocation needs no
+new permission.
+
+**3. Show me that second block, verbatim**, on exactly the terms the first was shown, and then stop
+as you would for any other waybill. The second block only: the first has done its job, and
+repeating it buries the answer underneath the question that led to it.
+
+If the re-run reports `no bay for <branch>`, that is the answer — show it verbatim and stop. Either
+the bay was removed between the two commands or the branch was not one of the ones listed. Do not
+prompt me a second time and do not go hunting for the bay yourself.
+
+If the command in step 2 will not run at all, do not improvise a path to it. Say so in one line,
+name the branch I chose, and show me the `waybill next <branch>` line from the block so I can run
+it myself.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.

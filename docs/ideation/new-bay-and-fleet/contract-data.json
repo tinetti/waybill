@@ -1,0 +1,404 @@
+{
+  "projectName": "new, bay, and the fleet view",
+  "slug": "new-bay-and-fleet",
+  "date": "2026-09-09",
+  "status": "Approved",
+  "supersedes": null,
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "The approved design's Problem section cites the seam at src/waybill.js:50-56 and src/inference.js:84, and the interview reproduced it in a scratch repository: on a trunk with two bays open, `waybill next` printed `main · no docket open` and exited 0."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "Each goal is a pass/fail statement about observable CLI behaviour — the exit contract, enumeration from anywhere, four verbs, and an unchanged fleet boundary — and each is now pinned by at least one command that fails against today's tree."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "Every command was executed during the interview; after the success-criteria critic proved four of them were tautologies (`git diff --name-only` and `grep -c` both exit 0 regardless of output), each was rewritten to a form that demonstrably fails today and can only pass once the work is done."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "The approved design's Out of scope section plus proposal.md's `Deliberately untouched` list give both halves with rationale; the untiered stderr investigation the scope-creep critic found has been given an explicit MVP entry."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "Three contradictions were found and resolved: the rendering section citing a golden the rename rewrites, the rename breaking tests/inference.test.js:146 inside the guarded module's suite, and src/inference.js:113's stale comment versus the zero-diff criterion."
+      }
+    ]
+  },
+  "problem": [
+    "`waybill next` answers two unrelated questions with one command and picks between them by reading the checked-out branch. On a docket it issues the next leg's waybill — the thing the command is named for. On the trunk it issues leg 1's, which is not 'what comes next on this docket' but 'how do I begin an effort at all'. The seam is visible at src/waybill.js:50-56, where the header branches on docketOpen before it looks at leg, and renderWaybill suppresses the leg strip entirely because there is no position to report.",
+    "The second problem is that the trunk cannot see anything. A docket is defined as the checked-out branch (src/inference.js:84), so resolveLeg can only ever answer for the tree the operator is standing in. Reproduced during this interview in a scratch repository with two bays open: `waybill next` from the main checkout printed `main · no docket open` and exited 0, and `waybill status` named neither branch — a statement true of the current directory and false of the repository, and an exit code claiming success for a run that issued no waybill.",
+    "The third problem is a name. The leg has always been called `bay`: src/bay.js, tests/bay.test.js, tests/fixtures/bay.js and tests/golden/bay.txt all say so, and only the command disagrees. Left alone, introducing `new` beside `start` would replace the overload on `next` with a synonym collision on the trunk, where 'new' and 'start' both read as 'begin'. This is the smallest of the three problems and carries the largest blast radius, which is why it is named here rather than left implicit in the goal.",
+    "This contract is deliberately thin. The behaviour contract is openspec/changes/new-bay-and-fleet/specs/, and the full technical design with its six decisions is docs/superpowers/specs/2026-09-08-waybill-new-and-fleet-design.md. Both were written and approved before this contract existed. Restating them here would create the second copy that openspec/changes/new-bay-and-fleet/design.md explicitly warns would drift. What this contract adds is the execution plan and acceptance checks that actually fail when the work is not done, which neither of those documents carries."
+  ],
+  "goals": [
+    "`waybill next` exits 0 if and only if it issued exactly one waybill — today the trunk exits 0 having issued none, and both the zero-docket and many-docket cases must exit 2.",
+    "Every docket in flight is enumerable from anywhere in the repository — today `waybill status` on a trunk with two bays open names neither of them.",
+    "Four verbs, each naming exactly one thing: `new`, `bay`, `next`, `status` — today there are three, one of which answers two unrelated questions and one of which disagrees with the leg it cuts.",
+    "The change is contained to the fleet boundary: src/inference.js and the six other modules proposal.md marks deliberately untouched have no diff at all."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "The full suite passes, with no net loss of tests (372 TAP ok lines today)",
+      "check": {
+        "cmd": "npm test && test \"$(node --test --test-reporter=tap tests/ 2>/dev/null | grep -cE '^ *ok ')\" -ge 372",
+        "expect": "exits 0; 0 failures and at least as many passing assertions as today"
+      }
+    },
+    {
+      "criterion": "EXIT CONTRACT, zero dockets: `next` on a bare trunk issues no waybill and exits 2 (today it exits 0)",
+      "check": {
+        "cmd": "R=$PWD; d=$(mktemp -d)/r; git init -q \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; (cd \"$d\" && node \"$R/bin/waybill\" next >/dev/null 2>&1); test $? -eq 2",
+        "expect": "exits 0 (waybill exited 2)"
+      }
+    },
+    {
+      "criterion": "EXIT CONTRACT, many dockets: `next` on a trunk with two bays issues no waybill and exits 2 (today it exits 0)",
+      "check": {
+        "cmd": "R=$PWD; d=$(mktemp -d)/r; git init -q \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; git -C \"$d\" worktree add -q -b feat/one \"$d/../one\"; git -C \"$d\" worktree add -q -b feat/two \"$d/../two\"; (cd \"$d\" && node \"$R/bin/waybill\" next >/dev/null 2>&1); test $? -eq 2",
+        "expect": "exits 0 (waybill exited 2)"
+      }
+    },
+    {
+      "criterion": "EXIT CONTRACT, exactly one docket: `next` on the trunk issues that docket's waybill, naming its branch (today it prints `no docket open`)",
+      "check": {
+        "cmd": "R=$PWD; d=$(mktemp -d)/r; git init -q \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; git -C \"$d\" worktree add -q -b feat/one \"$d/../one\"; (cd \"$d\" && node \"$R/bin/waybill\" next 2>&1) | grep -q 'feat/one'",
+        "expect": "exits 0 (the branch is named in the issued waybill)"
+      }
+    },
+    {
+      "criterion": "FLEET VIEW: `status` on a trunk with two bays names both branches (today it names neither)",
+      "check": {
+        "cmd": "R=$PWD; d=$(mktemp -d)/r; git init -q \"$d\"; git -C \"$d\" -c user.email=a@b -c user.name=a commit -q --allow-empty -m init; git -C \"$d\" worktree add -q -b feat/one \"$d/../one\"; git -C \"$d\" worktree add -q -b feat/two \"$d/../two\"; test \"$( (cd \"$d\" && node \"$R/bin/waybill\" status 2>&1) | grep -cE 'feat/(one|two)' )\" -eq 2",
+        "expect": "exits 0 (both branches listed)"
+      }
+    },
+    {
+      "criterion": "The usage block lists exactly the four verbs and no longer lists `start`",
+      "check": {
+        "cmd": "test \"$(node bin/waybill nosuchverb 2>&1 | grep -cE '^  (new|bay|next|status) ')\" = 4 && ! node bin/waybill nosuchverb 2>&1 | grep -qE '^  start '",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The CLI dispatch table registers `bay` and `new` and no longer registers `start`",
+      "check": {
+        "cmd": "grep -q \"\\['bay'\" src/cli.js && grep -q \"\\['new'\" src/cli.js && ! grep -q \"\\['start'\" src/cli.js",
+        "expect": "exits 0; the positive halves prove the checked line shape still exists"
+      }
+    },
+    {
+      "criterion": "The command files match the new surface: start.md gone, bay.md and new.md present",
+      "check": {
+        "cmd": "test ! -e commands/start.md && test -e commands/bay.md && test -e commands/new.md",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "BOUNDARY: src/inference.js has no diff at all — the check on the whole approach, per design §3",
+      "check": {
+        "cmd": "git diff --quiet $(git merge-base main HEAD) -- src/inference.js",
+        "expect": "exits 0; --quiet (not --name-only) is what makes this fail on a difference, and merge-base survives main advancing"
+      }
+    },
+    {
+      "criterion": "BOUNDARY: the six other deliberately-untouched modules have no diff",
+      "check": {
+        "cmd": "git diff --quiet $(git merge-base main HEAD) -- src/legs.js src/bookings.js src/frontmatter.js src/inspection.js src/progress.js src/openspec.js",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "Every pre-existing golden covering the in-a-bay path is byte-unchanged — the cheapest proof the trunk/bay dispatch did not disturb the path that already worked",
+      "check": {
+        "cmd": "git diff --quiet $(git merge-base main HEAD) -- tests/golden/ideate.txt tests/golden/contract.txt tests/golden/specs.txt tests/golden/execute.txt tests/golden/cleanup.txt tests/golden/complete.txt tests/golden/refine.txt tests/golden/status.txt",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "tests/golden/no-docket.txt is byte-unchanged after being re-pointed at `new` — a diff there means the leg-1 waybill was altered by accident",
+      "check": {
+        "cmd": "git diff --quiet $(git merge-base main HEAD) -- tests/golden/no-docket.txt",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The four new goldens are non-empty AND wired into the waybill suite — an orphan golden is invisible to tests/waybill.test.js, which resolves them by name",
+      "check": {
+        "cmd": "for g in fleet select trunk-one-docket fleet-empty; do test -s \"tests/golden/$g.txt\" || exit 1; grep -q \"$g\" tests/waybill.test.js || exit 1; done",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "commands/next.md declares AskUserQuestion on the allowed-tools line itself, not merely somewhere in the file",
+      "check": {
+        "cmd": "grep -qE '^allowed-tools:.*AskUserQuestion' commands/next.md",
+        "expect": "exits 0; an explanatory comment naming the tool must not be able to satisfy this"
+      }
+    },
+    {
+      "criterion": "The selection branch is keyed on the exact SELECT A DOCKET literal, present in both the renderer and the command file",
+      "check": {
+        "cmd": "grep -q 'SELECT A DOCKET' commands/next.md && grep -rq 'SELECT A DOCKET' src/ && node --test tests/commands.test.js",
+        "expect": "exits 0; the literal appears nowhere in src/ or commands/ today, so the positive greps fail until the work is done"
+      }
+    },
+    {
+      "criterion": "CONTAINMENT: the pre-existing repoRoot invisible-error fix did not ride along in this change",
+      "check": {
+        "cmd": "! git diff $(git merge-base main HEAD) -- src/cli.js | grep -q 'is not inside a git repository'",
+        "expect": "exits 0; src/cli.js is edited by five of six phases, so this is not vacuous"
+      }
+    },
+    {
+      "criterion": "The stderr-capture question is answered and the finding recorded in the change",
+      "check": {
+        "judgment": "reviewer confirms the change records whether stderr from the `!` invocation reaches a session transcript, established by running the command from a non-git directory in a live session — no command in this repo can observe it"
+      }
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "Rename `start` to `bay`, no alias",
+        "reason": "The leg has always been called bay; only the command disagreed. Moved to the front of the sequence so every later phase is written against final verb names."
+      },
+      {
+        "item": "Fleet and selection renderers, sharing the existing findings helper and a `cd`-block helper extracted from the bay path",
+        "reason": "Two surfaces that build their own blocks will eventually disagree about the same repository. The cd extraction is named here because it changes the existing, working bay success path."
+      },
+      {
+        "item": "The exit contract: `next` exits 0 iff exactly one waybill was issued",
+        "reason": "Gives scripts one condition to test instead of three, and is the behaviour reproduced as broken today."
+      },
+      {
+        "item": "Trunk dispatch for `next`, plus the optional positional `<branch>`",
+        "reason": "The trunk currently cannot answer for the repository at all. The positional is load-bearing for the selection loop, which re-runs the command against the chosen branch."
+      },
+      {
+        "item": "`status` on the trunk as a fleet view, option-free",
+        "reason": "The docket list belongs on the read-only surface, keeping `next` to exactly one waybill."
+      },
+      {
+        "item": "The `new` verb and commands/new.md",
+        "reason": "The trunk-side entry point, separating 'how do I begin' from 'what comes next'."
+      },
+      {
+        "item": "The session-facing selection branch in commands/next.md with AskUserQuestion declared",
+        "reason": "The allowed-tools list is restrictive, so an undeclared prompt fails silently rather than loudly."
+      },
+      {
+        "item": "Investigate the stderr-capture question and record the finding; the fix itself is deferred",
+        "reason": "Inherited from the approved design §2. Tiered explicitly here because it gates acceptance and writes to the change, so leaving it untiered would hide a deliberate choice."
+      }
+    ],
+    "full": [],
+    "stretch": [],
+    "outOfScope": [
+      {
+        "item": "Cross-docket reasoning",
+        "reason": "The fleet view is a list. Nothing compares dockets, orders them by staleness, or warns that two touch the same files."
+      },
+      {
+        "item": "A machine-readable `status`",
+        "reason": "`next --json` already carries the fleet shape in its ambiguous case, and the rule at src/cli.js:97 and README:124-125 against a second machine-readable surface stands."
+      },
+      {
+        "item": "Interactive selection in the CLI",
+        "reason": "Decision 5: the CLI prints and exits, the session prompts. Keeps every output coverable by a golden file and adds no TTY-detection branch."
+      },
+      {
+        "item": "Fixing the pre-existing invisible-error bug in repoRoot",
+        "reason": "Investigated and recorded by this change, fixed separately. A criterion checks the fix did not ride along."
+      },
+      {
+        "item": "Correcting the stale `/waybill:start` comment at src/inference.js:113",
+        "reason": "It sits inside the module the boundary criterion forbids touching. The boundary is worth more than one stale comment; the next change that legitimately opens that module fixes it."
+      },
+      {
+        "item": "An alias for the old `start` verb",
+        "reason": "At this version with a plugin marketplace as the only distribution, an alias is a second name to document and keep in step forever."
+      },
+      {
+        "item": "Re-deriving the already-committed enumeration work in 24d7ed0",
+        "reason": "161 reviewed and tested lines whose behaviour tests/fleet.test.js already pins."
+      },
+      {
+        "item": "Changing waybill's own leg order so refine/contract precede specs",
+        "reason": "This docket ran openspec specs before the ideation contract and it worked, which is evidence about the route itself — but it is a change to the product, not to this change."
+      }
+    ],
+    "future": [
+      "Fix the pre-existing repoRoot invisible-error bug, once the stderr-capture question this change answers says whether it is real.",
+      "Correct the stale /waybill:start comment at src/inference.js:113, in the next change that legitimately opens that module.",
+      "Revisit waybill own leg order: this docket ran the openspec specs leg before the ideation refine and contract legs, and the result was sound, which is evidence the fixed order may be wrong.",
+      "Cross-docket reasoning over the fleet — staleness ordering, or warning that two dockets touch the same files."
+    ]
+  },
+  "decisions": [
+    {
+      "decision": "This contract cites the openspec specs and the approved design rather than restating them",
+      "rejected": "A self-contained contract repeating the problem, the six decisions, and the scope",
+      "reason": "openspec design.md explicitly warns that a second copy would drift. The contract adds the execution plan and runnable checks, which neither existing document carries."
+    },
+    {
+      "decision": "The rename moves to the front of the sequence, ahead of rendering and dispatch",
+      "rejected": "Leaving the rename last, where tasks.md originally had it at §4",
+      "reason": "tests/golden/bay.txt:7 contains the literal /waybill:start, so the rendering section verified against a golden the rename section then rewrote. Renaming first makes it one mechanical diff against a green suite and lets every later phase be written against final verb names."
+    },
+    {
+      "decision": "The inference-layer boundary is a hard mechanical criterion using `git diff --quiet`",
+      "rejected": "First `git diff --name-only ... expect: empty output`, then a judgment call",
+      "reason": "The success-criteria critic proved --name-only exits 0 whether or not it prints filenames, and verify.mjs scores on exit code alone (verify.mjs:407) — so the first form passed unconditionally, with src/inference.js rewritten, the exact failure the judgment form was rejected for. --quiet exits 1 on any difference."
+    },
+    {
+      "decision": "Acceptance checks are behavioural probes against scratch repositories, not `node --test <file>` alone",
+      "rejected": "Naming the relevant suite file and trusting its cases to be written",
+      "reason": "Every suite file is green today, so `node --test tests/cli.test.js` cannot distinguish 'the sweep was written and passes' from 'the sweep was never written'. Each probe was executed during the interview and confirmed to fail against today's tree."
+    },
+    {
+      "decision": "The empty-fleet golden is named fleet-empty.txt",
+      "rejected": "no-dockets.txt, as tasks.md originally named it",
+      "reason": "One character from the existing tests/golden/no-docket.txt, which is the leg-1 waybill and means something entirely different. Two goldens a plural apart is a trap for every future reader."
+    },
+    {
+      "decision": "src/inference.js:113's stale `/waybill:start` comment is left uncorrected, by design",
+      "rejected": "Fixing the comment as part of the rename",
+      "reason": "The zero-diff criterion on that file is the check on the whole approach. A comment fix would fail acceptance, and an implementer who 'fixes' it has done exactly what the boundary exists to catch. Recorded so the red check reads as intended, not as a defect."
+    },
+    {
+      "decision": "Phase 1 updates tests/inference.test.js, and this does not violate the boundary",
+      "rejected": "Leaving the rename to break that suite and letting the phase stop on it",
+      "reason": "bookings/waybill-bay.md:3 is `command: /waybill:start`, pinned by tests/inference.test.js:146. The criterion guards src/inference.js, not its suite — stated explicitly so a blocking phase does not halt on a one-line fixture edit."
+    },
+    {
+      "decision": "Phases run sequentially rather than parallelising `new` against the fleet work",
+      "rejected": "A parallel wave, since the `new` section does not depend on the rendering section's renderers",
+      "reason": "Every phase edits src/cli.js. Parallelism buys nothing in a repo this size and only risks conflicts on the one file they all share."
+    },
+    {
+      "decision": "`next --json` keeps its per-docket `dockets` array in the non-zero cases",
+      "rejected": "Emitting `{ error }` only, as the over-engineering critic proposed, since no consumer exists today",
+      "reason": "The array is load-bearing for a stated scope decision: src/cli.js:97 and README:124-125 keep `status` option-free precisely because `next --json` already carries the fleet shape. Strip it and a script has no machine-readable way to enumerate the fleet, which forces the out-of-scope `status --json` back in."
+    }
+  ],
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      {
+        "title": "The rename: start becomes bay",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §2 (renumbered from §4 when the rename moved to the front). Rename commands/start.md to commands/bay.md; rename the CLI verb (src/cli.js:204 dispatch, plus the usage line at :17, the --bay-dir help at :22, the jsdoc at :124, the function at :136 and the error strings at :155 and :163); rename startBay in src/bay.js. Update bookings/waybill-bay.md:3 from /waybill:start to /waybill:bay — that literal is pinned by tests/inference.test.js:146, so update that assertion in the SAME step. Editing tests/inference.test.js does NOT violate the boundary criterion, which guards src/inference.js only; do not stop on it. All 13 `start` call sites live in tests/cli.test.js:198-297. Regenerate tests/golden/bay.txt, which contains the literal /waybill:start. Text-only mentions in commands/status.md:19 and src/bay.js:209. DO NOT correct src/inference.js:113's stale /waybill:start comment — it is deliberately left, and the boundary criterion exists to catch that edit.",
+        "files": [
+          "src/cli.js",
+          "src/bay.js",
+          "commands/start.md",
+          "commands/bay.md",
+          "commands/status.md",
+          "bookings/waybill-bay.md",
+          "README.md",
+          "tests/cli.test.js",
+          "tests/inference.test.js",
+          "tests/commands.test.js",
+          "tests/golden/bay.txt"
+        ]
+      },
+      {
+        "title": "Rendering: fleet, selection, and the shared cd block",
+        "risk": "low",
+        "prereqs": [
+          "The rename: start becomes bay"
+        ],
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §3, with §3.1's no-dockets.txt renamed to fleet-empty.txt per the decision log. Write the four goldens first and wire them into tests/waybill.test.js, which resolves goldens by name — an unreferenced golden is invisible. Consumes fleet(cwd, bookings) from src/fleet.js and listWorktrees/defaultBranch from src/repo.js, both already committed in 24d7ed0: read them, do not rebuild them. The findings helper withFindings(sections, state, inspection) at src/waybill.js:151 is typed to ONE Inference plus an Inspection; the fleet has N states and no per-tree inspection, so widen its parameters to accept a plain warnings list rather than fabricating a synthetic Inference to reach the WARNINGS block. The shared cd helper covers the `cd <path>` line and its already-inside suppression ONLY, not the surrounding block: specs/command-surface/spec.md:30-31 freezes bay's success block while design §4 gives trunk next an IN BAY: section. Its real coverage is tests/cli.test.js:236 (asserting /^ {2}cd /m and `already inside`), NOT tests/golden/bay.txt, which is a renderWaybill golden (tests/waybill.test.js:82) and cannot detect this helper regressing.",
+        "files": [
+          "src/waybill.js",
+          "src/cli.js",
+          "tests/golden/fleet.txt",
+          "tests/golden/select.txt",
+          "tests/golden/trunk-one-docket.txt",
+          "tests/golden/fleet-empty.txt",
+          "tests/waybill.test.js",
+          "tests/cli.test.js"
+        ]
+      },
+      {
+        "title": "The exit contract and trunk dispatch",
+        "risk": "high",
+        "prereqs": [
+          "Rendering: fleet, selection, and the shared cd block"
+        ],
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §4. Write the exit-contract sweep first and watch it fail: next exits 0 iff exactly one waybill was issued, across zero, one and three dockets. Then trunk dispatch — one docket issues its waybill and exits 0, zero dockets points at new and exits 2, many dockets print the selection block and exit 2, all on stdout. Add the optional positional branch resolving from anywhere. Make status on the trunk render the fleet, exit 0, attribute each docket's warnings to its own branch, and stay option-free. Confirm next --json still emits an object in both non-zero cases, keeping the dockets array. CONSTRAINT: tests/inference.test.js:70-73 asserts readdirSync(tests/fixtures/).length === LEGS.length + 1, so any new fixture file breaks it — build multi-docket repositories through tests/helpers/repo-fixture.js, the route tests/fleet.test.js already uses, or update that count in the same task. README.md:95-107 is falsified here: the command table and the prose 'the docket is the branch' and 'all three commands'. Highest-risk phase: it is the behaviour change the whole effort exists for.",
+        "files": [
+          "src/cli.js",
+          "src/waybill.js",
+          "tests/cli.test.js",
+          "tests/helpers/repo-fixture.js",
+          "README.md"
+        ]
+      },
+      {
+        "title": "new: the trunk-side entry point",
+        "risk": "medium",
+        "prereqs": [
+          "The exit contract and trunk dispatch"
+        ],
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §5. Add the CLI new verb printing leg 1's waybill and stopping, and re-point the tests/golden/no-docket.txt fixture at it — the golden's contents must pass unchanged, since new should print exactly what next on the trunk prints today. That golden is compared at tests/waybill.test.js:118 (renderer level, not the CLI suite), and tests/waybill.test.js:121-129 additionally pins no-docket.txt and ideate.txt as byte-identical on purpose: the re-point must disturb neither. Add commands/new.md declaring the model and effort its booking names and invoking the command the waybill names after showing the block. Pin that model and effort against bookings/ideation-ideate.md with a test that fails when the booking is rebooked. Warn and proceed when new is invoked from inside a bay. Handle an unresolvable named command by saying so and leaving the waybill on screen. README.md's command table gains the fourth verb here.",
+        "files": [
+          "src/cli.js",
+          "commands/new.md",
+          "tests/fixtures/no-docket.js",
+          "tests/waybill.test.js",
+          "tests/cli.test.js",
+          "tests/commands.test.js",
+          "README.md"
+        ]
+      },
+      {
+        "title": "The session-facing branch",
+        "risk": "medium",
+        "prereqs": [
+          "new: the trunk-side entry point"
+        ],
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §6. Add the selection branch to commands/next.md keyed on the exact SELECT A DOCKET: literal with verbatim as the default — an exact string match rather than a judgment call, because a single unconditional rule is what stops a session paraphrasing a waybill. That literal appears nowhere in src/ or commands/ today. Add AskUserQuestion to the allowed-tools line in the same task, since the list is restrictive and an undeclared prompt is silently unavailable; the criterion anchors on '^allowed-tools:' so a mere explanatory mention will not satisfy it. Update commands/status.md for the trunk fleet view.",
+        "files": [
+          "commands/next.md",
+          "commands/status.md",
+          "tests/commands.test.js"
+        ]
+      },
+      {
+        "title": "Verification and the stderr finding",
+        "risk": "low",
+        "prereqs": [
+          "The session-facing branch"
+        ],
+        "specPath": "openspec/changes/new-bay-and-fleet/tasks.md",
+        "notes": "tasks.md §7. Run the full suite and confirm every pre-existing golden covering the in-a-bay path passes unchanged. Then the stderr question, which no command in this repository can answer because it depends on a live Claude Code session: run a waybill command from a non-git directory inside a session via the ! invocation and record whether repoRoot's 'is not inside a git repository' error text reaches the transcript. If it does not, that pre-existing error is already invisible in every session. Record the finding in the change; DO NOT fold the fix in — a criterion checks the repoRoot error literal does not appear in this branch's src/cli.js diff.",
+        "files": [
+          "openspec/changes/new-bay-and-fleet/design.md",
+          "openspec/changes/new-bay-and-fleet/tasks.md"
+        ]
+      }
+    ]
+  },
+  "approvedOn": "2026-09-09"
+}

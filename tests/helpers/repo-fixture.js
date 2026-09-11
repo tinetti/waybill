@@ -110,7 +110,7 @@ export function defaultBayPath(repoDir, branch) {
  *
  * The path comes from {@link resolveBayPath} rather than a copy of the derivation: a fixture that
  * honours `waybill.baydir` is the only kind that can be used to test it. The ignore line is the
- * same one `startBay` writes — without it a nested bay is an embedded repository, and any fixture
+ * same one `openBay` writes — without it a nested bay is an embedded repository, and any fixture
  * that runs `git add -A` in the main checkout would stage it as a gitlink.
  *
  * @param {string} repoDir main checkout

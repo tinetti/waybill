@@ -1,0 +1,6 @@
+main · 3 dockets open
+
+DOCKETS:
+  feat/session-handover · leg 5 of 7 (specs)
+  fix/stamp-scoping     · leg 6 of 7 (execute, 4 of 9 tasks)
+  feat/fleet-view       · leg 3 of 7 (refine)
