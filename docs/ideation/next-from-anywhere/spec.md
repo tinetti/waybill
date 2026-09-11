@@ -26,6 +26,7 @@ _Carried from the contract; consult before making gap decisions._
 - **Every transfer handover with a bay gets the new line** (in-bay, trunk, `/waybill:bay`), in session output only; plain output keeps `cd`. Rejected: only `/waybill:next` inside a bay.
 - **`/waybill:next <branch>` with no leg switches into the bay and shows the waybill.** Rejected: show only, with a `cd`.
 - **If the bay can't be entered, show `cd` and stop.** Rejected: run the leg in the current checkout.
+- **Fold the /waybill:help walkthrough into this effort.** Rejected: a separate follow-up. #12 landed after approval, and the card would otherwise contradict the handover.
 - **Record this as an ideation contract plus spec, editing the living command-surface spec directly.** Rejected: an additional OpenSpec change folder.
 - **Build after bang-line-exit-guard lands.** Rejected: build now and rebase bang-line.
 - **The session switch uses `EnterWorktree({path})`; the CLI only emits the path.** Rejected: printing a `cd` for the user.
@@ -66,6 +67,8 @@ _Carried from the contract; consult before making gap decisions._
 | `tests/waybill.test.js` | Per-leg `.md` goldens for legs after `bay` render with `{bay: BAY}`. `trunk-one-docket.md` renders with `{bay: BAY}`. New goldens. The markdown "puts the bay before NEXT" case (`:351-356`) is rewritten as "names the portable line and no cd fence" |
 | `tests/cli.test.js` | Parse cases. `cdFence` (`:688-689`) and its uses (`:708`, `:709`, `:719`, `:776`, `:791`, `:827`) are rewritten for no markdown `cd` fence. `bay-cut.md` golden with a normalised path |
 | `tests/commands.test.js` | `runBang('next.md', 'feat/…', cwd)` argument routing. `allowed-tools` has `EnterWorktree`/`Skill`/`SlashCommand`. next.md names each exported heading constant, the same way `:223` does for SELECT |
+| `src/help.js` | FROM ZERO steps 3 and 5 (`:27`, `:29`) name `/waybill:next <branch>/<leg>` as the session route next to the shell `cd`, with the same line count (45-line cap, `tests/help.test.js:131`) |
+| `tests/golden/help.txt` | Re-minted |
 | `README.md` | The handover example (`:19`) and the `/waybill:next` row show the `<branch>[/<leg>]` form |
 
 ### Deleted Files
@@ -190,9 +193,11 @@ The keyed lines are plain lines above the ```` ```text ```` fence, so the Task c
 - **Experiment**: `runBang('next.md', '', cwd)` → today's no-argument output. `runBang('next.md', 'feat/thing/execute', trunk)` → output starts `ENTER BAY: `. `runBang('next.md', "feat/it's", trunk)` → quoting survives (miss message, no shell error).
 - **Check command**: `node --test tests/commands.test.js`
 
-### 5. `commands/bay.md` and the living spec
+### 5. `commands/bay.md`, the help card, and the living spec
 
 Trivial text edits with no feedback loop:
+
+- **help.js:** step 3 keeps `cd <the path bay printed>` for the shell and adds the session form. Step 5 says a `/clear` handover ends in `/waybill:next <branch>/<leg>`, which moves the session in and runs the leg. Don't add lines: `node --test tests/help.test.js` enforces the cap.
 
 - **bay.md:** remove the "the `cd` command is the one instruction … do not run it" paragraph (`:46-48`) and replace it with one line. The handover now ends in `/waybill:next <branch>/<leg>`, which moves the session itself after `/clear`. Then update `:70` and `:95` to match.
 - **command-surface spec, "`next` accepts a branch":** add SHALL text for the `<branch>/<leg>` form (whole string first, then trailing known leg id). Add scenarios for "Naming a docket and its next leg" (RUN), "Naming a stale leg" (NEXT LEG, no RUN) and "Naming a branch from outside its bay" (ENTER BAY).

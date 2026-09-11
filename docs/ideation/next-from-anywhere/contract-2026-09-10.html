@@ -2147,7 +2147,6 @@ body {
             <span class="stamp is-go">Approved</span>
             <div class="masthead-dates">
               <span class="meta">drafted 2026-09-10</span>
-              <span class="meta">supersedes contract-2026-09-10.html</span>
             </div>
             <button type="button" class="theme-toggle" id="theme-toggle" data-mode="auto" aria-label="Colour theme: follow system">
       <svg class="i-auto" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="M8 3v10" /><path d="M8 3a5 5 0 010 10z" fill="currentColor" stroke="none"/></svg>
@@ -2156,7 +2155,7 @@ body {
             </button>
           </div>
         </div>
-        <p class="masthead-lede"><strong>1 build phase</strong> plus 1 human gate across 2 dependency waves, delivering 8 committed scope items. Completion is decided by <strong>13 of 16</strong> criteria a machine can check and 3 a human must.</p>
+        <p class="masthead-lede"><strong>1 build phase</strong> plus 1 human gate across 2 dependency waves, delivering 7 committed scope items. Completion is decided by <strong>12 of 15</strong> criteria a machine can check and 3 a human must.</p>
         <div class="flightstrip">
           <div class="fs-cell">
             <span class="kicker">gates</span>
@@ -2171,14 +2170,14 @@ body {
           </div>
           <div class="fs-cell">
             <span class="kicker">checkable</span>
-            <span class="fs-figure"><span class="num">13</span><span class="fs-of">/16</span></span>
+            <span class="fs-figure"><span class="num">12</span><span class="fs-of">/15</span></span>
             <span class="fs-note">3 need a human to look</span>
-            <div class="meter" aria-hidden="true"><span class="on"></span><span class="warn"></span><span class="on"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="on"></span><span class="warn"></span><span class=""></span><span class=""></span><span class=""></span></div>
+            <div class="meter" aria-hidden="true"><span class="on"></span><span class="warn"></span><span class="on"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="warn"></span><span class="on"></span><span class=""></span><span class=""></span><span class=""></span></div>
           </div>
           <div class="fs-cell">
             <span class="kicker">scope</span>
-            <span class="fs-figure"><span class="num">08</span></span>
-            <span class="fs-note">7 MVP · 1 full · 0 stretch · 6 refused</span>
+            <span class="fs-figure"><span class="num">07</span></span>
+            <span class="fs-note">6 MVP · 1 full · 0 stretch · 7 refused</span>
           </div>
           <div class="fs-cell">
             <span class="kicker">risk</span>
@@ -2233,7 +2232,7 @@ body {
           <span class="stamp is-accent">run-spec</span>
           <span class="advice-mode">Skip the orchestration</span>
           <span class="advice-gloss">Wave planning, parallel dispatch, and skip propagation have nothing to do at this size. Run the one spec directly and save the overhead.</span>
-          <span class="meta">RUNMODE next-from-anywhere: run-spec  phases=1 cmd=13 judgment=3 risk=medium</span>
+          <span class="meta">RUNMODE next-from-anywhere: run-spec  phases=1 cmd=12 judgment=3 risk=medium</span>
         </div>
         <ul class="advice-reasons">
           <li><span class="r-mark m-ok" aria-hidden="true">✓</span><span><span class="sr-only">In favour: </span>1 phase — orchestration adds nothing; run the spec directly</span></li>
@@ -2291,14 +2290,14 @@ body {
           <h2 id="scope-h">What is in, and what was refused</h2>
           <p class="sec-sub">MVP nests inside Full nests inside Stretch — each ring contains the one before it. Select a ring to isolate its items.</p>
         </div>
-        <span class="sec-count">8 committed · 6 refused</span>
+        <span class="sec-count">7 committed · 7 refused</span>
       </div>
       <div class="scope">
         <div>
           <div class="nest">
             <button type="button" class="nest-ring nest-stretch" data-tier="stretch" aria-pressed="false"><span class="nest-label">Stretch ×0</span></button>
             <button type="button" class="nest-ring nest-full" data-tier="full" aria-pressed="false"><span class="nest-label">Full ×1</span></button>
-            <button type="button" class="nest-ring nest-mvp" data-tier="mvp" aria-pressed="false"><span class="nest-label">MVP ×7</span></button>
+            <button type="button" class="nest-ring nest-mvp" data-tier="mvp" aria-pressed="false"><span class="nest-label">MVP ×6</span></button>
           </div>
           <p class="nest-caption">Cutting to the inner ring is always a legal move. Adding a ring is not — that is a new revision that supersedes this one.</p>
         </div>
@@ -2307,7 +2306,7 @@ body {
             <div class="tier-hd">
               <h3>MVP — must ship</h3>
               <span class="hrule"></span>
-              <span class="sec-count">×7</span>
+              <span class="sec-count">×6</span>
             </div>
             <ul class="items">
               <li><strong>Parse `&lt;branch&gt;[/&lt;leg&gt;]` in `waybill next`: try the whole string as a bay branch first, else split off a trailing known leg id</strong> <span class="why">— The handover line is useless unless the CLI can resolve it, and git makes the split unambiguous</span></li>
@@ -2316,7 +2315,6 @@ body {
               <li><strong>commands/next.md (pattern to follow: commands/new.md, which already runs a booking command): argument-hint, pass `$ARGUMENTS` through the bang line, add EnterWorktree, Skill, and SlashCommand to allowed-tools, and Task rules. ENTER BAY: switch only when I passed an argument; on failure show `cd &lt;that path&gt;` and the leg command, then stop. RUN: invoke the command via Skill/SlashCommand; if it cannot be resolved (e.g. the bare /spec:* symlinks are missing), say so in one line and do not substitute. A SELECT A DOCKET re-run never switches</strong> <span class="why">— The slash command is the only place a session can be moved and a leg run</span></li>
               <li><strong>Update openspec/specs/command-surface/spec.md: the `next` leg-token argument, the second keyed exception (ENTER BAY / RUN, with the exact cd fallback text), and the SELECT A DOCKET re-run staying show-only</strong> <span class="why">— The living spec currently forbids next from doing anything but show-and-stop</span></li>
               <li><strong>Tests: re-mint specs.md and trunk-one-docket.md; add bay-cut.md (minted from a pure render with a fixed bay path, like the BAY constant in tests/waybill.test.js), next-run.md, next-branch-only.md, and next-stale-leg.md; parse cases; a runBang argument test; and rewrite the tests asserting the markdown cd fence (cdFence in tests/cli.test.js, the bay-before-NEXT cases in tests/waybill.test.js)</strong> <span class="why">— Each goal needs a check that fails before the change</span></li>
-              <li><strong>src/help.js FROM ZERO walkthrough (steps 3 and 5) names the session route `/waybill:next &lt;branch&gt;/&lt;leg&gt;` beside the shell `cd`; the card line count is unchanged; tests/golden/help.txt re-minted</strong> <span class="why">— /waybill:help landed on main (#12) after approval; without this the reference card contradicts the handover</span></li>
             </ul>
           </div>
           <div class="tier-group" data-tier="full">
@@ -2343,6 +2341,7 @@ body {
             <li><span class="struck">The ideate leg</span> — It runs before any bay exists</li>
             <li><span class="struck">Plain CLI (non-markdown) output</span> — Shell users can cd, so plain output keeps today's `cd` + raw command</li>
             <li><span class="struck">/waybill:status fleet view</span> — It lists dockets and doesn't issue a handover</li>
+            <li><span class="struck">The /waybill:help walkthrough on the unmerged ideation/waybill-help branch</span> — That branch owns its content; it should adopt the new syntax when it lands</li>
           </ul>
         </div>
         <div class="bound">
@@ -2524,14 +2523,14 @@ body {
           <h2 id="done-h">How you will know it worked</h2>
           <p class="sec-sub">These are not aspirations — the ones with a command are executed by <code>verify.mjs</code>, and their result is what an unattended run is judged on.</p>
         </div>
-        <span class="sec-count">13 of 16 mechanical</span>
+        <span class="sec-count">12 of 15 mechanical</span>
       </div>
       <div class="score">
         <div class="score-panel">
           <span class="kicker">completion predicate</span>
-          <div class="score-figure"><span class="num">13</span><span class="of">/16</span></div>
+          <div class="score-figure"><span class="num">12</span><span class="of">/15</span></div>
           <p class="score-label">3 criteria are judgment calls — printed, but never counted. A green run does not cover them.</p>
-          <div class="verify-line"><span class="vk">VERIFY</span> next-from-anywhere: commits=<span class="vg">1/1</span> pass=<span class="vg">13</span> fail=<span class="vg">0</span> judgment=3</div>
+          <div class="verify-line"><span class="vk">VERIFY</span> next-from-anywhere: commits=<span class="vg">1/1</span> pass=<span class="vg">12</span> fail=<span class="vg">0</span> judgment=3</div>
           <p class="verify-cap">Mechanical verification only, as <code>verify.mjs</code> will print it — a green line here is necessary, not sufficient. The 3 judgment criteria above are uncounted, so this contract is not finished until they have been signed off too.</p>
           <div class="cmd">
             <span class="cmd-text" id="cmd-verify">node ${CLAUDE_PLUGIN_ROOT}/scripts/verify.mjs docs/ideation/next-from-anywhere/contract-data.json</span>
@@ -2540,7 +2539,7 @@ body {
         </div>
         <div>
       <div class="crit-group">
-        <h3>Mechanically checked <span class="hrule"></span> <span class="sec-count">×13</span></h3>
+        <h3>Mechanically checked <span class="hrule"></span> <span class="sec-count">×12</span></h3>
         <ul class="crits">
           <li class="crit">
             <span class="crit-n">01</span>
@@ -2590,25 +2589,21 @@ body {
             <span class="crit-n">12</span>
             <span class="crit-text">Every new golden is read by a test, and the command file argument routing is tested<code class="crit-check">for g in bay-cut next-run next-branch-only next-stale-leg; do grep -qF &quot;$g&quot; tests/*.test.js || exit 1; done; grep -q &quot;runBang(.next.md., .feat/&quot; tests/commands.test.js</code></span>
           </li>
-          <li class="crit">
-            <span class="crit-n">13</span>
-            <span class="crit-text">The help card walkthrough names the session route and keeps the shell cd<code class="crit-check">grep -Fq &quot;/waybill:next &lt;branch&gt;/&lt;leg&gt;&quot; tests/golden/help.txt &amp;&amp; grep -Fq &quot;cd &lt;the path bay printed&gt;&quot; tests/golden/help.txt</code><span class="crit-expect">expect: exits 0 (the first half fails today)<span class="chip chip-caution crit-static">inspects files only</span></span></span>
-          </li>
         </ul>
       </div>
       <div class="crit-group">
         <h3>Judgment calls <span class="hrule"></span> <span class="sec-count">×3 · a human must look</span></h3>
         <ul class="crits">
           <li class="crit crit-judge">
-            <span class="crit-n">14</span>
+            <span class="crit-n">13</span>
             <span class="crit-text">End to end in a live session (precondition: the /spec:* symlinks from the README are installed): from a bay at the execute leg, run /waybill:next, then /clear and the printed lines; the session lands in the bay and /spec:apply does its work there<span class="crit-check">The operator runs it once interactively and confirms that EnterWorktree reports the bay path, and that spec:apply completes at least one Edit/Write and one non-openspec Bash call inside the bay (the nested command keeps its tools under next.md allowed-tools)</span></span>
           </li>
           <li class="crit crit-judge">
-            <span class="crit-n">15</span>
+            <span class="crit-n">14</span>
             <span class="crit-text">Fallback in a live session: with EnterWorktree denied, `/waybill:next &lt;branch&gt;/execute` from the trunk runs no leg and shows the cd fallback<span class="crit-check">The operator denies the EnterWorktree permission prompt once and confirms that no Skill call follows and that `cd &lt;bay path&gt;` is shown</span></span>
           </li>
           <li class="crit crit-judge">
-            <span class="crit-n">16</span>
+            <span class="crit-n">15</span>
             <span class="crit-text">The frontmatter spike result is recorded<span class="crit-check">The operator runs the probe once interactively (the /model indicator or status line shows the model during the probe) and writes the observed yes/no into spec.md Open Items; a yes opens a follow-up for the 2-line handover, and a no closes it</span></span>
           </li>
         </ul>
@@ -2625,7 +2620,7 @@ body {
           <h2 id="decisions-h">What was considered and turned down</h2>
           <p class="sec-sub">A rejected alternative is evidence, not an oversight. Before proposing one of these, read why it lost.</p>
         </div>
-        <span class="sec-count">×14</span>
+        <span class="sec-count">×13</span>
       </div>
       <ul class="decisions">
         <li class="decision">
@@ -2679,10 +2674,6 @@ body {
         <li class="decision">
           <h3>The cd fallback reuses the ENTER BAY path already printed, with its exact text fixed by the living spec; no second waybill variant is rendered</h3>
           <p><span class="rejected">Instead of</span> Rendering a cd-bearing copy of the waybill in every ENTER BAY response. Over-engineering critic: goal 5 needs only the path, which the Task already has</p>
-        </li>
-        <li class="decision">
-          <h3>Fold the /waybill:help walkthrough update into this effort</h3>
-          <p><span class="rejected">Instead of</span> A separate follow-up after merge (the pre-change plan left help out of scope while it was unmerged). #12 landed after approval; shipping without it leaves the reference card contradicting the handover for a release</p>
         </li>
       </ul>
       </div>

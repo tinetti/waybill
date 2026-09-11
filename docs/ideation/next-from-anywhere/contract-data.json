@@ -134,6 +134,13 @@
       }
     },
     {
+      "criterion": "The help card walkthrough names the session route and keeps the shell cd",
+      "check": {
+        "cmd": "grep -Fq \"/waybill:next <branch>/<leg>\" tests/golden/help.txt && grep -Fq \"cd <the path bay printed>\" tests/golden/help.txt",
+        "expect": "exits 0 (the first half fails today)"
+      }
+    },
+    {
       "criterion": "End to end in a live session (precondition: the /spec:* symlinks from the README are installed): from a bay at the execute leg, run /waybill:next, then /clear and the printed lines; the session lands in the bay and /spec:apply does its work there",
       "check": {
         "judgment": "The operator runs it once interactively and confirms that EnterWorktree reports the bay path, and that spec:apply completes at least one Edit/Write and one non-openspec Bash call inside the bay (the nested command keeps its tools under next.md allowed-tools)"
@@ -177,6 +184,10 @@
       {
         "item": "Tests: re-mint specs.md and trunk-one-docket.md; add bay-cut.md (minted from a pure render with a fixed bay path, like the BAY constant in tests/waybill.test.js), next-run.md, next-branch-only.md, and next-stale-leg.md; parse cases; a runBang argument test; and rewrite the tests asserting the markdown cd fence (cdFence in tests/cli.test.js, the bay-before-NEXT cases in tests/waybill.test.js)",
         "reason": "Each goal needs a check that fails before the change"
+      },
+      {
+        "item": "src/help.js FROM ZERO walkthrough (steps 3 and 5) names the session route `/waybill:next <branch>/<leg>` beside the shell `cd`; the card line count is unchanged; tests/golden/help.txt re-minted",
+        "reason": "/waybill:help landed on main (#12) after approval; without this the reference card contradicts the handover"
       }
     ],
     "full": [
@@ -210,10 +221,6 @@
       {
         "item": "/waybill:status fleet view",
         "reason": "It lists dockets and doesn't issue a handover"
-      },
-      {
-        "item": "The /waybill:help walkthrough on the unmerged ideation/waybill-help branch",
-        "reason": "That branch owns its content; it should adopt the new syntax when it lands"
       }
     ],
     "future": [
@@ -285,6 +292,11 @@
       "decision": "The cd fallback reuses the ENTER BAY path already printed, with its exact text fixed by the living spec; no second waybill variant is rendered",
       "rejected": "Rendering a cd-bearing copy of the waybill in every ENTER BAY response",
       "reason": "Over-engineering critic: goal 5 needs only the path, which the Task already has"
+    },
+    {
+      "decision": "Fold the /waybill:help walkthrough update into this effort",
+      "rejected": "A separate follow-up after merge (the pre-change plan left help out of scope while it was unmerged)",
+      "reason": "#12 landed after approval; shipping without it leaves the reference card contradicting the handover for a release"
     }
   ],
   "execution": {
