@@ -191,12 +191,12 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 6. Acceptance
 
-- [ ] 6.1 `npm test` passes on the final tree. Delegate the run to `test-runner`, and report pass/fail
+- [x] 6.1 `npm test` passes on the final tree. Delegate the run to `test-runner`, and report pass/fail
   and any failures only.
-- [ ] 6.2 Run the contract's verify command (§0). Verify: it reads `fail=0` and `commits=1/1`. If
+- [x] 6.2 Run the contract's verify command (§0). Verify: it reads `fail=0` and `commits=1/1`. If
   COMMITS reads `0/1`, no commit message names `docs/ideation/paste-ready-waybills/spec.md`; amend
   the latest commit on this branch, or add one that does.
-- [ ] 6.3 Read `node src/cli.js next` and `node src/cli.js next --markdown` in this worktree by eye.
+- [x] 6.3 Read `node src/cli.js next` and `node src/cli.js next --markdown` in this worktree by eye.
   Verify: the plain output lists unindented commands, and the markdown output has one fence per
   command with the position inside a `text` fence.
 - [ ] 6.4 (Operator) Run `/waybill:next` from a real bay in the Claude desktop app. Verify: each
