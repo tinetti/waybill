@@ -5,10 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { run } from '../src/cli.js';
+import { cdLines } from '../src/waybill.js';
 import {
+  addWorktree,
   cleanupAll,
   createRepo,
   defaultBayPath,
+  git,
   pathWithout,
   tempRoot,
   withEnv,
@@ -16,6 +19,7 @@ import {
   writeFile,
 } from './helpers/repo-fixture.js';
 import { specsFixture } from './fixtures/specs.js';
+import { noDocketFixture } from './fixtures/no-docket.js';
 
 after(cleanupAll);
 
@@ -148,6 +152,295 @@ describe('waybill next', () => {
   });
 });
 
+/**
+ * A trunk with one bay per branch named, and nothing else.
+ *
+ * Built through the fixture helper's worktree route rather than a new file under `tests/fixtures/`:
+ * `tests/inference.test.js:70-73` asserts that directory holds exactly one entry per leg plus the
+ * index, so a fixture *file* added for the fleet would red an unrelated suite.
+ *
+ * @param {...string} branches
+ * @returns {{repo:string, bays:string[]}}
+ */
+function trunkWith(...branches) {
+  const repo = createRepo();
+  return { repo, bays: branches.map((branch) => addWorktree(repo, branch)) };
+}
+
+describe('waybill next on the trunk', () => {
+  it('exits 0 if and only if exactly one waybill was issued', () => {
+    // The whole contract in one line: no docket and too many dockets are both "no waybill was
+    // issued", so a script has one condition to test rather than three.
+    assert.deepEqual(
+      [[], ['feat/one'], ['feat/one', 'feat/two', 'fix/three']].map(
+        (branches) => cli(['next'], trunkWith(...branches).repo).code,
+      ),
+      [2, 0, 2],
+    );
+  });
+
+  it('points at `new` and issues nothing when no docket is open anywhere', () => {
+    const { repo } = trunkWith();
+
+    const result = cli(['next'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '', 'the `!` invocation captures stdout only, so stderr would vanish');
+    assert.match(result.out, /^waybill: no dockets open — begin one with `waybill new`$/m);
+    assert.equal(result.out.includes('NEXT:'), false, "leg 1's waybill was issued anyway");
+  });
+
+  it("issues the one open docket's waybill, resolved from its bay rather than from the trunk", () => {
+    const { repo, bays } = trunkWith('feat/one');
+
+    const result = cli(['next'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    // Resolved from the trunk instead, this would read `main · no docket open`.
+    assert.match(result.out, /^feat\/one · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, /^IN BAY:$/m);
+    assert.equal(result.out.split('\n').includes(cdLines(bays[0])[0]), true);
+    // The move comes before the handover: a `/clear` acted on from the trunk answers for nothing.
+    assert.ok(result.out.indexOf('IN BAY:') < result.out.indexOf('NEXT:'));
+  });
+
+  it('lists the dockets to choose between, issues nothing, and exits 2', () => {
+    const { repo } = trunkWith('feat/one', 'feat/two', 'fix/three');
+
+    const result = cli(['next'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^main · 3 dockets open$/m);
+    assert.match(result.out, /^SELECT A DOCKET:$/m);
+    for (const branch of ['feat/one', 'feat/two', 'fix/three']) {
+      assert.match(result.out, new RegExp(`^ {2}${branch.replace('/', '\\/')} +· leg 3 of 7`, 'm'));
+    }
+    assert.match(result.out, /^ {2}waybill next <branch>$/m);
+    assert.equal(result.out.includes('NEXT:'), false, 'a waybill was handed off from an ambiguous trunk');
+  });
+
+  it('leaves the in-a-bay answer alone, however many other dockets are open', () => {
+    const { bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next'], bays[0]);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^feat\/one · leg 3 of 7 \(refine\)$/m);
+    assert.equal(result.out.includes('SELECT A DOCKET:'), false);
+    assert.equal(/^IN BAY:$/m.test(result.out), false, 'told the operator to cd where they already are');
+  });
+
+  it('reports a detached trunk by name rather than interpolating a null branch', () => {
+    const { repo } = trunkWith('feat/one', 'feat/two');
+    git(repo, ['checkout', '--detach']);
+
+    const result = cli(['next'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out.includes('null'), false, 'a null branch reached the rendered header');
+    assert.match(result.out, /^detached HEAD · 2 dockets open$/m);
+  });
+});
+
+describe('waybill next --json off the trunk', () => {
+  it('still emits an object with no docket open, carrying an empty fleet', () => {
+    const result = cli(['next', '--json'], trunkWith().repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '');
+    const payload = JSON.parse(result.out);
+    assert.match(payload.error, /no dockets open/);
+    assert.deepEqual(payload.dockets, [], 'the key is absent rather than empty');
+  });
+
+  it('still emits an object when the trunk is ambiguous, projecting one entry per docket', () => {
+    const { repo, bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', '--json'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '');
+    const payload = JSON.parse(result.out);
+    assert.match(payload.error, /more than one docket/);
+    assert.deepEqual(
+      payload.dockets,
+      [
+        { branch: 'feat/one', path: bays[0], leg: 'refine', index: 3 },
+        { branch: 'feat/two', path: bays[1], leg: 'refine', index: 3 },
+      ],
+      'the fleet shape is what keeps `status` free of a second machine surface',
+    );
+  });
+
+  it('emits the resolved state, not a fleet, when exactly one docket answers', () => {
+    const result = cli(['next', '--json'], trunkWith('feat/one').repo);
+
+    assert.equal(result.code, 0);
+    const state = JSON.parse(result.out);
+    assert.equal(state.branch, 'feat/one');
+    assert.equal(state.leg, 'refine');
+    assert.equal(state.docketOpen, true);
+  });
+});
+
+describe('waybill next <branch>', () => {
+  it("issues the named docket's waybill from the trunk, with the cd line for its bay", () => {
+    const { repo, bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', 'feat/two'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+    assert.equal(result.out.split('\n').includes(cdLines(bays[1])[0]), true);
+  });
+
+  it('resolves the named docket from inside a different bay, not only from the trunk', () => {
+    const { bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', 'feat/two'], bays[0]);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+    assert.equal(result.out.split('\n').includes(cdLines(bays[1])[0]), true);
+  });
+
+  it('leaves the cd line out when the operator is already standing in that bay', () => {
+    const { bays } = trunkWith('feat/one');
+
+    const result = cli(['next', 'feat/one'], bays[0]);
+
+    assert.equal(result.code, 0);
+    assert.equal(/^IN BAY:$/m.test(result.out), false, 'told the operator to cd where they already are');
+  });
+
+  it('names the verb that would cut a bay for a branch that has none, on stdout, and exits 2', () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['next', 'feat/nope'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^waybill: no bay for feat\/nope — cut one with `waybill bay feat\/nope`$/m);
+  });
+
+  it("treats the trunk's own branch as having no bay, since a second trunk is not an effort", () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['next', 'main'], repo);
+
+    assert.equal(result.code, 2);
+    assert.match(result.out, /no bay for main/);
+  });
+
+  it('reports the missing bay as an object under --json, with the open dockets to choose from', () => {
+    const { repo, bays } = trunkWith('feat/one');
+
+    const result = cli(['next', '--json', 'feat/nope'], repo);
+
+    assert.equal(result.code, 2);
+    const payload = JSON.parse(result.out);
+    assert.match(payload.error, /no bay for feat\/nope/);
+    assert.deepEqual(payload.dockets, [
+      { branch: 'feat/one', path: bays[0], leg: 'refine', index: 3 },
+    ]);
+  });
+
+  it('rejects a second positional on stderr rather than guessing which is the branch', () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['next', 'feat/one', 'feat/two'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '', 'a parse error is the CLI\'s own, and keeps stderr');
+    assert.match(result.err, /one branch name/);
+    assert.match(result.err, /Usage: waybill/);
+  });
+});
+
+describe('waybill new', () => {
+  it("prints leg 1's waybill — byte-for-byte the block the trunk used to answer `next` with", () => {
+    // The golden's third consumer, and the first outside the renderer suite. That is the point:
+    // `tests/waybill.test.js` proves the renderer still produces this block, and this proves the
+    // verb still routes to it. The spec's claim is byte-for-byte, so nothing weaker will do.
+    const result = cli(['new'], noDocketFixture().dir);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'no-docket.txt'), 'utf8'));
+  });
+
+  it('hands the first leg off and invokes nothing — a terminal has no session to invoke in', () => {
+    const result = cli(['new'], trunkWith().repo);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^NEXT:$/m);
+    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+  });
+
+  it('answers identically with dockets in flight — `new` has no exit contract of its own', () => {
+    // `next`'s exit contract is about issuing a waybill for a *docket*, and `new` has none: it is
+    // the entry point, so the fleet cannot change its answer.
+    const result = cli(['new'], trunkWith('feat/one', 'feat/two').repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^main · no docket open$/m);
+    assert.equal(result.out.includes('SELECT A DOCKET:'), false, 'the fleet answered instead');
+  });
+
+  it('warns from inside a bay, names the trunk it answers for, and still exits 0', () => {
+    const { bays } = trunkWith('feat/one');
+
+    const result = cli(['new'], bays[0]);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '', 'the `!` invocation captures stdout only, so stderr would vanish');
+    assert.match(result.out, /^WARNINGS:$/m);
+    assert.match(result.out, /new efforts begin on the trunk/);
+    // The header names the trunk this waybill is for. `feat/one · no docket open` would be a false
+    // claim about a branch that does carry one, and `feat/one · leg 1 of 7 (ideate)` a false claim
+    // about where that docket stands.
+    assert.match(result.out, /^main · no docket open$/m);
+    assert.equal(result.out.includes('leg 3 of 7'), false, "the bay's own leg was reported instead");
+  });
+
+  it('still hands off the ideate leg from inside a bay rather than blocking on the warning', () => {
+    const { bays } = trunkWith('feat/one');
+
+    const result = cli(['new'], bays[0]);
+
+    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.ok(result.out.indexOf('NEXT:') < result.out.indexOf('WARNINGS:'), 'the warning buried it');
+  });
+
+  it('rejects every option, since there is no second machine-readable surface', () => {
+    const result = cli(['new', '--json'], trunkWith().repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /unknown option `--json`/);
+    assert.match(result.err, /Usage: waybill/);
+  });
+
+  it('explains itself in one line outside a repository and exits 2', () => {
+    const result = cli(['new'], tempRoot());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.equal(result.err.trimEnd().split('\n').length, 1, `not one line: ${result.err}`);
+    assert.match(result.err, /not inside a git repository/);
+  });
+
+  it('is listed in usage, so the verb `next` points at can be found from a mistyped command', () => {
+    const result = cli(['bogus'], trunkWith().repo);
+
+    assert.match(result.err, /^ {2}new {2,}\S/m);
+  });
+});
+
 describe('waybill status', () => {
   it('prints the position for the leg the repository is on, and exits 0', () => {
     const fixture = specsFixture();
@@ -195,11 +488,63 @@ describe('waybill status', () => {
   });
 });
 
-describe('waybill start', () => {
+describe('waybill status on the trunk', () => {
+  it('reports every docket in flight with its branch and position, and exits 0', () => {
+    const { repo } = trunkWith('feat/one', 'fix/three');
+
+    const result = cli(['status'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.match(result.out, /^main · 2 dockets open$/m);
+    assert.match(result.out, /^DOCKETS:$/m);
+    assert.match(result.out, /^ {2}feat\/one +· leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, /^ {2}fix\/three · leg 3 of 7 \(refine\)$/m);
+    assert.equal(result.out.includes('NEXT:'), false, 'the fleet view hands off nothing');
+  });
+
+  it('says so in the plural when nothing is in flight, without a heading over an empty list', () => {
+    const result = cli(['status'], trunkWith().repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.equal(result.out, 'main · no dockets open\n');
+    // One character apart from `no docket open`, and the opposite claim: that is one branch
+    // carrying no docket, this is a repository with nothing open on any branch.
+    assert.equal(result.out.includes('no docket open'), false);
+  });
+
+  it('raises no warnings of its own for a fleet that resolved cleanly', () => {
+    const result = cli(['status'], trunkWith('feat/one', 'feat/two').repo);
+
+    assert.equal(result.out.includes('WARNINGS:'), false);
+  });
+
+  it('names a detached trunk rather than interpolating a null branch', () => {
+    const { repo } = trunkWith('feat/one');
+    git(repo, ['checkout', '--detach']);
+
+    const result = cli(['status'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out.includes('null'), false, 'a null branch reached the rendered header');
+    assert.match(result.out, /^detached HEAD · 1 docket open$/m);
+  });
+
+  it('still takes no options, so the fleet view is chosen by where you stand', () => {
+    const result = cli(['status', '--json'], trunkWith('feat/one').repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /unknown option `--json`/);
+  });
+});
+
+describe('waybill bay', () => {
   it('creates the bay, names the cd target, and hands off the leg that follows', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const result = cli(['start', 'feat/demo'], repo);
+    const result = cli(['bay', 'feat/demo'], repo);
     const target = defaultBayPath(repo, 'feat/demo');
 
     assert.equal(result.code, 0);
@@ -214,9 +559,9 @@ describe('waybill start', () => {
 
   it('is a clean no-op on a second run, and still prints the waybill', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    cli(['start', 'feat/demo'], repo);
+    cli(['bay', 'feat/demo'], repo);
 
-    const result = cli(['start', 'feat/demo'], repo);
+    const result = cli(['bay', 'feat/demo'], repo);
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
@@ -227,10 +572,10 @@ describe('waybill start', () => {
 
   it('reports a no-op without a cd line when run from inside the bay it would create', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    cli(['start', 'feat/demo'], repo);
+    cli(['bay', 'feat/demo'], repo);
     const target = defaultBayPath(repo, 'feat/demo');
 
-    const result = cli(['start', 'feat/demo'], target);
+    const result = cli(['bay', 'feat/demo'], target);
 
     assert.equal(result.code, 0);
     assert.equal(/^ {2}cd /m.test(result.out), false, 'told the operator to cd where they already are');
@@ -238,8 +583,21 @@ describe('waybill start', () => {
     assert.match(result.out, /\(refine\)/);
   });
 
+  it('names the cd target in the one shape the renderer builds, not a second one of its own', () => {
+    // The claim §3.3 makes is that `bay` and a trunk-resolved `next` cannot print different shapes
+    // of the same instruction. Asserting the regex only would let the two drift apart character by
+    // character while both still matched; comparing against the helper is what actually pins it.
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out.split('\n').includes(cdLines(target)[0]), true);
+  });
+
   it('exits 2 with usage when given no branch name at all', () => {
-    const result = cli(['start'], createRepo({ remote: true, originHead: true }));
+    const result = cli(['bay'], createRepo({ remote: true, originHead: true }));
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
@@ -250,7 +608,7 @@ describe('waybill start', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const result = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () =>
-      cli(['start', '--bay-dir', 'bays', 'feat/demo'], repo),
+      cli(['bay', '--bay-dir', 'bays', 'feat/demo'], repo),
     );
     const target = path.join(repo, 'bays', `${path.basename(repo)}-feat-demo`);
 
@@ -262,11 +620,11 @@ describe('waybill start', () => {
   it('accepts --bay-dir after the branch name too, and rejects it with no path', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const trailing = cli(['start', 'feat/demo', '--bay-dir', 'bays'], repo);
+    const trailing = cli(['bay', 'feat/demo', '--bay-dir', 'bays'], repo);
     assert.equal(trailing.code, 0);
     assert.match(trailing.out, new RegExp(`^ {2}cd ${path.join(repo, 'bays')}`, 'm'));
 
-    const bare = cli(['start', '--bay-dir'], repo);
+    const bare = cli(['bay', '--bay-dir'], repo);
     assert.equal(bare.code, 2);
     assert.equal(bare.out, '');
     assert.match(bare.err, /`--bay-dir` takes a path/);
@@ -275,17 +633,17 @@ describe('waybill start', () => {
   it('rejects an option and a second positional rather than guessing which is the branch', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const flagged = cli(['start', '--force', 'feat/demo'], repo);
+    const flagged = cli(['bay', '--force', 'feat/demo'], repo);
     assert.equal(flagged.code, 2);
     assert.match(flagged.err, /unknown option `--force`/);
 
-    const extra = cli(['start', 'feat/demo', 'feat/other'], repo);
+    const extra = cli(['bay', 'feat/demo', 'feat/other'], repo);
     assert.equal(extra.code, 2);
     assert.match(extra.err, /one branch name/);
   });
 
   it('explains itself in one line outside a repository and exits 2', () => {
-    const result = cli(['start', 'feat/demo'], tempRoot());
+    const result = cli(['bay', 'feat/demo'], tempRoot());
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
@@ -294,13 +652,24 @@ describe('waybill start', () => {
   });
 
   it('turns a git refusal into a remedy on stderr, with no stack trace and no half-waybill', () => {
-    const result = cli(['start', 'feat/demo'], createRepo({ commit: false }));
+    const result = cli(['bay', 'feat/demo'], createRepo({ commit: false }));
 
     assert.equal(result.code, 2);
     assert.equal(result.out, '');
     assert.match(result.err, /no commits yet/);
     assert.match(result.err, /initial commit/);
     assert.equal(/\bat .*\.js:\d+/.test(result.err), false, 'a stack trace leaked into stderr');
+  });
+
+  it('rejects the former `start` verb as unknown, since the rename ships without an alias', () => {
+    const result = cli(['start', 'feat/demo'], createRepo({ remote: true, originHead: true }));
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /unknown command `start`/);
+    // An alias would be a second name to document and keep in step forever, so usage must not
+    // offer the old verb back either.
+    assert.equal(/^ {2}start /m.test(result.err), false, '`start` is still listed in usage');
   });
 });
 

@@ -48,6 +48,46 @@ export function mainCheckout(cwd) {
   return first.slice('worktree '.length);
 }
 
+/**
+ * @typedef {{path:string, branch:string|null, prunable:boolean}} WorktreeRecord
+ */
+
+/**
+ * Every worktree git has registered, in git's own order, including ones whose directory has since
+ * been deleted — those carry a `prunable` line, and conflating them with live ones is what turns
+ * an idempotence guard into a `cd` into nothing, and a fleet listing into a docket that reads as
+ * stalled rather than gone.
+ *
+ * `branch` is null for a detached HEAD, which `--porcelain` reports as `detached` instead: a
+ * worktree with no branch has nothing to hang a docket on.
+ *
+ * This lives beside {@link mainCheckout} rather than in the module that creates bays because both
+ * the mutation path and the read-only fleet listing ask git the same question, and two parsers of
+ * one output eventually disagree about what a worktree is.
+ *
+ * @param {string} cwd
+ * @returns {WorktreeRecord[]}
+ */
+export function listWorktrees(cwd) {
+  const listing = tryGit(cwd, ['worktree', 'list', '--porcelain']);
+  if (listing === null) return [];
+
+  /** @type {WorktreeRecord[]} */
+  const records = [];
+  for (const line of listing.split('\n')) {
+    // The `worktree ` prefix is sliced rather than split on whitespace so paths with spaces survive.
+    if (line.startsWith('worktree ')) {
+      records.push({ path: line.slice('worktree '.length), branch: null, prunable: false });
+      continue;
+    }
+    const current = records[records.length - 1];
+    if (!current) continue;
+    if (line.startsWith('branch refs/heads/')) current.branch = line.slice('branch refs/heads/'.length);
+    if (line === 'prunable' || line.startsWith('prunable ')) current.prunable = true;
+  }
+  return records;
+}
+
 /** Where bays go when nothing says otherwise: inside the main checkout, beside the other tooling. */
 const DEFAULT_BAY_DIR = '.claude/worktrees';
 

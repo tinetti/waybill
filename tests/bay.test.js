@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { BayError, isInside, startBay } from '../src/bay.js';
+import { BayError, isInside, openBay } from '../src/bay.js';
 import {
   cleanupAll,
   createRepo,
@@ -52,11 +52,11 @@ function worktreeCount(cwd) {
     .filter((line) => line.startsWith('worktree ')).length;
 }
 
-describe('startBay creates the branch and its bay', () => {
+describe('openBay creates the branch and its bay', () => {
   it('cuts a new branch off origin/<default> and checks it out at the configured path', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const result = startBay('feat/demo', { cwd: repo });
+    const result = openBay('feat/demo', { cwd: repo });
 
     assert.equal(result.path, defaultBayPath(repo, 'feat/demo'));
     assert.equal(result.created, true);
@@ -68,7 +68,7 @@ describe('startBay creates the branch and its bay', () => {
 
   it('leaves the new branch untracked, so `git pull` there cannot merge the default branch in', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    const result = startBay('feat/demo', { cwd: repo });
+    const result = openBay('feat/demo', { cwd: repo });
 
     // `--default` so an unset key is an empty answer rather than the exit 1 the helper throws on.
     assert.equal(git(result.path, ['config', '--default', '', '--get', 'branch.feat/demo.remote']), '');
@@ -77,7 +77,7 @@ describe('startBay creates the branch and its bay', () => {
   it('keeps the slashes in the branch and flattens them only in the path', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const result = startBay('feat/a/b', { cwd: repo });
+    const result = openBay('feat/a/b', { cwd: repo });
 
     assert.equal(path.basename(result.path), `${path.basename(repo)}-feat-a-b`);
     assert.equal(git(result.path, ['symbolic-ref', '--short', 'HEAD']), 'feat/a/b');
@@ -88,7 +88,7 @@ describe('startBay creates the branch and its bay', () => {
     git(repo, ['branch', 'feat/existing']);
     const tip = git(repo, ['rev-parse', 'feat/existing']);
 
-    const result = startBay('feat/existing', { cwd: repo });
+    const result = openBay('feat/existing', { cwd: repo });
 
     assert.equal(result.created, true);
     assert.equal(result.branchCreated, false);
@@ -96,13 +96,13 @@ describe('startBay creates the branch and its bay', () => {
   });
 });
 
-describe('startBay base selection', () => {
+describe('openBay base selection', () => {
   it('falls back to HEAD and attempts no fetch when the repository has no origin', () => {
     const repo = createRepo({ remote: false });
     const recorder = recordingGit();
 
     const result = withPath(`${recorder.dir}${path.delimiter}${process.env.PATH}`, () =>
-      startBay('feat/demo', { cwd: repo }),
+      openBay('feat/demo', { cwd: repo }),
     );
 
     assert.equal(result.base, 'HEAD');
@@ -120,7 +120,7 @@ describe('startBay base selection', () => {
     // as-yet-unfetched `origin/<default>` resolvable at all.
     const repo = createRepo({ remote: true, originHead: false });
 
-    assert.equal(startBay('feat/demo', { cwd: repo }).base, 'origin/main');
+    assert.equal(openBay('feat/demo', { cwd: repo }).base, 'origin/main');
   });
 
   it('refuses to guess when the composed base does not resolve', () => {
@@ -132,7 +132,7 @@ describe('startBay base selection', () => {
     git(repo, ['remote', 'add', 'origin', path.join(tempRoot(), 'gone.git')]);
 
     assert.throws(
-      () => startBay('feat/demo', { cwd: repo }),
+      () => openBay('feat/demo', { cwd: repo }),
       (error) =>
         error instanceof BayError &&
         /default branch/.test(error.message) &&
@@ -145,23 +145,23 @@ describe('startBay base selection', () => {
     const repo = createRepo({ remote: true, originHead: true });
     git(repo, ['branch', 'release/1']);
 
-    const result = startBay('feat/demo', { cwd: repo, base: 'release/1' });
+    const result = openBay('feat/demo', { cwd: repo, base: 'release/1' });
     assert.equal(result.base, 'release/1');
 
     assert.throws(
-      () => startBay('feat/other', { cwd: repo, base: 'no/such/ref' }),
+      () => openBay('feat/other', { cwd: repo, base: 'no/such/ref' }),
       (error) => error instanceof BayError && /no\/such\/ref/.test(error.message),
     );
   });
 });
 
-describe('startBay is idempotent', () => {
+describe('openBay is idempotent', () => {
   it('creates nothing on a second invocation and still reports the path', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    const first = startBay('feat/demo', { cwd: repo });
+    const first = openBay('feat/demo', { cwd: repo });
     const before = worktreeCount(repo);
 
-    const second = startBay('feat/demo', { cwd: repo });
+    const second = openBay('feat/demo', { cwd: repo });
 
     assert.equal(second.path, first.path);
     assert.equal(second.created, false);
@@ -171,10 +171,10 @@ describe('startBay is idempotent', () => {
 
   it('does nothing at all when called from inside the target bay', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    const created = startBay('feat/demo', { cwd: repo });
+    const created = openBay('feat/demo', { cwd: repo });
     const before = worktreeCount(repo);
 
-    const result = startBay('feat/demo', { cwd: created.path });
+    const result = openBay('feat/demo', { cwd: created.path });
 
     assert.equal(result.path, created.path);
     assert.equal(result.created, false);
@@ -185,33 +185,33 @@ describe('startBay is idempotent', () => {
 
   it('treats a subdirectory of the target as being inside it', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    const created = startBay('feat/demo', { cwd: repo });
+    const created = openBay('feat/demo', { cwd: repo });
     const nested = path.join(created.path, 'src', 'deep');
     fs.mkdirSync(nested, { recursive: true });
 
-    assert.equal(startBay('feat/demo', { cwd: nested }).created, false);
+    assert.equal(openBay('feat/demo', { cwd: nested }).created, false);
   });
 
   it('refuses the no-op when the registered bay is gone from disk', () => {
     // `git worktree list` still lists a deleted worktree, marked `prunable`. Reporting a clean
     // no-op here would send the operator to `cd` into a directory that is not there.
     const repo = createRepo({ remote: true, originHead: true });
-    const created = startBay('feat/demo', { cwd: repo });
+    const created = openBay('feat/demo', { cwd: repo });
     fs.rmSync(created.path, { recursive: true, force: true });
 
     assert.throws(
-      () => startBay('feat/demo', { cwd: repo }),
+      () => openBay('feat/demo', { cwd: repo }),
       (error) => error instanceof BayError && /prune/.test(error.message),
     );
   });
 });
 
-describe('startBay refuses what git would only half-explain', () => {
+describe('openBay refuses what git would only half-explain', () => {
   it('names the remedy for a repository with no commits instead of creating an orphan', () => {
     const repo = createRepo({ commit: false });
 
     assert.throws(
-      () => startBay('feat/demo', { cwd: repo }),
+      () => openBay('feat/demo', { cwd: repo }),
       (error) => error instanceof BayError && /no commits/.test(error.message),
     );
     const target = defaultBayPath(repo, 'feat/demo');
@@ -223,7 +223,7 @@ describe('startBay refuses what git would only half-explain', () => {
     git(repo, ['checkout', '-b', 'feat/thing']);
 
     assert.throws(
-      () => startBay('feat/thing', { cwd: repo }),
+      () => openBay('feat/thing', { cwd: repo }),
       (error) =>
         error instanceof BayError &&
         error.message.includes('feat/thing') &&
@@ -237,7 +237,7 @@ describe('startBay refuses what git would only half-explain', () => {
     writeFile(path.join(target, 'stray.txt'), 'not a worktree\n');
 
     assert.throws(
-      () => startBay('feat/demo', { cwd: repo }),
+      () => openBay('feat/demo', { cwd: repo }),
       (error) => error instanceof BayError && /already exists/.test(error.message),
     );
   });
@@ -247,7 +247,7 @@ describe('startBay refuses what git would only half-explain', () => {
 
     for (const name of ['feat/x y', 'feat/..x', '--force']) {
       assert.throws(
-        () => startBay(name, { cwd: repo }),
+        () => openBay(name, { cwd: repo }),
         (error) => error instanceof BayError && /branch name/.test(error.message),
         `accepted \`${name}\``,
       );
@@ -259,25 +259,25 @@ describe('startBay refuses what git would only half-explain', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     assert.throws(
-      () => startBay('', { cwd: repo }),
+      () => openBay('', { cwd: repo }),
       (error) => error instanceof BayError && /branch/.test(error.message),
     );
   });
 
   it('reports being outside a repository as its own failure, not as a raw throw', () => {
     assert.throws(
-      () => startBay('feat/demo', { cwd: tempRoot() }),
+      () => openBay('feat/demo', { cwd: tempRoot() }),
       (error) => error instanceof BayError && /not inside a git repository/.test(error.message),
     );
   });
 });
 
-describe('startBay honours the configured bay directory', () => {
+describe('openBay honours the configured bay directory', () => {
   it('reproduces the old sibling convention when waybill.baydir is `..`', () => {
     const repo = createRepo({ remote: true, originHead: true });
     git(repo, ['config', 'waybill.baydir', '..']);
 
-    const result = startBay('feat/demo', { cwd: repo });
+    const result = openBay('feat/demo', { cwd: repo });
 
     assert.equal(result.path, path.join(path.dirname(repo), `${path.basename(repo)}-feat-demo`));
     assert.equal(git(result.path, ['symbolic-ref', '--short', 'HEAD']), 'feat/demo');
@@ -287,7 +287,7 @@ describe('startBay honours the configured bay directory', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const result = withEnv({ WAYBILL_BAY_DIR: 'from-env' }, () =>
-      startBay('feat/demo', { cwd: repo, bayDir: 'from-caller' }),
+      openBay('feat/demo', { cwd: repo, bayDir: 'from-caller' }),
     );
 
     assert.equal(result.path, path.join(repo, 'from-caller', `${path.basename(repo)}-feat-demo`));
@@ -299,31 +299,31 @@ describe('startBay honours the configured bay directory', () => {
     const repo = createRepo({ remote: true, originHead: true });
     const elsewhere = tempRoot();
 
-    const result = withEnv({ WAYBILL_BAY_DIR: elsewhere }, () => startBay('feat/demo', { cwd: repo }));
+    const result = withEnv({ WAYBILL_BAY_DIR: elsewhere }, () => openBay('feat/demo', { cwd: repo }));
 
     assert.equal(result.path, path.join(elsewhere, `${path.basename(repo)}-feat-demo`));
   });
 });
 
-describe('startBay keeps a bay inside the checkout out of the way', () => {
+describe('openBay keeps a bay inside the checkout out of the way', () => {
   /** @param {string} repo */
   const exclude = (repo) => path.join(repo, '.git', 'info', 'exclude');
 
   it('ignores the container through .git/info/exclude, never the tracked .gitignore', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    startBay('feat/demo', { cwd: repo });
+    openBay('feat/demo', { cwd: repo });
 
     assert.equal(git(repo, ['status', '--short']), '', 'the bay showed up as untracked');
     assert.equal(fs.existsSync(path.join(repo, '.gitignore')), false, 'wrote to the host repo');
     assert.match(fs.readFileSync(exclude(repo), 'utf8'), /^\/\.claude\/worktrees\/$/m);
   });
 
-  it('appends the line once however many times start is run', () => {
+  it('appends the line once however many times bay is run', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    startBay('feat/one', { cwd: repo });
-    startBay('feat/two', { cwd: repo });
-    startBay('feat/one', { cwd: repo });
+    openBay('feat/one', { cwd: repo });
+    openBay('feat/two', { cwd: repo });
+    openBay('feat/one', { cwd: repo });
 
     const matches = fs
       .readFileSync(exclude(repo), 'utf8')
@@ -332,12 +332,12 @@ describe('startBay keeps a bay inside the checkout out of the way', () => {
     assert.equal(matches.length, 1);
   });
 
-  it('writes to the common git dir when start is run from inside a bay', () => {
+  it('writes to the common git dir when bay is run from inside a bay', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    const created = startBay('feat/demo', { cwd: repo });
+    const created = openBay('feat/demo', { cwd: repo });
     fs.writeFileSync(exclude(repo), '# nothing here\n');
 
-    startBay('feat/other', { cwd: created.path });
+    openBay('feat/other', { cwd: created.path });
 
     assert.match(fs.readFileSync(exclude(repo), 'utf8'), /^\/\.claude\/worktrees\/$/m);
   });
@@ -347,7 +347,7 @@ describe('startBay keeps a bay inside the checkout out of the way', () => {
     git(repo, ['config', 'waybill.baydir', '..']);
     const before = fs.readFileSync(exclude(repo), 'utf8');
 
-    startBay('feat/demo', { cwd: repo });
+    openBay('feat/demo', { cwd: repo });
 
     assert.equal(fs.readFileSync(exclude(repo), 'utf8'), before);
   });

@@ -1,6 +1,6 @@
 {
   "name": "waybill",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A thin workflow wrapper that infers where a change stands and hands the next session its waybill.",
   "type": "module",
   "license": "MIT",
