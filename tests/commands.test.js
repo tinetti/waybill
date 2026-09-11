@@ -32,6 +32,7 @@ const BOOKINGS = path.join(ROOT, 'bookings');
 const DECLARED = [
   'bay.md',
   'cleanup.md',
+  'help.md',
   'new.md',
   'next.md',
   'spec/apply.md',
@@ -347,6 +348,10 @@ describe('criterion 7: zero dependencies and no build step', () => {
 
   it('declares no build script', () => {
     assert.equal((pkg.scripts ?? {}).build, undefined);
+  });
+
+  it('exactly one script', () => {
+    assert.deepEqual(Object.keys(pkg.scripts ?? {}), ['test']);
   });
 
   it('points both bin names at one executable shim that exists', () => {

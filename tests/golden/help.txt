@@ -1,0 +1,38 @@
+waybill — the route, the words, and the four verbs
+
+FROM ZERO
+  1. On the trunk:        waybill new         leg 1's waybill; run what it names
+  2. Once the idea holds: waybill bay feat/x  create the branch and its bay
+  3. Move in:             cd <the path bay printed>
+  4. Every new session:   waybill next        the waybill for the next leg
+  5. Run what it names, /clear, and ask again — until cleanup retires the bay.
+
+ROUTE
+  1  ideate    /ideation:brainstorm  repo state
+  2  bay       /waybill:bay          bay exists
+  3  refine    /ideation:ideation    contract-data.json
+  4  contract  /ideation:ideation    contract.md
+  5  specs     /spec:propose         tasks.md
+  6  execute   /spec:apply           all tasks ticked
+  7  cleanup   /waybill:cleanup      merged, bay gone
+
+WORDS
+  trunk    the default branch; efforts begin here, and no docket is open on it
+  docket   the branch; open whenever anything but the trunk is checked out
+  bay      the docket's own worktree, so the main checkout is never touched
+  leg      one stage of the route, run in one session
+  stamp    the mark a leg leaves in the repo; how waybill knows it is done
+  booking  which carrier, model and effort run a leg; swappable per machine
+  carrier  the command a booking names for its leg
+  waybill  the instruction for exactly one leg, issued fresh every session
+
+COMMANDS
+  waybill new              begin an effort: leg 1's waybill, and nothing else
+  waybill bay <branch>     create the branch and its bay, then hand off
+  waybill next [<branch>]  where this docket stands, and the next leg's waybill
+  waybill status           where it stands, or the whole fleet on the trunk
+
+Why: nothing is tracked — every leg is judged by its stamp, read off the repo.
+     One waybill per session: the map is yours, the waybill is the handler's.
+
+Bay locations, overlays, prerequisites and environment variables: README.md

@@ -9,6 +9,7 @@ import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
 import { checkoutRoot, defaultBranch, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
+import { renderHelp } from './help.js';
 
 const USAGE = [
   'Usage: waybill <command> [options]',
@@ -20,6 +21,7 @@ const USAGE = [
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
+  '  help            This page: the route, the words, and the four verbs',
   '',
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
@@ -265,6 +267,28 @@ function status(cwd, args, io) {
 }
 
 /**
+ * `waybill help` — the one-screen reference page.
+ *
+ * Calls no {@link repoRoot}: the page reports configuration, never position, so it has an answer
+ * outside any repository too. A would-be topic is rejected rather than ignored, because printing
+ * the whole page in reply to `help bay` would read as though the topic had been understood.
+ *
+ * @param {string} cwd
+ * @param {string[]} args
+ * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @returns {number} exit code
+ */
+function help(cwd, args, io) {
+  // `--help` is answered by `run` before dispatch, so no argument reaching here is one we know.
+  if (args.length > 0) {
+    io.err(`waybill: \`help\` takes no arguments\n${USAGE}\n`);
+    return 2;
+  }
+  io.out(renderHelp(cwd));
+  return 0;
+}
+
+/**
  * Leg 1's state, whichever tree the question was asked from.
  *
  * On the trunk `resolveLeg` already answers leg 1 — nothing stamps from history alone there — so its
@@ -433,6 +457,7 @@ const COMMANDS = new Map([
   ['bay', bay],
   ['next', next],
   ['status', status],
+  ['help', help],
 ]);
 
 /**

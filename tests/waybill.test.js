@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { LEGS } from '../src/legs.js';
 import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
-import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { assertGolden, cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
@@ -28,24 +28,6 @@ const resolve = (dir) => withPath(pathWithout('openspec'), () => resolveLeg(dir)
 
 /** Nothing ignored, nothing to report — the shape every golden case is rendered against. */
 const CLEAN = { ignored: [], warnings: [] };
-
-/**
- * Compare against `tests/golden/<name>.txt`, or rewrite it when `UPDATE_GOLDEN=1`.
- *
- * Regeneration is deliberately an environment flag rather than a CLI flag: a golden file that
- * rewrites itself during a normal run is a tautology, so the only way to update one is to ask.
- *
- * @param {string} name
- * @param {string} actual
- */
-function assertGolden(name, actual) {
-  const file = path.join(GOLDEN, `${name}.txt`);
-  if (process.env.UPDATE_GOLDEN === '1') {
-    fs.mkdirSync(GOLDEN, { recursive: true });
-    fs.writeFileSync(file, actual);
-  }
-  assert.equal(actual, fs.readFileSync(file, 'utf8'), `golden mismatch: ${file}`);
-}
 
 /**
  * A synthetic inference result, so the rendering rules can be exercised without a repository.
@@ -127,12 +109,12 @@ describe('renderWaybill golden output', () => {
 
   for (const [id, build] of cases) {
     it(`renders the ${id} leg`, () => {
-      assertGolden(id, renderWaybill(resolve(build().dir), CLEAN));
+      assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir), CLEAN));
     });
   }
 
   it('renders the same leg as a position, which is what `waybill status` prints', () => {
-    assertGolden('status', renderPosition(resolve(specsFixture().dir), CLEAN));
+    assertGolden(GOLDEN, 'status', renderPosition(resolve(specsFixture().dir), CLEAN));
   });
 
   it('renders a repository whose seven legs are all complete', () => {
@@ -149,14 +131,14 @@ describe('renderWaybill golden output', () => {
 
     const result = resolve(elsewhere);
     assert.equal(result.leg, null);
-    assertGolden('complete', renderWaybill(result, CLEAN));
+    assertGolden(GOLDEN, 'complete', renderWaybill(result, CLEAN));
   });
 
   it('renders no docket open on the base branch, which is the block `waybill new` prints', () => {
     // Since the exit contract landed this is `new`'s answer, not the trunk's answer to `next` —
     // `next` there reports the fleet and issues nothing. The block did not change, it moved to the
     // verb that means it, and `tests/cli.test.js` asserts the verb still routes to this golden.
-    assertGolden('no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
+    assertGolden(GOLDEN, 'no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
   });
 
   it('renders the trunk identically whether or not papers shipped into its history', () => {
@@ -173,15 +155,15 @@ describe('renderWaybill golden output', () => {
 
 describe('fleet golden output', () => {
   it('renders the fleet, which is what `waybill status` prints on the trunk', () => {
-    assertGolden('fleet', renderFleet('main', dockets(), CLEAN));
+    assertGolden(GOLDEN, 'fleet', renderFleet('main', dockets(), CLEAN));
   });
 
   it('renders the selection block, which is what `waybill next` prints on an ambiguous trunk', () => {
-    assertGolden('select', renderSelect('main', dockets(), CLEAN));
+    assertGolden(GOLDEN, 'select', renderSelect('main', dockets(), CLEAN));
   });
 
   it('renders an empty fleet in the plural, which is not the leg-1 waybill', () => {
-    assertGolden('fleet-empty', renderFleet('main', [], CLEAN));
+    assertGolden(GOLDEN, 'fleet-empty', renderFleet('main', [], CLEAN));
     // `no docket open` is the singular `no-docket.txt` opens with, and it means the opposite thing:
     // one branch with no docket on it, rather than a repository with nothing in flight. The two are
     // one character apart, so the distinction is asserted rather than left to the golden.
@@ -189,7 +171,7 @@ describe('fleet golden output', () => {
   });
 
   it('renders the one-docket trunk answer: position, then the bay, then the waybill', () => {
-    assertGolden('trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
+    assertGolden(GOLDEN, 'trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
   });
 });
 

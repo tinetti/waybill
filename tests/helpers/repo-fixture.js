@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -224,6 +225,25 @@ export function writeFile(file, contents) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, contents);
   return file;
+}
+
+/**
+ * Compare against `<dir>/<name>.txt`, or rewrite it when `UPDATE_GOLDEN=1`.
+ *
+ * Regeneration is deliberately an environment flag rather than a CLI flag: a golden file that
+ * rewrites itself during a normal run is a tautology, so the only way to update one is to ask.
+ *
+ * @param {string} dir
+ * @param {string} name
+ * @param {string} actual
+ */
+export function assertGolden(dir, name, actual) {
+  const file = path.join(dir, `${name}.txt`);
+  if (process.env.UPDATE_GOLDEN === '1') {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, actual);
+  }
+  assert.equal(actual, fs.readFileSync(file, 'utf8'), `golden mismatch: ${file}`);
 }
 
 /**
