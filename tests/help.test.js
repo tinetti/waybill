@@ -265,6 +265,9 @@ describe('waybill help', () => {
     const options = [
       'Options:',
       '  --json            Print the raw resolved state instead of the waybill (`next` only)',
+      '  --markdown        Fence each handover command for pasting (`next`, `bay`)',
+      '  --list            List the branches a bay could be cut or reopened for, and change',
+      '                    nothing (`bay` only, and instead of a branch name)',
       '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
       '                    `git config waybill.baydir`. Relative paths resolve against the main',
       '                    checkout; the default is .claude/worktrees',

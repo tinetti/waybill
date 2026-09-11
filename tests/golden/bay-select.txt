@@ -1,0 +1,6 @@
+SELECT A BRANCH:
+  feat/session-handover · no bay · tmux window "session-handover"
+  fix/stamp-scoping     · no bay
+  ideation/fleet-view   · bay at /repo/.claude/worktrees/waybill-ideation-fleet-view
+
+  waybill bay <branch>

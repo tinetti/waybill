@@ -34,9 +34,13 @@ Guarding the guard is what breaks it. `tests/commands.test.js` holds the spellin
 No `:-.` fallback either: falling back to the operator's cwd points the command at `./src/cli.js`
 in *their* repository, where it does not exist, and hands the model a raw node MODULE_NOT_FOUND
 dump in place of the block below.
+
+`2>&1 || echo "waybill: exited $?"` for the same reason as `next`: Claude Code discards a command
+file whose `!` line exits non-zero, and `new` exits 2 on stderr outside a repository. Folded in
+here, the refusal reaches the session and the Task below still renders.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" new; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" new 2>&1 || echo "waybill: exited $?"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
@@ -48,16 +52,23 @@ session, with whatever argument the block prints after it. This is the one place
 to act rather than to hand off: the other commands stop because their waybill belongs to a session
 that has not started yet, and this one is for the session already reading it.
 
-Ignore the `/clear, then run:` line above the command. It is there because the ideate leg is booked
-like every other leg, and because `waybill new` in a terminal prints this same block to an operator
-who *would* start a fresh session. You are already that fresh session — there is no previous leg
-whose context needs clearing — and clearing would throw away the instruction along with the block.
-Read it as "then run:" and run it.
+The `NEXT:` block lists commands one per line. Run **only the last** of them — the leg command,
+with whatever argument it carries — and never `/clear`, `/model` or `/effort`, whichever of them
+the block lists above it. They are there because the ideate leg is booked like every other leg, and
+because `waybill new` in a terminal prints this same block to an operator who *would* start a fresh
+session. You are already that fresh session: there is no previous leg whose context needs clearing,
+and clearing would throw away the instruction along with the block. This command's own frontmatter
+already set the model and effort, and running `/model` would change my default for every session
+after this one.
 
 If the command cannot be resolved — the plugin that provides it is not installed in this session —
 say so in one line, name the command, and leave the waybill on screen as the instruction. Do not
 substitute a command you can resolve, and do not improvise the leg yourself: the booking is what
 decides how this leg is run, and guessing at it is the failure this whole tool exists to prevent.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without issuing a waybill and
+that line only records its exit code. There is then no `NEXT:` block, so there is nothing to run.
+Show the block verbatim, as above, and stop — do not run a command, and do not improvise the leg.
 
 If the block reports `WARNINGS`, relay them before you run anything. A warning that new efforts
 begin on the trunk is not a reason to stop — the ideate leg writes nothing to disk, so the wrong

@@ -27,18 +27,31 @@ and working. Guarding the guard is what breaks it. `tests/commands.test.js` hold
 No `:-.` fallback either: falling back to the operator's cwd points the command at `./src/cli.js`
 in *their* repository, where it does not exist, and hands the model a raw node MODULE_NOT_FOUND
 dump in place of the block below. One line of guidance is the honest failure.
+
+`2>&1 || echo "waybill: exited $?"` because Claude Code discards a command file whose `!` line exits
+non-zero — the Task below never renders — and `next` exits 2 on a trunk with no docket or several.
+The CLI's exit code stays 2 for terminal callers; here it is folded into a final marker line.
+`tests/bang-lines.test.js` runs this line.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown 2>&1 || echo "waybill: exited $?"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
 Show the block above to me **verbatim** — same lines, same order, same glyphs. Do not summarise it,
 re-word it, re-order it, or add commentary of your own. It is already the whole answer.
 
-Then stop. Running the command the waybill names is the next session's job, not this one's: the
-handover line says whether to `/clear` first, and acting on it here would spend the context the
-waybill is trying to hand over.
+It is markdown, with each command in a fence of its own so that each gets its own copy button: show
+it as markdown, and do not wrap it in a further fence.
+
+Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
+first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
+would spend the context the waybill is trying to hand over.
+
+If the block ends with a line `waybill: exited N`, the CLI stopped without issuing a waybill and
+that line only records its exit code. Show the block verbatim, as above, and stop — do not run a
+command, and do not improvise the leg. The exception below still applies: a `SELECT A DOCKET:`
+block ends with `waybill: exited 2` too, and the literal string wins.
 
 There is exactly one exception, and it is keyed on an exact string rather than on your reading of
 the situation — a verbatim rule that bends whenever a model decides it should is not a rule.
@@ -57,7 +70,7 @@ though it were the whole of it.
 the block above:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next <branch>
+node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown <branch>
 ```
 
 Not `waybill next <branch>`. That line is printed for *me* — it is what I would type in a terminal,

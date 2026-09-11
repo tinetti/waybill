@@ -5,7 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from '../src/waybill.js';
+import {
+  cdCommand,
+  cdLines,
+  renderBaySelect,
+  renderFleet,
+  renderPosition,
+  renderSelect,
+  renderWaybill,
+  renderWaybillMarkdown,
+} from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { assertGolden, cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
@@ -111,7 +120,15 @@ describe('renderWaybill golden output', () => {
     it(`renders the ${id} leg`, () => {
       assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir), CLEAN));
     });
+
+    it(`renders the ${id} leg in markdown`, () => {
+      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir), CLEAN), 'md');
+    });
   }
+
+  it('renders no docket open on the base branch in markdown', () => {
+    assertGolden(GOLDEN, 'no-docket', renderWaybillMarkdown(resolve(noDocketFixture().dir), CLEAN), 'md');
+  });
 
   it('renders the same leg as a position, which is what `waybill status` prints', () => {
     assertGolden(GOLDEN, 'status', renderPosition(resolve(specsFixture().dir), CLEAN));
@@ -172,6 +189,10 @@ describe('fleet golden output', () => {
 
   it('renders the one-docket trunk answer: position, then the bay, then the waybill', () => {
     assertGolden(GOLDEN, 'trunk-one-docket', renderWaybill(dockets()[0].state, CLEAN, cdLines(BAY)));
+  });
+
+  it('renders the one-docket trunk answer in markdown, the cd in a fence of its own', () => {
+    assertGolden(GOLDEN, 'trunk-one-docket', renderWaybillMarkdown(dockets()[0].state, CLEAN, [cdCommand(BAY)]), 'md');
   });
 });
 
@@ -236,6 +257,171 @@ describe('renderSelect', () => {
   it('lists the same dockets in the same order as the fleet view', () => {
     const rows = (text) => text.split('\n').filter((line) => line.includes(' · ') && line.startsWith('  '));
     assert.deepEqual(rows(renderSelect('main', dockets(), CLEAN)), rows(renderFleet('main', dockets(), CLEAN)));
+  });
+});
+
+describe('renderWaybillMarkdown', () => {
+  /**
+   * The body of every fence, opening and closing lines excluded.
+   *
+   * @param {string} output
+   * @returns {string[][]}
+   */
+  const fences = (output) => {
+    const bodies = [];
+    let open = null;
+    for (const line of output.split('\n')) {
+      if (line.startsWith('```')) {
+        if (open === null) open = [];
+        else {
+          bodies.push(open);
+          open = null;
+        }
+      } else if (open !== null) open.push(line);
+    }
+    return bodies;
+  };
+
+  /** @param {Partial<import('../src/bookings.js').Booking>} booking */
+  const markdown = (booking = {}, rest = {}) =>
+    renderWaybillMarkdown(state({ ...rest, booking: { ...state().booking, ...booking } }), CLEAN);
+
+  it('renders the findings in markdown as bullets, WARNINGS last', () => {
+    assertGolden(
+      GOLDEN,
+      'findings',
+      renderWaybillMarkdown(state({ warnings: ['inference said so'] }), {
+        ignored: ['openspec/'],
+        warnings: ['inspection said so'],
+      }),
+      'md',
+    );
+  });
+
+  it('never puts two lines in one fence in markdown', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
+    // The first fence is the position block; every fence after it holds exactly one command.
+    const commandFences = fences(output).slice(1);
+    assert.deepEqual(
+      commandFences.map((body) => body.length),
+      commandFences.map(() => 1),
+    );
+    assert.deepEqual(commandFences.flat(), [
+      'cd /repo/bays/x',
+      '/clear',
+      '/model placeholder-model',
+      '/effort high',
+      '/spec:propose add-thing',
+    ]);
+  });
+
+  it('keeps the position in a text fence in markdown, so the strip keeps its line breaks', () => {
+    const output = markdown();
+    assert.ok(output.startsWith('```text\nfeat/thing · leg 5 of 7 (specs)\n  ✓ ideate'));
+  });
+
+  it('has no /effort fence in markdown when the booking declares no effort', () => {
+    assert.equal(markdown({ effort: undefined }).includes('/effort'), false);
+  });
+
+  it('puts custom handover prose in markdown as a paragraph before the first command fence', () => {
+    const output = markdown({ handover: 'hand the laptop to Dave' });
+    assert.match(output, /in order:\n\nhand the laptop to Dave\n\n```\n\/model placeholder-model\n```/);
+    assert.equal(output.includes('/clear'), false);
+  });
+
+  it('puts the bay before NEXT in markdown, because the shell has to move before the session does', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, [cdCommand('/repo/bays/x')]);
+    assert.match(output, /\*\*IN BAY\*\* — run this in your shell first:\n\n```\ncd \/repo\/bays\/x\n```/);
+    assert.ok(output.indexOf('**IN BAY**') < output.indexOf('**NEXT**'));
+    assert.equal(markdown().includes('IN BAY'), false);
+  });
+
+  it('carries the booking body unindented in markdown, after the last fence', () => {
+    const output = markdown({ body: 'Do the thing.\n\nThen do the other thing.\n' });
+    assert.ok(output.endsWith('```\n/spec:propose add-thing\n```\n\nDo the thing.\n\nThen do the other thing.\n'));
+  });
+
+  it('says there is nothing to hand off in markdown, with no fence', () => {
+    const output = renderWaybillMarkdown(
+      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      CLEAN,
+    );
+    assert.match(output, /^\*\*NEXT\*\* — nothing to hand off — every leg is complete$/m);
+    assert.equal(fences(output).length, 1);
+  });
+
+  it('names the missing booking in markdown, with no fence', () => {
+    const output = renderWaybillMarkdown(state({ leg: 'bay', index: 2, booking: undefined }), CLEAN);
+    assert.match(
+      output,
+      /^\*\*NEXT\*\* — no booking is bound to the bay leg — add one under bookings\/ to give this leg a waybill$/m,
+    );
+    assert.equal(fences(output).length, 1);
+  });
+
+  it('shows only the header in markdown when no docket is open', () => {
+    assert.ok(markdown({}, { docketOpen: false }).startsWith('```text\nfeat/thing · no docket open\n```\n'));
+  });
+
+  it('ends markdown with exactly one newline', () => {
+    for (const output of [markdown(), markdown({ body: 'Body.\n\n' })]) {
+      assert.equal(output.endsWith('\n'), true);
+      assert.equal(output.endsWith('\n\n'), false);
+    }
+  });
+});
+
+describe('cdCommand', () => {
+  it('is the bare shell command, with no indent to ride along into a paste', () => {
+    assert.equal(cdCommand('/repo/bays/x'), 'cd /repo/bays/x');
+  });
+});
+
+/**
+ * The rows `rankBranches` hands the renderer: one promoted by a signal, one plain, one with a bay.
+ * Three widths again, for the padding.
+ *
+ * @returns {import('../src/picker.js').BranchRow[]}
+ */
+function branchRows() {
+  return [
+    { branch: 'feat/session-handover', bay: null, isNew: false, reason: 'tmux window "session-handover"' },
+    { branch: 'fix/stamp-scoping', bay: null, isNew: false, reason: null },
+    { branch: 'ideation/fleet-view', bay: '/repo/.claude/worktrees/waybill-ideation-fleet-view', isNew: false, reason: null },
+  ];
+}
+
+describe('renderBaySelect', () => {
+  it('renders the branch menu `waybill bay --list` prints', () => {
+    assertGolden(GOLDEN, 'bay-select', renderBaySelect('main', branchRows()));
+  });
+
+  it('renders a suggested new branch first, marked new, with the signal behind it', () => {
+    const rows = [
+      { branch: 'feat/bay-picker', bay: null, isNew: true, reason: 'tmux window "bay picker"' },
+      ...branchRows().slice(1),
+    ];
+    assertGolden(GOLDEN, 'bay-select-new', renderBaySelect('main', rows));
+  });
+
+  it('carries the exact literal `commands/bay.md` branches on', () => {
+    assert.match(renderBaySelect('main', branchRows()), /^SELECT A BRANCH:$/m);
+  });
+
+  it('pads the branch column to the longest branch, so the statuses line up', () => {
+    const rows = renderBaySelect('main', branchRows())
+      .split('\n')
+      .filter((line) => line.startsWith('  ') && line.includes(' · '));
+    assert.equal(rows.length, 3);
+    assert.equal(new Set(rows.map((line) => line.indexOf(' · '))).size, 1);
+  });
+
+  it('answers an empty list in one line naming the trunk and the verb, with no heading', () => {
+    assert.equal(
+      renderBaySelect('trunk', []),
+      'no branches besides trunk — name one with `waybill bay <branch>`\n',
+    );
   });
 });
 
@@ -344,60 +530,92 @@ describe('renderWaybill NEXT block', () => {
   const next = (booking, rest = {}) =>
     renderWaybill(state({ ...rest, booking: { ...state().booking, ...booking } }), CLEAN);
 
+  /**
+   * The lines between `NEXT:` and the first blank line after it — the handover itself.
+   *
+   * @param {string} output
+   * @returns {string[]}
+   */
+  const handover = (output) =>
+    output
+      .trimEnd()
+      .split('\n\n')
+      .find((section) => section.startsWith('NEXT:'))
+      .split('\n')
+      .slice(1);
+
   it('interpolates the command and the change id', () => {
-    assert.match(next({}), /^ {2}\/spec:propose add-thing$/m);
+    assert.match(next({}), /^\/spec:propose add-thing$/m);
   });
 
-  it('omits the argument when no change has been scaffolded yet', () => {
-    assert.match(next({}, { changeId: null }), /^ {2}\/spec:propose$/m);
+  it('omits the argument when no change has been scaffolded yet, with no trailing space', () => {
+    assert.match(next({}, { changeId: null }), /^\/spec:propose$/m);
   });
 
   it('takes the branch instead when the booking asks for it', () => {
     // The cleanup leg's target finishes a *branch*; handing it a change id would name the wrong
     // thing entirely, and both facts are on the inference already.
-    assert.match(next({ command: '/mar', argument: 'branch' }), /^ {2}\/mar feat\/thing$/m);
+    assert.match(next({ command: '/mar', argument: 'branch' }), /^\/mar feat\/thing$/m);
   });
 
   it('interpolates nothing at all when the booking asks for no argument', () => {
     const output = next({ command: 'superpowers:some-skill', argument: 'none' });
-    assert.match(output, /^ {2}superpowers:some-skill$/m);
+    assert.match(output, /^superpowers:some-skill$/m);
     assert.equal(output.includes('add-thing'), false);
   });
 
   it('omits a requested argument the repository cannot supply', () => {
-    assert.match(next({ command: '/mar', argument: 'branch' }, { branch: null }), /^ {2}\/mar$/m);
+    assert.match(next({ command: '/mar', argument: 'branch' }, { branch: null }), /^\/mar$/m);
   });
 
-  it('sources model and effort from the booking', () => {
-    assert.match(next({ model: 'some-model', effort: 'low' }), /^ {2}└ some-model · low effort$/m);
+  it('lists a transfer handover as /clear, /model, /effort and the command, unindented, in order', () => {
+    assert.deepEqual(handover(next({ model: 'some-model', effort: 'low', handover: 'transfer' })), [
+      '/clear',
+      '/model some-model',
+      '/effort low',
+      '/spec:propose add-thing',
+    ]);
   });
 
-  it('omits the effort entirely when the booking declares none, rather than defaulting', () => {
-    const output = next({ model: 'some-model', effort: undefined });
-    assert.match(output, /^ {2}└ some-model$/m);
-    assert.equal(output.includes('effort'), false);
-  });
-
-  for (const [handover, line] of [
-    ['transfer', '/clear, then run:'],
-    ['through', 'run:'],
-  ]) {
-    it(`renders the ${handover} handover as "${line}"`, () => {
-      assert.equal(next({ handover }).split('\n').includes(`  ${line}`), true);
+  for (const value of ['through', undefined]) {
+    it(`lists no /clear for a ${value ?? 'missing'} handover`, () => {
+      assert.deepEqual(handover(next({ model: 'some-model', effort: 'low', handover: value })), [
+        '/model some-model',
+        '/effort low',
+        '/spec:propose add-thing',
+      ]);
     });
   }
 
-  it('renders an unrecognised handover verbatim rather than dropping the line', () => {
-    assert.match(next({ handover: 'hand the laptop to Dave' }), /^ {2}hand the laptop to Dave$/m);
+  it('omits /effort entirely when the booking declares none, rather than defaulting', () => {
+    const output = next({ model: 'some-model', effort: undefined });
+    assert.deepEqual(handover(output), ['/clear', '/model some-model', '/spec:propose add-thing']);
+    assert.equal(output.includes('effort'), false);
   });
 
-  it('falls back to a bare instruction when the booking declares no handover', () => {
-    assert.match(next({ handover: undefined }), /^ {2}run:\n {2}\/spec:propose/m);
+  it('passes the model value through verbatim, qualifier and all', () => {
+    assert.match(next({ model: 'some-model[1m]' }), /^\/model some-model\[1m\]$/m);
   });
 
-  it('carries the booking body through as the waybill prose', () => {
+  it('renders an unrecognised handover verbatim, indented above the commands, with no /clear', () => {
+    assert.deepEqual(handover(next({ handover: 'hand the laptop to Dave', effort: undefined })), [
+      '  hand the laptop to Dave',
+      '/model placeholder-model',
+      '/spec:propose add-thing',
+    ]);
+  });
+
+  it('prints no caption and no "then run:" line under any handover', () => {
+    for (const value of ['transfer', 'through', undefined, 'hand the laptop to Dave']) {
+      const output = next({ handover: value });
+      assert.equal(/^.*└ /m.test(output), false, `caption under ${value}`);
+      assert.equal(/run:/.test(output), false, `run: line under ${value}`);
+    }
+  });
+
+  it('carries the booking body through as the waybill prose, one blank line after the commands', () => {
     const output = next({ body: 'Do the thing.\n\nThen do the other thing.\n' });
-    assert.match(output, /^ {2}Do the thing\.$/m);
+    assert.match(output, /^\/spec:propose add-thing\n\n {2}Do the thing\.$/m);
     assert.match(output, /^ {2}Then do the other thing\.$/m);
     // A blank separator line must stay blank; indenting it would leave trailing whitespace.
     assert.equal(output.includes('  \n'), false);

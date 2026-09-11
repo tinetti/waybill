@@ -1,18 +1,6 @@
 import { LEGS } from './legs.js';
 
 /**
- * What the `handover` key means for the operator. An unrecognised value is rendered verbatim rather
- * than dropped, so a booking can ask for something Waybill never anticipated and still be obeyed.
- */
-const HANDOVER_LINES = {
-  transfer: '/clear, then run:',
-  through: 'run:',
-};
-
-/** Used when a booking declares no `handover` at all — the command still needs introducing. */
-const DEFAULT_HANDOVER = 'run:';
-
-/**
  * The repository fact a booking's `argument` names. Every value returns `null` when the repository
  * cannot supply it, and a null argument is omitted rather than interpolated empty — a command with
  * a blank argument is one the next session cannot run.
@@ -123,6 +111,44 @@ function waybillText(body) {
 }
 
 /**
+ * The handover as the commands the operator pastes, in the order they paste them — the one place
+ * both renderings learn which commands a leg needs, so a plain and a markdown waybill cannot come
+ * to disagree about whether `/effort` is due.
+ *
+ * Each command is its own entry because each has to be its own paste: the host submits a
+ * multi-line paste as one input, so `/model` would take every line after it as its argument.
+ *
+ * @param {import('./bookings.js').Booking} booking
+ * @param {import('./inference.js').Inference} state
+ * @returns {{ prose: string|null, commands: string[] }} `prose` is a `handover` value that is
+ *   neither `transfer` nor `through`, rendered verbatim rather than dropped, so a booking can ask
+ *   for something Waybill never anticipated and still be obeyed
+ */
+function handoverCommands(booking, state) {
+  // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
+  // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
+  // it is the only honest option: an empty one would hand the next session a command it cannot run.
+  const source =
+    ARGUMENT_SOURCES.get(booking.argument ?? DEFAULT_ARGUMENT) ??
+    ARGUMENT_SOURCES.get(DEFAULT_ARGUMENT);
+  const argument = source(state);
+  const command = argument ? `${booking.command} ${argument}` : booking.command;
+
+  const known = booking.handover === 'transfer' || booking.handover === 'through';
+  return {
+    prose: known ? null : (booking.handover ?? null),
+    commands: [
+      ...(booking.handover === 'transfer' ? ['/clear'] : []),
+      `/model ${booking.model}`,
+      // Only what the booking declares. A default effort would be a choice nobody made, attributed
+      // to a booking that never made it.
+      ...(booking.effort ? [`/effort ${booking.effort}`] : []),
+      command,
+    ],
+  };
+}
+
+/**
  * @param {import('./inference.js').Inference} state
  * @returns {string[]}
  */
@@ -140,24 +166,13 @@ function nextBlock(state) {
     ];
   }
 
-  // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
-  // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
-  // it is the only honest option: an empty one would hand the next session a command it cannot run.
-  const source =
-    ARGUMENT_SOURCES.get(booking.argument ?? DEFAULT_ARGUMENT) ??
-    ARGUMENT_SOURCES.get(DEFAULT_ARGUMENT);
-  const argument = source(state);
-  const command = argument ? `${booking.command} ${argument}` : booking.command;
-
-  // Only what the booking declares. A default effort would be a choice nobody made, attributed to
-  // a booking that never made it.
-  const detail = booking.effort ? `${booking.model} · ${booking.effort} effort` : booking.model;
-
+  // Unindented, unlike every other line in the block: a line is copied whole, and a leading indent
+  // would ride along into the paste.
+  const { prose, commands } = handoverCommands(booking, state);
   return [
     'NEXT:',
-    `${INDENT}${HANDOVER_LINES[booking.handover] ?? booking.handover ?? DEFAULT_HANDOVER}`,
-    `${INDENT}${command}`,
-    `${INDENT}└ ${detail}`,
+    ...(prose === null ? [] : [`${INDENT}${prose}`]),
+    ...commands,
     ...waybillText(booking.body),
   ];
 }
@@ -215,7 +230,18 @@ function withFindings(sections, warnings, inspection) {
  * @returns {string[]} the one line, or none at all
  */
 export function cdLines(target, alreadyThere = false) {
-  return alreadyThere ? [] : [`${INDENT}cd ${target}`];
+  return alreadyThere ? [] : [`${INDENT}${cdCommand(target)}`];
+}
+
+/**
+ * The same instruction bare, for the markdown rendering, where the indent would ride along into the
+ * paste. {@link cdLines} is built on it so the two shapes differ by the indent and nothing else.
+ *
+ * @param {string} target absolute path to the bay
+ * @returns {string}
+ */
+export function cdCommand(target) {
+  return `cd ${target}`;
 }
 
 /**
@@ -240,6 +266,91 @@ export function renderWaybill(state, inspection = { ignored: [], warnings: [] },
   // session over — a `/clear` acted on from the wrong directory answers for the wrong docket.
   const bay = cd.length > 0 ? [['IN BAY:', ...cd].join('\n')] : [];
   return withFindings([where, ...bay, nextBlock(state).join('\n')], state.warnings, inspection);
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} [info] the fence's info string
+ * @returns {string}
+ */
+function fence(lines, info = '') {
+  return ['```' + info, ...lines, '```'].join('\n');
+}
+
+/**
+ * The NEXT section in markdown: one fence per command, so a chat client gives each its own copy
+ * button and no paste ever carries two commands.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @returns {string[]} paragraphs, to be joined with a blank line
+ */
+function nextMarkdown(state) {
+  if (state.leg === null) return ['**NEXT** — nothing to hand off — every leg is complete'];
+
+  const booking = state.booking;
+  if (!booking) {
+    return [
+      `**NEXT** — no booking is bound to the ${state.leg} leg — ` +
+        'add one under bookings/ to give this leg a waybill',
+    ];
+  }
+
+  // The body comes after every command fence, so a body carrying a fence of its own cannot break
+  // the pairing of the fences the operator actually copies.
+  const { prose, commands } = handoverCommands(booking, state);
+  const body = booking.body.trim();
+  return [
+    '**NEXT** — paste each block on its own, in order:',
+    ...(prose === null ? [] : [prose]),
+    ...commands.map((command) => fence([command])),
+    ...(body === '' ? [] : [body]),
+  ];
+}
+
+/**
+ * The same waybill as {@link renderWaybill}, as markdown for a chat client: `/waybill:next` and
+ * `/waybill:bay` ask for it and echo it verbatim, so the fences come from here, where a golden file
+ * pins them, rather than from a session reformatting plain text.
+ *
+ * A renderer of its own rather than a flag on {@link renderWaybill}: the two share almost no
+ * formatting, and a branch on every line of the functions behind `status` and the fleet is how one
+ * of those surfaces would change without anyone asking it to. The findings are formatted here for
+ * the same reason, in the same text and order as {@link withFindings}.
+ *
+ * Pure, like {@link renderWaybill}.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @param {import('./inspection.js').Inspection} [inspection]
+ * @param {string[]} [cd] bare {@link cdCommand} instructions, empty when the operator is already in
+ *   the bay
+ * @returns {string} ends with exactly one newline
+ */
+export function renderWaybillMarkdown(state, inspection = { ignored: [], warnings: [] }, cd = []) {
+  // A text fence, because markdown would fold the strip's single line breaks into one paragraph and
+  // drop its indent.
+  const sections = [fence([header(state), ...(state.docketOpen ? strip(state) : [])], 'text')];
+
+  if (cd.length > 0) {
+    sections.push('**IN BAY** — run this in your shell first:', ...cd.map((line) => fence([line])));
+  }
+
+  sections.push(...nextMarkdown(state));
+
+  if (inspection.ignored.length > 0) {
+    sections.push(
+      '**IGNORED BY GIT**',
+      inspection.ignored
+        .map((query) => `- ⚠ ${query} — papers written here will never be committed`)
+        .join('\n'),
+    );
+  }
+
+  const warnings = [...state.warnings, ...(inspection.warnings ?? [])];
+  if (warnings.length > 0) {
+    sections.push('**WARNINGS**', warnings.map((text) => `- ⚠ ${text}`).join('\n'));
+  }
+
+  return `${sections.join('\n\n')}\n`;
 }
 
 /**
@@ -347,4 +458,45 @@ export function renderFleet(branch, dockets, inspection = { ignored: [], warning
 export function renderSelect(branch, dockets, inspection = { ignored: [], warnings: [] }) {
   const choice = `${docketBlock('SELECT A DOCKET:', dockets)}\n\n${INDENT}waybill next <branch>`;
   return withFindings([fleetHeader(branch, dockets), choice], fleetWarnings(dockets), inspection);
+}
+
+/**
+ * What one menu row says about its branch: whether `bay` would cut something or merely point at
+ * what is there, and — when a terminal signal moved it up the list — which one, so a row that
+ * jumped ahead of git's order is never unexplained.
+ *
+ * @param {import('./picker.js').BranchRow} row
+ * @returns {string}
+ */
+function branchStatus(row) {
+  const status = row.isNew ? 'new' : row.bay === null ? 'no bay' : `bay at ${row.bay}`;
+  return row.reason === null ? status : `${status} · ${row.reason}`;
+}
+
+/**
+ * The branches `waybill bay` could be pointed at, for `waybill bay --list`.
+ *
+ * `SELECT A BRANCH:` is an exact literal for the reason `SELECT A DOCKET:` is one: `commands/bay.md`
+ * keys its menu on finding it. The empty answer is keyed on too — `no branches besides` — and gets
+ * one line with no heading, since a heading over nothing reads as a list that failed to render.
+ *
+ * No findings and no warnings: this lists branches, and nothing has been resolved for any of them
+ * that could have raised one. The rows arrive already ordered by `rankBranches` (`src/picker.js`),
+ * so the renderer stays pure and the ranking stays testable without a terminal.
+ *
+ * @param {string} base the trunk, named in the empty answer so it is clear what was left out
+ * @param {import('./picker.js').BranchRow[]} rows
+ * @returns {string} ends with exactly one newline
+ */
+export function renderBaySelect(base, rows) {
+  if (rows.length === 0) return `no branches besides ${base} — name one with \`waybill bay <branch>\`\n`;
+
+  const width = Math.max(...rows.map((row) => row.branch.length));
+  return [
+    'SELECT A BRANCH:',
+    ...rows.map((row) => `${INDENT}${row.branch.padEnd(width)} · ${branchStatus(row)}`),
+    '',
+    `${INDENT}waybill bay <branch>`,
+    '',
+  ].join('\n');
 }

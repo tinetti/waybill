@@ -2,14 +2,32 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from './legs.js';
-import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from './waybill.js';
+import {
+  cdCommand,
+  cdLines,
+  renderBaySelect,
+  renderFleet,
+  renderPosition,
+  renderSelect,
+  renderWaybill,
+  renderWaybillMarkdown,
+} from './waybill.js';
 import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
-import { checkoutRoot, defaultBranch, superprojectRoot } from './repo.js';
+import { checkoutRoot, defaultBranch, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
 import { renderHelp } from './help.js';
+import { bayCandidates, rankBranches } from './picker.js';
+import { gatherSignals } from './signals.js';
+
+/**
+ * @typedef {{out:(text:string)=>void, err:(text:string)=>void,
+ *            signals:()=>import('./signals.js').Signals}} Io
+ *   `signals` is a thunk rather than a value so the terminal is only read by the one command that
+ *   ranks by it — every other verb would otherwise pay a tmux round-trip for nothing.
+ */
 
 const USAGE = [
   'Usage: waybill <command> [options]',
@@ -25,6 +43,9 @@ const USAGE = [
   '',
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
+  '  --markdown        Fence each handover command for pasting (`next`, `bay`)',
+  '  --list            List the branches a bay could be cut or reopened for, and change',
+  '                    nothing (`bay` only, and instead of a branch name)',
   '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
   '                    `git config waybill.baydir`. Relative paths resolve against the main',
   '                    checkout; the default is .claude/worktrees',
@@ -35,7 +56,7 @@ const USAGE = [
  * Options `next` accepts. Anything else is rejected rather than ignored: `--jsonn` silently
  * printing the human waybill would be misparsed by the very script `--json` exists for.
  */
-const NEXT_FLAGS = new Set(['--json']);
+const NEXT_FLAGS = new Set(['--json', '--markdown']);
 
 /**
  * The repository every subcommand answers for, or `null` once the operator has been told there is
@@ -89,10 +110,11 @@ function trunkName(state) {
  * @param {import('./fleet.js').Docket} docket
  * @param {string} cwd where the operator actually is
  * @param {boolean} json
+ * @param {boolean} markdown
  * @param {{out:(text:string)=>void}} io
  * @returns {number} exit code
  */
-function issueWaybill(docket, cwd, json, io) {
+function issueWaybill(docket, cwd, json, markdown, io) {
   const bookings = resolveBookings(docket.path, KNOWN_LEGS);
   const state = resolveLeg(docket.path, bookings);
 
@@ -101,12 +123,12 @@ function issueWaybill(docket, cwd, json, io) {
     return 0;
   }
 
+  const inspection = checkIgnored(docket.path, paperPaths(bookings));
+  const alreadyThere = isInside(docket.path, cwd);
   io.out(
-    renderWaybill(
-      state,
-      checkIgnored(docket.path, paperPaths(bookings)),
-      cdLines(docket.path, isInside(docket.path, cwd)),
-    ),
+    markdown
+      ? renderWaybillMarkdown(state, inspection, alreadyThere ? [] : [cdCommand(docket.path)])
+      : renderWaybill(state, inspection, cdLines(docket.path, alreadyThere)),
   );
   return 0;
 }
@@ -114,10 +136,11 @@ function issueWaybill(docket, cwd, json, io) {
 /**
  * The answer when no waybill could be issued: one line naming the way forward, and exit 2.
  *
- * On **stdout**, against this file's habit of putting every exit-2 message on stderr. The primary
- * consumer is the `` ! `` invocation in `commands/next.md`, which captures stdout only — a message
- * telling the operator how to proceed is useless in a stream the session never shows. Argument
- * parse errors keep stderr: those are the CLI's own complaint, not an answer about the repository.
+ * On **stdout**, against this file's habit of putting every exit-2 message on stderr: a message
+ * telling the operator how to proceed is an answer about the repository, and belongs in the stream
+ * a terminal caller reads. (The `` ! `` invocation in `commands/next.md` folds stderr in with
+ * `2>&1`, so the session no longer depends on this.) Argument parse errors keep stderr: those are
+ * the CLI's own complaint, not an answer about the repository.
  *
  * `--json` keeps the fleet alongside the message rather than dropping to a bare error, because
  * that array is why `status` needs no machine-readable surface of its own.
@@ -174,6 +197,15 @@ function next(cwd, args, io) {
     positional.push(arg);
   }
 
+  // Before the repository is looked up, so the operator hears about their actual mistake wherever
+  // they typed it rather than being told they are not in a checkout.
+  const json = args.includes('--json');
+  const markdown = args.includes('--markdown');
+  if (json && markdown) {
+    io.err(`waybill: \`--json\` and \`--markdown\` cannot be combined\n${USAGE}\n`);
+    return 2;
+  }
+
   const [named, ...extra] = positional;
   if (extra.length > 0) {
     io.err(`waybill: \`next\` takes at most one branch name\n${USAGE}\n`);
@@ -183,7 +215,6 @@ function next(cwd, args, io) {
   const root = repoRoot(cwd, io);
   if (root === null) return 2;
 
-  const json = args.includes('--json');
   const bookings = resolveBookings(cwd, KNOWN_LEGS);
 
   // A named branch is answered the same way from anywhere — the trunk, or another bay — so it is
@@ -197,7 +228,7 @@ function next(cwd, args, io) {
       const remedy = `no bay for ${named} — cut one with \`waybill bay ${named}\``;
       return noWaybill(remedy, dockets, json, io);
     }
-    return issueWaybill(docket, cwd, json, io);
+    return issueWaybill(docket, cwd, json, markdown, io);
   }
 
   const state = resolveLeg(cwd, bookings);
@@ -209,7 +240,7 @@ function next(cwd, args, io) {
     if (dockets.length === 0) {
       return noWaybill('no dockets open — begin one with `waybill new`', dockets, json, io);
     }
-    if (dockets.length === 1) return issueWaybill(dockets[0], cwd, json, io);
+    if (dockets.length === 1) return issueWaybill(dockets[0], cwd, json, markdown, io);
     if (json) {
       const remedy = 'more than one docket open — name one with `waybill next <branch>`';
       return noWaybill(remedy, dockets, json, io);
@@ -223,7 +254,8 @@ function next(cwd, args, io) {
     return 0;
   }
 
-  io.out(renderWaybill(state, checkIgnored(root, paperPaths(bookings))));
+  const inspection = checkIgnored(root, paperPaths(bookings));
+  io.out(markdown ? renderWaybillMarkdown(state, inspection) : renderWaybill(state, inspection));
   return 0;
 }
 
@@ -304,7 +336,7 @@ function help(cwd, args, io) {
  * a branch that plainly carries one, and `feat/x · leg 1 of 7 (ideate)` a false claim about where
  * that docket stands; this waybill belongs to the trunk, and the warning says why it was printed
  * here anyway. The warning rides in `state.warnings` rather than going to stderr so it lands in the
- * block's own `WARNINGS:` section — the `` ! `` invocation captures stdout only.
+ * block's own `WARNINGS:` section, where the Task reads it, rather than wherever stderr falls.
  *
  * @param {string} cwd
  * @param {string} root the working tree root {@link repoRoot} resolved
@@ -367,6 +399,37 @@ function begin(cwd, args, io) {
 }
 
 /**
+ * `waybill bay --list` — the branches a bay could be cut or reopened for, ordered by what the
+ * terminal says is being worked on, and nothing changed.
+ *
+ * It exists for `/waybill:bay` typed with no argument: a session can offer these as a menu, where
+ * a bare `bay` could only fail. That failure is still what the CLI gives a bare `bay` — the verb's
+ * contract is one branch or a usage error, and a terminal user who forgot the name is better served
+ * by being told than by a listing they did not ask for.
+ *
+ * Exit 0 even when there is nothing to list, since "no branches besides the trunk" is a complete
+ * answer rather than a failure, and the `` ! `` invocation that asks drops its Task on a non-zero
+ * exit. Everything goes to stdout, which is the only stream that invocation shows.
+ *
+ * @param {string} cwd
+ * @param {Io} io
+ * @returns {number} exit code
+ */
+function listBranches(cwd, io) {
+  const root = repoRoot(cwd, io);
+  if (root === null) return 2;
+
+  const base = defaultBranch(root);
+  const rows = rankBranches(bayCandidates(root), io.signals(), {
+    base,
+    repoName: path.basename(mainCheckout(root)),
+    isValidBranch: (name) => isValidBranch(root, name),
+  });
+  io.out(renderBaySelect(base, rows));
+  return 0;
+}
+
+/**
  * `waybill bay <branch>` — cut the branch and its bay, then hand off the leg that follows.
  *
  * Leaving the operator at a bare success message would recreate the exact gap Waybill exists to
@@ -374,9 +437,12 @@ function begin(cwd, args, io) {
  * `cwd`: the bay leg takes its stamp from the branch that is checked out, so asked from the
  * operator's tree the answer would still be "create a bay" — the leg just done.
  *
+ * `--list` is the one other thing `bay` answers, and it answers it instead of a branch rather than
+ * alongside one — see {@link listBranches}.
+ *
  * @param {string} cwd
  * @param {string[]} args
- * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @param {Io} io
  * @returns {number} exit code
  */
 function bay(cwd, args, io) {
@@ -384,8 +450,18 @@ function bay(cwd, args, io) {
   const positional = [];
   /** @type {string|undefined} */
   let bayDir;
+  let markdown = false;
+  let list = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === '--markdown') {
+      markdown = true;
+      continue;
+    }
+    if (arg === '--list') {
+      list = true;
+      continue;
+    }
     if (arg === '--bay-dir') {
       // A missing value would otherwise swallow the branch name, or the flag itself.
       bayDir = args[index + 1];
@@ -402,6 +478,18 @@ function bay(cwd, args, io) {
       return 2;
     }
     positional.push(arg);
+  }
+
+  if (list) {
+    // Rejected rather than ignored. A branch beside `--list` is two requests, and answering either
+    // one silently drops the other. `--bay-dir` would do nothing at all: the list finds bays wherever
+    // git has them registered, not where the setting says new ones go — so accepting it would let
+    // an operator believe the listing had been narrowed to that directory when it had not.
+    if (positional.length > 0 || bayDir !== undefined) {
+      io.err(`waybill: \`--list\` takes no branch name and no \`--bay-dir\`\n${USAGE}\n`);
+      return 2;
+    }
+    return listBranches(cwd, io);
   }
 
   const [branch, ...extra] = positional;
@@ -427,22 +515,31 @@ function bay(cwd, args, io) {
 
   const bookings = resolveBookings(result.path, KNOWN_LEGS);
   const state = resolveLeg(result.path, bookings);
+  const inspection = checkIgnored(result.path, paperPaths(bookings));
 
   // The `cd` line itself comes from the renderer, so this block and the one a trunk-resolved
   // `next` prints cannot drift into two shapes of the same instruction. Only the heading above it
   // is `bay`'s own: this surface reports what it just created, and that block is frozen.
   const alreadyThere = isInside(result.path, cwd);
-  const lines = alreadyThere
-    ? [`already inside the ${branch} bay at ${result.path} — nothing to do`]
-    : [
-        result.created
-          ? `bay created at ${result.path}`
-          : `bay already exists at ${result.path}`,
-        ...cdLines(result.path, alreadyThere),
-      ];
+  const heading = alreadyThere
+    ? `already inside the ${branch} bay at ${result.path} — nothing to do`
+    : result.created
+      ? `bay created at ${result.path}`
+      : `bay already exists at ${result.path}`;
 
-  io.out(`${lines.join('\n')}\n\n`);
-  io.out(renderWaybill(state, checkIgnored(result.path, paperPaths(bookings))));
+  // The renderer's own IN BAY section never sees this `cd`, since `bay` reports the move itself, so
+  // markdown mode fences it here — as a paragraph, a line, and a fence, the shape `next` prints.
+  if (markdown) {
+    const move = alreadyThere
+      ? []
+      : ['**IN BAY** — run this in your shell first:', `\`\`\`\n${cdCommand(result.path)}\n\`\`\``];
+    io.out(`${[heading, ...move].join('\n\n')}\n\n`);
+    io.out(renderWaybillMarkdown(state, inspection));
+    return 0;
+  }
+
+  io.out(`${[heading, ...cdLines(result.path, alreadyThere)].join('\n')}\n\n`);
+  io.out(renderWaybill(state, inspection));
   return 0;
 }
 
@@ -464,13 +561,20 @@ const COMMANDS = new Map([
  * Argument parsing lives here and only here: `bin/waybill` is a wrapper around this function, and a
  * second parser in the wrapper would drift from it.
  *
+ * `signals` is injected alongside the streams because it is the same kind of thing: something
+ * outside the repository that a test must be able to replace. Left to itself, `bay --list` reads
+ * the real tmux window and shell history, and a suite run inside tmux would order its menus by
+ * whatever the developer happened to be doing.
+ *
  * @param {string[]} [argv] arguments after the program name
- * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void}} [options]
+ * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void,
+ *          signals?:()=>import('./signals.js').Signals}} [options]
  * @returns {number} exit code
  */
 export function run(argv = [], options = {}) {
   const out = options.out ?? ((text) => process.stdout.write(text));
   const err = options.err ?? ((text) => process.stderr.write(text));
+  const signals = options.signals ?? (() => gatherSignals());
   const cwd = options.cwd ?? process.cwd();
   const [name, ...args] = argv;
 
@@ -490,7 +594,7 @@ export function run(argv = [], options = {}) {
     err(`waybill: unknown command \`${name}\`\n${USAGE}\n`);
     return 2;
   }
-  return command(cwd, args, { out, err });
+  return command(cwd, args, { out, err, signals });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

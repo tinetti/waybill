@@ -228,7 +228,7 @@ export function writeFile(file, contents) {
 }
 
 /**
- * Compare against `<dir>/<name>.txt`, or rewrite it when `UPDATE_GOLDEN=1`.
+ * Compare against `<dir>/<name>.<ext>`, or rewrite it when `UPDATE_GOLDEN=1`.
  *
  * Regeneration is deliberately an environment flag rather than a CLI flag: a golden file that
  * rewrites itself during a normal run is a tautology, so the only way to update one is to ask.
@@ -236,9 +236,10 @@ export function writeFile(file, contents) {
  * @param {string} dir
  * @param {string} name
  * @param {string} actual
+ * @param {string} [ext]
  */
-export function assertGolden(dir, name, actual) {
-  const file = path.join(dir, `${name}.txt`);
+export function assertGolden(dir, name, actual, ext = 'txt') {
+  const file = path.join(dir, `${name}.${ext}`);
   if (process.env.UPDATE_GOLDEN === '1') {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, actual);

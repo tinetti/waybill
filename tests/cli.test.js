@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { run } from '../src/cli.js';
-import { cdLines } from '../src/waybill.js';
+import { cdCommand, cdLines } from '../src/waybill.js';
 import {
   addWorktree,
   cleanupAll,
@@ -55,11 +55,16 @@ function isolated(fn) {
  * removes it: the golden comparison is byte-exact, and a CLI installed on the developer's machine
  * must not be able to change what is rendered.
  *
+ * The operator's shell is kept out for the same reason: `bay --list` ranks by the tmux window and
+ * the shell history it runs under, and a suite run inside tmux, by someone with a history, would
+ * otherwise order its rows by the developer's afternoon.
+ *
  * @param {string[]} argv
  * @param {string} cwd
+ * @param {import('../src/signals.js').Signals} [signals] what the shell is taken to say
  * @returns {{code:number, out:string, err:string}}
  */
-function cli(argv, cwd) {
+function cli(argv, cwd, signals = { tmux: null, history: [] }) {
   let out = '';
   let err = '';
   const code = isolated(() =>
@@ -72,6 +77,7 @@ function cli(argv, cwd) {
         err: (text) => {
           err += text;
         },
+        signals: () => signals,
       }),
     ),
   );
@@ -377,7 +383,7 @@ describe('waybill new', () => {
 
     assert.equal(result.code, 0);
     assert.match(result.out, /^NEXT:$/m);
-    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
   });
 
   it('answers identically with dockets in flight — `new` has no exit contract of its own', () => {
@@ -412,7 +418,7 @@ describe('waybill new', () => {
 
     const result = cli(['new'], bays[0]);
 
-    assert.match(result.out, /^ {2}\/ideation:brainstorm$/m);
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
     assert.ok(result.out.indexOf('NEXT:') < result.out.indexOf('WARNINGS:'), 'the warning buried it');
   });
 
@@ -670,6 +676,252 @@ describe('waybill bay', () => {
     // An alias would be a second name to document and keep in step forever, so usage must not
     // offer the old verb back either.
     assert.equal(/^ {2}start /m.test(result.err), false, '`start` is still listed in usage');
+  });
+});
+
+/**
+ * The markdown instruction for moving the shell, as `next` and `bay` both print it.
+ *
+ * @param {string} target
+ * @returns {string}
+ */
+const cdFence = (target) =>
+  `**IN BAY** — run this in your shell first:\n\n\`\`\`\n${cdCommand(target)}\n\`\`\`\n`;
+
+describe('waybill next --markdown', () => {
+  it('prints the markdown waybill in a bay — the golden the renderer pins — and exits 0', () => {
+    const result = cli(['next', '--markdown'], specsFixture().dir);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'specs.md'), 'utf8'));
+    assert.match(result.out, /^```text$/m);
+    assert.match(result.out, /^```\n\/spec:propose\n```$/m);
+  });
+
+  it('puts the cd for a named branch in a markdown fence of its own', () => {
+    const { repo, bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out.includes(cdFence(bays[1])), true);
+    assert.ok(result.out.indexOf('**IN BAY**') < result.out.indexOf('**NEXT**'));
+  });
+
+  it('prints markdown for the one open docket on the trunk', () => {
+    const { repo, bays } = trunkWith('feat/one');
+
+    const result = cli(['next', '--markdown'], repo);
+
+    assert.equal(result.code, 0);
+    assert.ok(result.out.startsWith('```text\nfeat/one · leg 3 of 7 (refine)\n'));
+    assert.equal(result.out.includes(cdFence(bays[0])), true);
+  });
+
+  it('leaves the selection menu untouched under --markdown, and still exits 2', () => {
+    const { repo } = trunkWith('feat/one', 'feat/two', 'fix/three');
+
+    const result = cli(['next', '--markdown'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, cli(['next'], repo).out);
+  });
+
+  it('rejects --json with --markdown, in either order, naming the conflict', () => {
+    const dir = specsFixture().dir;
+    for (const argv of [['next', '--json', '--markdown'], ['next', '--markdown', '--json']]) {
+      const result = cli(argv, dir);
+      assert.equal(result.code, 2);
+      assert.equal(result.out, '');
+      assert.match(result.err, /cannot be combined/);
+      assert.match(result.err, /--markdown/);
+    }
+  });
+
+  it('gives the --json/--markdown conflict outside a repository too, not the repository error', () => {
+    const result = cli(['next', '--json', '--markdown'], tempRoot());
+
+    assert.equal(result.code, 2);
+    assert.match(result.err, /cannot be combined/);
+    assert.equal(result.err.includes('not inside a git repository'), false);
+  });
+
+  it('still rejects a misspelled option alongside --markdown', () => {
+    const result = cli(['next', '--markdown', '--jsonn'], specsFixture().dir);
+
+    assert.equal(result.code, 2);
+    assert.match(result.err, /unknown option `--jsonn`/);
+  });
+
+  it('is not an option `new` takes: new --markdown is rejected', () => {
+    const result = cli(['new', '--markdown'], noDocketFixture().dir);
+
+    assert.equal(result.code, 2);
+    assert.match(result.err, /unknown option `--markdown`/);
+  });
+});
+
+describe('waybill bay --markdown', () => {
+  it('bay --markdown names the new bay, fences the cd alone, then the markdown waybill', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.ok(
+      result.out.startsWith(
+        `bay created at ${target}\n\n${cdFence(target)}\n\`\`\`text\nfeat/demo · leg 3 of 7 (refine)\n`,
+      ),
+      result.out,
+    );
+    assert.match(result.out, /^\*\*NEXT\*\* — paste each block on its own, in order:$/m);
+  });
+
+  it('bay --markdown on a second run says the bay already exists', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], repo);
+
+    assert.equal(result.code, 0);
+    assert.ok(result.out.startsWith(`bay already exists at ${target}\n\n${cdFence(target)}\n`));
+  });
+
+  it('bay --markdown from inside the bay prints no cd fence', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], target);
+
+    assert.equal(result.code, 0);
+    assert.ok(
+      result.out.startsWith(`already inside the feat/demo bay at ${target} — nothing to do\n\n\`\`\`text\n`),
+    );
+    assert.equal(result.out.includes('IN BAY'), false, 'told the operator to cd where they already are');
+    assert.equal(/^cd /m.test(result.out), false);
+  });
+
+  it('bay --markdown leaves the --list branch menu untouched, since it issues no waybill', () => {
+    const repo = createRepo();
+    git(repo, ['branch', 'feat/listed']);
+
+    const result = cli(['bay', '--list', '--markdown'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out, cli(['bay', '--list'], repo).out);
+  });
+
+  it('bay --markdown still honours --bay-dir', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = cli(['bay', 'feat/demo', '--markdown', '--bay-dir', 'bays'], repo);
+    const target = path.join(repo, 'bays', `${path.basename(repo)}-feat-demo`);
+
+    assert.equal(result.code, 0);
+    assert.equal(fs.existsSync(target), true);
+    assert.equal(result.out.includes(cdFence(target)), true);
+  });
+});
+
+describe('waybill bay --list', () => {
+  it('lists branches without a bay first, then those with one, and exits 0', () => {
+    const { repo, bays } = trunkWith('feat/has-bay');
+    git(repo, ['branch', 'feat/no-bay']);
+
+    const result = cli(['bay', '--list'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.deepEqual(result.out.split('\n'), [
+      'SELECT A BRANCH:',
+      '  feat/no-bay  · no bay',
+      `  feat/has-bay · bay at ${bays[0]}`,
+      '',
+      '  waybill bay <branch>',
+      '',
+    ]);
+  });
+
+  it('touches nothing — no branch, no bay, no exclude line', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    git(repo, ['branch', 'feat/listed']);
+    const before = [git(repo, ['for-each-ref']), git(repo, ['worktree', 'list', '--porcelain'])];
+    const exclude = path.join(repo, '.git', 'info', 'exclude');
+    const excludeBefore = fs.readFileSync(exclude, 'utf8');
+
+    cli(['bay', '--list'], repo);
+
+    assert.deepEqual([git(repo, ['for-each-ref']), git(repo, ['worktree', 'list', '--porcelain'])], before);
+    assert.equal(fs.readFileSync(exclude, 'utf8'), excludeBefore);
+  });
+
+  it('says there is nothing to list in one line, naming the trunk, and still exits 0', () => {
+    const result = cli(['bay', '--list'], createRepo());
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out, 'no branches besides main — name one with `waybill bay <branch>`\n');
+  });
+
+  it('puts the branch the tmux window names first, and says why', () => {
+    const { repo } = trunkWith('feat/has-bay');
+    git(repo, ['branch', 'feat/no-bay']);
+
+    const result = cli(['bay', '--list'], repo, {
+      tmux: { session: 'repo', window: 'has-bay', pane: '' },
+      history: [],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^SELECT A BRANCH:\n {2}feat\/has-bay · bay at .* · tmux window "has-bay"\n/);
+  });
+
+  it('suggests a new branch from the tmux window, checked against git\'s own ref rules', () => {
+    const repo = createRepo();
+
+    const result = cli(['bay', '--list'], repo, {
+      tmux: { session: 'repo', window: 'bay picker', pane: '' },
+      history: [],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^SELECT A BRANCH:\n {2}feat\/bay-picker · new · tmux window "bay picker"\n/);
+  });
+
+  it('rejects a branch name alongside --list, on stderr, rather than guessing which was meant', () => {
+    const repo = createRepo();
+
+    for (const argv of [['bay', '--list', 'feat/x'], ['bay', 'feat/x', '--list']]) {
+      const result = cli(argv, repo);
+      assert.equal(result.code, 2);
+      assert.equal(result.out, '');
+      assert.match(result.err, /`--list` takes no branch name/);
+    }
+  });
+
+  it('rejects --bay-dir alongside --list, since the list finds bays wherever they are', () => {
+    const result = cli(['bay', '--list', '--bay-dir', 'bays'], createRepo());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /`--list` takes no .*`--bay-dir`/);
+  });
+
+  it('explains itself in one line outside a repository and exits 2', () => {
+    const result = cli(['bay', '--list'], tempRoot());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.equal(result.err.trimEnd().split('\n').length, 1, `not one line: ${result.err}`);
+    assert.match(result.err, /not inside a git repository/);
+  });
+
+  it('is listed in usage', () => {
+    assert.match(cli(['--help'], tempRoot()).out, /--list/);
   });
 });
 

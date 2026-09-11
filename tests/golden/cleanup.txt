@@ -3,9 +3,9 @@ feat/thing · leg 7 of 7 (cleanup)
   ▶ cleanup
 
 NEXT:
-  run:
-  /waybill:cleanup feat/thing
-  └ sonnet · low effort
+/model sonnet
+/effort low
+/waybill:cleanup feat/thing
 
   Fold the branch back into the default branch and take its bay with it. Read the whole change one
   last time first: the three-dot diff between the default branch and this one is exactly what is
