@@ -28,6 +28,31 @@ const DEFAULT_ARGUMENT = 'change-id';
 const INDENT = '  ';
 
 /**
+ * The lines `commands/next.md` acts on rather than shows, each a literal the command file names —
+ * the same contract as {@link renderSelect}'s heading. The CLI decides; the session only reacts, so
+ * whether a leg is stale is answered by the code that resolved it, never by a model reading prose.
+ *
+ * `ENTER_BAY` carries the bay's absolute path for `EnterWorktree`, `RUN` the booking's own command
+ * for the session to invoke there, and `NEXT_LEG` the leg a stale token should have named.
+ */
+export const ENTER_BAY = 'ENTER BAY:';
+export const RUN = 'RUN:';
+export const NEXT_LEG = 'NEXT LEG:';
+
+/**
+ * Where a markdown waybill is being read from, as far as the handover cares.
+ *
+ * @typedef {object} Route
+ * @property {string|null} [bay] the docket's bay, when it has one. A transfer handover then ends in
+ *   `/waybill:next <branch>/<leg>` instead of the raw command: `/clear` drops a session back to
+ *   the main checkout, and only the portable line carries the way back into the bay.
+ * @property {boolean} [enter] print {@link ENTER_BAY} — the session was pointed at this docket by
+ *   name and is not standing in its bay
+ * @property {string|null} [token] the leg the caller named, answered with {@link RUN} when it is
+ *   the next leg and {@link NEXT_LEG} when it is not
+ */
+
+/**
  * Where one docket stands, with no branch attached.
  *
  * `docketOpen` is checked before `leg`, not after: on the base branch `leg` still reads `ideate`
@@ -120,11 +145,14 @@ function waybillText(body) {
  *
  * @param {import('./bookings.js').Booking} booking
  * @param {import('./inference.js').Inference} state
- * @returns {{ prose: string|null, commands: string[] }} `prose` is a `handover` value that is
- *   neither `transfer` nor `through`, rendered verbatim rather than dropped, so a booking can ask
- *   for something Waybill never anticipated and still be obeyed
+ * @param {string|null} [bay] the docket's bay; a transfer handover then names `/waybill:next` in
+ *   place of the raw command (see {@link Route})
+ * @returns {{ prose: string|null, commands: string[], command: string }} `prose` is a `handover`
+ *   value that is neither `transfer` nor `through`, rendered verbatim rather than dropped, so a
+ *   booking can ask for something Waybill never anticipated and still be obeyed; `command` is the
+ *   booking's own command and argument, whatever the last pasted line became
  */
-function handoverCommands(booking, state) {
+function handoverCommands(booking, state, bay = null) {
   // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
   // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
   // it is the only honest option: an empty one would hand the next session a command it cannot run.
@@ -135,16 +163,19 @@ function handoverCommands(booking, state) {
   const command = argument ? `${booking.command} ${argument}` : booking.command;
 
   const known = booking.handover === 'transfer' || booking.handover === 'through';
+  const transfer = booking.handover === 'transfer';
   return {
     prose: known ? null : (booking.handover ?? null),
     commands: [
-      ...(booking.handover === 'transfer' ? ['/clear'] : []),
+      ...(transfer ? ['/clear'] : []),
       `/model ${booking.model}`,
       // Only what the booking declares. A default effort would be a choice nobody made, attributed
       // to a booking that never made it.
       ...(booking.effort ? [`/effort ${booking.effort}`] : []),
-      command,
+      // Only a transfer strands the session outside the bay; a through leg's session never leaves.
+      transfer && bay ? `/waybill:next ${state.branch}/${state.leg}` : command,
     ],
+    command,
   };
 }
 
@@ -282,9 +313,10 @@ function fence(lines, info = '') {
  * button and no paste ever carries two commands.
  *
  * @param {import('./inference.js').Inference} state
+ * @param {string|null} bay
  * @returns {string[]} paragraphs, to be joined with a blank line
  */
-function nextMarkdown(state) {
+function nextMarkdown(state, bay) {
   if (state.leg === null) return ['**NEXT** — nothing to hand off — every leg is complete'];
 
   const booking = state.booking;
@@ -297,7 +329,7 @@ function nextMarkdown(state) {
 
   // The body comes after every command fence, so a body carrying a fence of its own cannot break
   // the pairing of the fences the operator actually copies.
-  const { prose, commands } = handoverCommands(booking, state);
+  const { prose, commands } = handoverCommands(booking, state, bay);
   const body = booking.body.trim();
   return [
     '**NEXT** — paste each block on its own, in order:',
@@ -305,6 +337,25 @@ function nextMarkdown(state) {
     ...commands.map((command) => fence([command])),
     ...(body === '' ? [] : [body]),
   ];
+}
+
+/**
+ * The keyed lines a {@link Route} asks for, in the order the session acts on them: move first, then
+ * run — a command invoked before the move answers for the wrong checkout.
+ *
+ * A token on a docket with nothing left to hand off, or on a leg with no booking bound, earns no
+ * line at all: there is no next leg to name and no command to run, and the waybill below already
+ * says which.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @param {Route} route
+ * @returns {string[]}
+ */
+function keyedLines(state, route) {
+  const lines = route.enter && route.bay ? [`${ENTER_BAY} ${route.bay}`] : [];
+  if (!route.token || state.leg === null || !state.booking) return lines;
+  if (route.token !== state.leg) return [...lines, `${NEXT_LEG} ${state.leg}`];
+  return [...lines, `${RUN} ${handoverCommands(state.booking, state).command}`];
 }
 
 /**
@@ -319,22 +370,22 @@ function nextMarkdown(state) {
  *
  * Pure, like {@link renderWaybill}.
  *
+ * No `cd` in any shape: a session cannot act on one, and the handover's `/waybill:next` line is
+ * what moves it. {@link renderWaybill} keeps the `cd` for the shell.
+ *
  * @param {import('./inference.js').Inference} state
  * @param {import('./inspection.js').Inspection} [inspection]
- * @param {string[]} [cd] bare {@link cdCommand} instructions, empty when the operator is already in
- *   the bay
+ * @param {Route} [route]
  * @returns {string} ends with exactly one newline
  */
-export function renderWaybillMarkdown(state, inspection = { ignored: [], warnings: [] }, cd = []) {
-  // A text fence, because markdown would fold the strip's single line breaks into one paragraph and
-  // drop its indent.
-  const sections = [fence([header(state), ...(state.docketOpen ? strip(state) : [])], 'text')];
-
-  if (cd.length > 0) {
-    sections.push('**IN BAY** — run this in your shell first:', ...cd.map((line) => fence([line])));
-  }
-
-  sections.push(...nextMarkdown(state));
+export function renderWaybillMarkdown(state, inspection = { ignored: [], warnings: [] }, route = {}) {
+  const sections = [
+    ...keyedLines(state, route),
+    // A text fence, because markdown would fold the strip's single line breaks into one paragraph
+    // and drop its indent.
+    fence([header(state), ...(state.docketOpen ? strip(state) : [])], 'text'),
+    ...nextMarkdown(state, route.bay ?? null),
+  ];
 
   if (inspection.ignored.length > 0) {
     sections.push(

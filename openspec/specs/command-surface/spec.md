@@ -75,6 +75,39 @@ would create one.
 - **WHEN** `next feat/x` is run and no bay for `feat/x` exists
 - **THEN** the output states that there is no bay for it and names `bay feat/x`
 
+### Requirement: `next` accepts a leg after the branch
+
+`next` SHALL also accept `<branch>/<leg>`. The whole argument SHALL be tried as a branch first;
+only when no bay carries that branch and its last `/`-segment is a known leg id SHALL that segment
+be read as the leg. In markdown output for a named docket, `next` SHALL print `ENTER BAY: <path>`
+when the caller is not already in that bay (never for the `cleanup` leg), then `RUN: <command>
+[<argument>]` — the booking's own command — when the named leg is the docket's next leg, or
+`NEXT LEG: <leg>` when it is not. A docket with nothing left to hand off, or a leg with no booking,
+SHALL get neither line. Markdown output SHALL print no `cd`, and a `transfer` handover for a docket
+with a bay SHALL end in `/waybill:next <branch>/<leg>` in place of the raw command. Plain output is
+unchanged.
+
+#### Scenario: Naming a docket and its next leg
+- **WHEN** `next --markdown feat/x/refine` is run from the trunk and `feat/x` is at the refine leg
+- **THEN** the output begins with `ENTER BAY:` and the bay's path, then `RUN:` and the refine
+  booking's command
+
+#### Scenario: Naming a stale leg
+- **WHEN** `next --markdown feat/x/specs` is run and `feat/x` is at the refine leg
+- **THEN** the output carries `NEXT LEG: refine` and no `RUN:` line
+
+#### Scenario: Naming a branch from outside its bay
+- **WHEN** `next --markdown feat/x` is run from the trunk or from another bay
+- **THEN** the output begins with `ENTER BAY:` and the path of `feat/x`'s bay, and carries no `RUN:`
+
+#### Scenario: A branch whose last segment is a leg id
+- **WHEN** a bay exists for `fix/specs` and `next --markdown fix/specs` is run
+- **THEN** the argument resolves as the branch `fix/specs`, and no `RUN:` or `NEXT LEG:` is printed
+
+#### Scenario: Asking where things stand moves nobody
+- **WHEN** `next --markdown` is run on the trunk with one docket open and no argument
+- **THEN** the handover ends in `/waybill:next <branch>/<leg>` and no `ENTER BAY:` line is printed
+
 ### Requirement: `status` on the trunk is a fleet view
 
 `status` on the trunk SHALL report every docket in flight with its branch and position, and SHALL
@@ -141,15 +174,25 @@ SHALL continue to declare no model, so the booking's own choice is not overridde
 - **WHEN** the first leg's booking is changed to a different model or effort
 - **THEN** the test suite reports that the command now disagrees with the booking
 
-### Requirement: Verbatim rendering, with one keyed exception
+### Requirement: Verbatim rendering, with keyed exceptions
 
 The session-facing command that shows a waybill SHALL continue to show the block verbatim and stop.
-The single exception SHALL be keyed on an exact literal in the output: when the block contains the
-docket-selection heading, the session SHALL ask which docket is meant, re-run the command against
-that branch, and show *that* block verbatim.
+The exceptions SHALL each be keyed on an exact literal at the start of a line in the output:
 
-Any permission the selection prompt requires SHALL be declared, since the permission list is
-restrictive and an undeclared prompt is silently unavailable.
+- the docket-selection heading: the session SHALL ask which docket is meant, re-run the command
+  against that branch, and show *that* block verbatim — acting on no `ENTER BAY:` it carries, since a
+  selection never switches;
+- `ENTER BAY: <path>`: the session SHALL move into that path with `EnterWorktree`. If the move fails
+  or is denied, it SHALL show a fenced `cd <path>` followed by the block verbatim, and stop without
+  acting on any `RUN:` line;
+- `RUN: <command> [<argument>]`: after a successful move, the session SHALL invoke that command with
+  that argument, and never `/clear`, `/model` or `/effort`; a command it cannot resolve SHALL be named
+  in one line, with no substitute run;
+- `NEXT LEG: <leg>`: the session SHALL say that the named leg is not next, show the block verbatim,
+  and stop.
+
+Every tool these exceptions require SHALL be declared, since the permission list is restrictive and
+an undeclared tool is silently unavailable.
 
 #### Scenario: An ordinary waybill
 - **WHEN** the block does not contain the selection heading
@@ -158,3 +201,15 @@ restrictive and an undeclared prompt is silently unavailable.
 #### Scenario: A selection block
 - **WHEN** the block contains the selection heading
 - **THEN** the session asks which docket, re-runs against that branch, and shows the result verbatim
+
+#### Scenario: A selection re-run never switches
+- **WHEN** the re-run after a selection begins with `ENTER BAY:`
+- **THEN** the session shows it verbatim, does not move, and stops
+
+#### Scenario: A pasted `<branch>/<leg>` from the main checkout
+- **WHEN** the block begins with `ENTER BAY:` and then `RUN:`
+- **THEN** the session enters the bay and invokes the `RUN:` command there
+
+#### Scenario: The bay cannot be entered
+- **WHEN** the move into the `ENTER BAY:` path fails or is denied
+- **THEN** the session shows `cd <path>` and the block, and runs nothing

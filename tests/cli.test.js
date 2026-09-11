@@ -5,9 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { run } from '../src/cli.js';
-import { cdCommand, cdLines } from '../src/waybill.js';
+import { cdLines } from '../src/waybill.js';
 import {
   addWorktree,
+  assertGolden,
   cleanupAll,
   createRepo,
   defaultBayPath,
@@ -366,6 +367,110 @@ describe('waybill next <branch>', () => {
   });
 });
 
+describe('waybill next <branch>/<leg>', () => {
+  it('enters the bay and runs the named leg when it is the next one', () => {
+    const { repo, bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two/refine'], repo);
+
+    assert.equal(result.code, 0);
+    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[1]}\n\nRUN: /ideation:ideation`), result.out);
+    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+  });
+
+  it('names the actual next leg and runs nothing when the named one is stale', () => {
+    const { repo, bays } = trunkWith('feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two/specs'], repo);
+
+    assert.equal(result.code, 0);
+    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[0]}\n\nNEXT LEG: refine\n`), result.out);
+    assert.equal(/^RUN:/m.test(result.out), false);
+  });
+
+  it('enters the bay and runs nothing for a bare branch', () => {
+    const { repo, bays } = trunkWith('feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two'], repo);
+
+    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[0]}\n\n\`\`\`text\n`), result.out);
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('enters the named bay from inside a different bay, not only from the trunk', () => {
+    const { bays } = trunkWith('feat/one', 'feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two/refine'], bays[0]);
+
+    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[1]}\n\nRUN: /ideation:ideation`), result.out);
+  });
+
+  it('runs without entering from inside the named bay', () => {
+    const { bays } = trunkWith('feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two/refine'], bays[0]);
+
+    assert.ok(result.out.startsWith('RUN: /ideation:ideation'), result.out);
+    assert.equal(result.out.includes('ENTER BAY'), false);
+  });
+
+  it('never enters the bay a cleanup token names, since cleanup is about to remove it', () => {
+    const { repo } = trunkWith('feat/two');
+
+    const result = cli(['next', '--markdown', 'feat/two/cleanup'], repo);
+
+    assert.equal(result.out.includes('ENTER BAY'), false);
+    assert.match(result.out, /^NEXT LEG: refine$/m);
+  });
+
+  it('names the branch part in the miss when a known leg follows a branch with no bay', () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['next', '--markdown', 'feat/nope/execute'], repo);
+
+    assert.equal(result.code, 2);
+    assert.match(result.out, /^waybill: no bay for feat\/nope — cut one with `waybill bay feat\/nope`$/m);
+  });
+
+  it('keeps an unknown last segment as part of the branch name', () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['next', '--markdown', 'feat/one/bogus'], repo);
+
+    assert.equal(result.code, 2);
+    assert.match(result.out, /no bay for feat\/one\/bogus/);
+  });
+
+  it('resolves a branch whose last segment is a leg id as that branch, not as a token', () => {
+    const { repo } = trunkWith('fix/specs');
+
+    const result = cli(['next', '--markdown', 'fix/specs'], repo);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^fix\/specs · leg 3 of 7 \(refine\)$/m);
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('prints the plain waybill with its cd for a token outside markdown, and keys nothing', () => {
+    const { repo, bays } = trunkWith('feat/two');
+
+    const result = cli(['next', 'feat/two/refine'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out.split('\n').includes(cdLines(bays[0])[0]), true);
+    assert.equal(/^(ENTER BAY|RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('answers --json for the branch part of a token', () => {
+    const { repo } = trunkWith('feat/two');
+
+    const result = cli(['next', '--json', 'feat/two/refine'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(JSON.parse(result.out).branch, 'feat/two');
+  });
+});
+
 describe('waybill new', () => {
   it("prints leg 1's waybill — byte-for-byte the block the trunk used to answer `next` with", () => {
     // The golden's third consumer, and the first outside the renderer suite. That is the point:
@@ -679,15 +784,6 @@ describe('waybill bay', () => {
   });
 });
 
-/**
- * The markdown instruction for moving the shell, as `next` and `bay` both print it.
- *
- * @param {string} target
- * @returns {string}
- */
-const cdFence = (target) =>
-  `**IN BAY** — run this in your shell first:\n\n\`\`\`\n${cdCommand(target)}\n\`\`\`\n`;
-
 describe('waybill next --markdown', () => {
   it('prints the markdown waybill in a bay — the golden the renderer pins — and exits 0', () => {
     const result = cli(['next', '--markdown'], specsFixture().dir);
@@ -696,17 +792,19 @@ describe('waybill next --markdown', () => {
     assert.equal(result.err, '');
     assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'specs.md'), 'utf8'));
     assert.match(result.out, /^```text$/m);
-    assert.match(result.out, /^```\n\/spec:propose\n```$/m);
+    assert.match(result.out, /^```\n\/waybill:next feat\/thing\/specs\n```$/m);
   });
 
-  it('puts the cd for a named branch in a markdown fence of its own', () => {
+  it('hands a named branch over to /waybill:next, entering its bay rather than printing a cd', () => {
     const { repo, bays } = trunkWith('feat/one', 'feat/two');
 
     const result = cli(['next', '--markdown', 'feat/two'], repo);
 
     assert.equal(result.code, 0);
-    assert.equal(result.out.includes(cdFence(bays[1])), true);
-    assert.ok(result.out.indexOf('**IN BAY**') < result.out.indexOf('**NEXT**'));
+    assert.match(result.out, new RegExp(`^ENTER BAY: ${bays[1]}$`, 'm'));
+    assert.match(result.out, /^```\n\/waybill:next feat\/two\/refine\n```$/m);
+    assert.equal(result.out.includes('**IN BAY**'), false);
+    assert.equal(/^cd /m.test(result.out), false);
   });
 
   it('prints markdown for the one open docket on the trunk', () => {
@@ -716,7 +814,8 @@ describe('waybill next --markdown', () => {
 
     assert.equal(result.code, 0);
     assert.ok(result.out.startsWith('```text\nfeat/one · leg 3 of 7 (refine)\n'));
-    assert.equal(result.out.includes(cdFence(bays[0])), true);
+    assert.match(result.out, /^```\n\/waybill:next feat\/one\/refine\n```$/m);
+    assert.equal(result.out.includes(bays[0]), false, 'neither a cd nor ENTER BAY: nobody asked to move');
   });
 
   it('leaves the selection menu untouched under --markdown, and still exits 2', () => {
@@ -763,21 +862,18 @@ describe('waybill next --markdown', () => {
 });
 
 describe('waybill bay --markdown', () => {
-  it('bay --markdown names the new bay, fences the cd alone, then the markdown waybill', () => {
+  it('bay --markdown names the new bay, then a waybill that hands over to /waybill:next', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
-    const result = cli(['bay', '--markdown', 'feat/demo'], repo);
-    const target = defaultBayPath(repo, 'feat/demo');
+    const result = cli(['bay', '--markdown', 'feat/thing'], repo);
+    const target = defaultBayPath(repo, 'feat/thing');
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
-    assert.ok(
-      result.out.startsWith(
-        `bay created at ${target}\n\n${cdFence(target)}\n\`\`\`text\nfeat/demo · leg 3 of 7 (refine)\n`,
-      ),
-      result.out,
-    );
-    assert.match(result.out, /^\*\*NEXT\*\* — paste each block on its own, in order:$/m);
+    // The temp path differs on every run, so it is pinned as the literal the renderer goldens use.
+    const stable = result.out.replaceAll(target, '/repo/.claude/worktrees/waybill-feat-thing');
+    assertGolden(GOLDEN, 'bay-cut', stable, 'md');
+    assert.equal(/^cd /m.test(result.out), false);
   });
 
   it('bay --markdown on a second run says the bay already exists', () => {
@@ -788,7 +884,7 @@ describe('waybill bay --markdown', () => {
     const result = cli(['bay', '--markdown', 'feat/demo'], repo);
 
     assert.equal(result.code, 0);
-    assert.ok(result.out.startsWith(`bay already exists at ${target}\n\n${cdFence(target)}\n`));
+    assert.ok(result.out.startsWith(`bay already exists at ${target}\n\n\`\`\`text\n`), result.out);
   });
 
   it('bay --markdown from inside the bay prints no cd fence', () => {
@@ -824,7 +920,8 @@ describe('waybill bay --markdown', () => {
 
     assert.equal(result.code, 0);
     assert.equal(fs.existsSync(target), true);
-    assert.equal(result.out.includes(cdFence(target)), true);
+    assert.ok(result.out.startsWith(`bay created at ${target}\n`));
+    assert.match(result.out, /^```\n\/waybill:next feat\/demo\/refine\n```$/m);
   });
 });
 

@@ -19,7 +19,7 @@ feat/thing · leg 5 of 7 (specs)
 ```
 
 ```
-/spec:propose
+/waybill:next feat/thing/specs
 ```
 
 Scaffold the change: proposal, spec deltas, design notes, and a tasks list. Write the tasks so each

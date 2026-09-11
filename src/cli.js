@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS } from './legs.js';
 import {
-  cdCommand,
   cdLines,
   renderBaySelect,
   renderFleet,
@@ -16,7 +15,7 @@ import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
-import { checkoutRoot, defaultBranch, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
+import { checkoutRoot, defaultBranch, inBay, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
 import { renderHelp } from './help.js';
 import { bayCandidates, rankBranches } from './picker.js';
@@ -86,6 +85,28 @@ function repoRoot(cwd, io) {
 const KNOWN_LEGS = { knownLegs: LEGS.map((leg) => leg.id) };
 
 /**
+ * Split `next`'s argument into the branch and the leg a pasted `/waybill:next <branch>/<leg>` names.
+ *
+ * The whole string is tried as a branch first, so a branch whose last segment happens to be a leg
+ * id — `fix/specs` — is still that branch. There is never a real collision to break: git refuses
+ * `feat/foo` and `feat/foo/execute` as branches of one repository, so at most one reading names a
+ * bay. A trailing segment that is not a leg id stays part of the branch, and the miss then names
+ * the whole string, which is what the operator typed.
+ *
+ * @param {string} arg
+ * @param {string[]} branches the fleet's branches
+ * @param {string[]} legIds
+ * @returns {{branch: string, token: string|null}}
+ */
+export function parseTarget(arg, branches, legIds) {
+  if (branches.includes(arg)) return { branch: arg, token: null };
+  const cut = arg.lastIndexOf('/');
+  const suffix = arg.slice(cut + 1);
+  if (cut > 0 && legIds.includes(suffix)) return { branch: arg.slice(0, cut), token: suffix };
+  return { branch: arg, token: null };
+}
+
+/**
  * What to call the tree the operator is standing in when it carries no docket.
  *
  * A detached HEAD has no branch, and it reads as the trunk here because `docketOpen` is false —
@@ -107,14 +128,19 @@ function trunkName(state) {
  * The `cd` line goes through the renderer's own block rather than a heading of this command's, so
  * it and `bay` cannot print two shapes of the same instruction.
  *
+ * Markdown carries no `cd`: its handover ends in `/waybill:next`, which moves a session itself. It
+ * asks to enter the bay only when the docket was *named* — a plain `/waybill:next` from the trunk
+ * is a question about where things stand, and answering it must not move anyone.
+ *
  * @param {import('./fleet.js').Docket} docket
  * @param {string} cwd where the operator actually is
  * @param {boolean} json
  * @param {boolean} markdown
  * @param {{out:(text:string)=>void}} io
+ * @param {{named?: boolean, token?: string|null}} [target] how the docket was asked for
  * @returns {number} exit code
  */
-function issueWaybill(docket, cwd, json, markdown, io) {
+function issueWaybill(docket, cwd, json, markdown, io, target = {}) {
   const bookings = resolveBookings(docket.path, KNOWN_LEGS);
   const state = resolveLeg(docket.path, bookings);
 
@@ -125,11 +151,16 @@ function issueWaybill(docket, cwd, json, markdown, io) {
 
   const inspection = checkIgnored(docket.path, paperPaths(bookings));
   const alreadyThere = isInside(docket.path, cwd);
-  io.out(
-    markdown
-      ? renderWaybillMarkdown(state, inspection, alreadyThere ? [] : [cdCommand(docket.path)])
-      : renderWaybill(state, inspection, cdLines(docket.path, alreadyThere)),
-  );
+  if (!markdown) {
+    io.out(renderWaybill(state, inspection, cdLines(docket.path, alreadyThere)));
+    return 0;
+  }
+
+  const token = target.token ?? null;
+  // Never into a bay the cleanup leg is about to remove: the session would be left standing in a
+  // directory that no longer exists, and cleanup runs from anywhere by branch name anyway.
+  const enter = Boolean(target.named) && !alreadyThere && token !== 'cleanup';
+  io.out(renderWaybillMarkdown(state, inspection, { bay: docket.path, enter, token }));
   return 0;
 }
 
@@ -223,12 +254,17 @@ function next(cwd, args, io) {
   // worktree git knows about is a docket wherever it happens to live on disk.
   if (named !== undefined) {
     const dockets = fleet(root, bookings);
-    const docket = dockets.find((candidate) => candidate.branch === named);
+    const { branch, token } = parseTarget(
+      named,
+      dockets.map((candidate) => candidate.branch),
+      KNOWN_LEGS.knownLegs,
+    );
+    const docket = dockets.find((candidate) => candidate.branch === branch);
     if (docket === undefined) {
-      const remedy = `no bay for ${named} — cut one with \`waybill bay ${named}\``;
+      const remedy = `no bay for ${branch} — cut one with \`waybill bay ${branch}\``;
       return noWaybill(remedy, dockets, json, io);
     }
-    return issueWaybill(docket, cwd, json, markdown, io);
+    return issueWaybill(docket, cwd, json, markdown, io, { named: true, token });
   }
 
   const state = resolveLeg(cwd, bookings);
@@ -255,7 +291,10 @@ function next(cwd, args, io) {
   }
 
   const inspection = checkIgnored(root, paperPaths(bookings));
-  io.out(markdown ? renderWaybillMarkdown(state, inspection) : renderWaybill(state, inspection));
+  // `inBay` rather than `docketOpen`: a feature branch checked out in the main checkout carries a
+  // docket too, but no bay a pasted `/waybill:next <branch>/<leg>` could find its way back into.
+  const route = inBay(cwd) ? { bay: root } : {};
+  io.out(markdown ? renderWaybillMarkdown(state, inspection, route) : renderWaybill(state, inspection));
   return 0;
 }
 
@@ -527,14 +566,11 @@ function bay(cwd, args, io) {
       ? `bay created at ${result.path}`
       : `bay already exists at ${result.path}`;
 
-  // The renderer's own IN BAY section never sees this `cd`, since `bay` reports the move itself, so
-  // markdown mode fences it here — as a paragraph, a line, and a fence, the shape `next` prints.
+  // No `cd` in markdown: the handover below ends in `/waybill:next <branch>/<leg>`, which moves the
+  // session into this bay after `/clear` — the one move a session can make for itself.
   if (markdown) {
-    const move = alreadyThere
-      ? []
-      : ['**IN BAY** — run this in your shell first:', `\`\`\`\n${cdCommand(result.path)}\n\`\`\``];
-    io.out(`${[heading, ...move].join('\n\n')}\n\n`);
-    io.out(renderWaybillMarkdown(state, inspection));
+    io.out(`${heading}\n\n`);
+    io.out(renderWaybillMarkdown(state, inspection, { bay: result.path }));
     return 0;
   }
 

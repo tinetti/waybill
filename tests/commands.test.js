@@ -6,10 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
+import { ENTER_BAY, NEXT_LEG, RUN, renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
 import { parseFrontmatter } from '../src/frontmatter.js';
 import { loadBookings } from '../src/bookings.js';
-import { cleanupAll, createRepo, git, tempRoot, writeFile } from './helpers/repo-fixture.js';
+import { addWorktree, cleanupAll, createRepo, git, tempRoot, writeFile } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
 
@@ -258,6 +258,28 @@ describe('the shipped command set', () => {
     assert.match(meta['allowed-tools'] ?? '', /\bAskUserQuestion\b/);
   });
 
+  it('keys `next`\'s switch-and-run rules on the literals the renderer exports', () => {
+    // The same guard as the SELECT heading above, for the same reason: a line the renderer rewords
+    // and the command file still names is a rule that silently never fires.
+    const source = fs.readFileSync(path.join(COMMANDS, 'next.md'), 'utf8');
+    for (const literal of [ENTER_BAY, RUN, NEXT_LEG]) {
+      assert.ok(source.includes(`\`${literal}`), `commands/next.md does not key on \`${literal}\``);
+    }
+  });
+
+  it('declares EnterWorktree, Skill and SlashCommand on `next`\'s allowed-tools line', () => {
+    // Restrictive for the reason the AskUserQuestion case gives: undeclared, the switch into the bay
+    // and the leg's command simply never happen. SlashCommand as well as Skill because a booking
+    // may name either, which is why `new.md` declares both.
+    const { meta } = parseFrontmatter(
+      fs.readFileSync(path.join(COMMANDS, 'next.md'), 'utf8'),
+      'next.md',
+    );
+    for (const tool of ['EnterWorktree', 'Skill', 'SlashCommand']) {
+      assert.match(meta['allowed-tools'] ?? '', new RegExp(`\\b${tool}\\b`), tool);
+    }
+  });
+
   it('asks the CLI for markdown in `next` and `bay`, the re-run after selection included', () => {
     // The fences have to come from the tool, where a golden pins them, rather than from a session
     // reformatting plain text — so both waybill-showing commands must request them.
@@ -335,6 +357,45 @@ function runBang(rel, args, cwd) {
     },
   });
 }
+
+describe('`/waybill:next` with and without an argument', () => {
+  it('routes an empty argument to `next --markdown` and anything else to `next --markdown <arg>`', () => {
+    const line = bangLine('next.md');
+    assert.match(line, /if \[ -z "\$ARGUMENTS" \]; then node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" next --markdown 2>&1/);
+    assert.match(line, /else node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" next --markdown "\$ARGUMENTS"/);
+    assert.match(line, /^if \[ -f "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" \]; then /);
+  });
+
+  it('actually runs: an empty argument answers for the one docket and moves nobody', () => {
+    const repo = createRepo();
+    addWorktree(repo, 'feat/thing');
+
+    const result = runBang('next.md', '', repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^```text\nfeat\/thing · leg 3 of 7 \(refine\)$/m);
+    assert.equal(result.stdout.includes(ENTER_BAY), false);
+  });
+
+  it('actually runs: a pasted `feat/thing/refine` enters the bay and runs the leg', () => {
+    const repo = createRepo();
+    const bay = addWorktree(repo, 'feat/thing');
+
+    const result = runBang('next.md', 'feat/thing/refine', repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.startsWith(`${ENTER_BAY} ${bay}\n\n${RUN} /ideation:ideation`), result.stdout);
+  });
+
+  it("actually runs: an argument with a quote in it reaches the CLI as one word", () => {
+    const repo = createRepo();
+
+    const result = runBang('next.md', "feat/it's", repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /no bay for feat\/it's/);
+  });
+});
 
 describe('`/waybill:bay` with and without a branch', () => {
   it('routes an empty argument to `bay --list` and a named branch to `bay --markdown <branch>`', () => {
