@@ -19,8 +19,8 @@ import { checkoutRoot, configPath } from './repo.js';
  */
 export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings');
 
-const REQUIRED = ['leg', 'command', 'model'];
-const OPTIONAL = ['effort', 'handover', 'argument', 'stampPath', 'stampCmd'];
+export const REQUIRED = ['leg', 'command', 'model'];
+export const OPTIONAL = ['effort', 'handover', 'argument', 'stampPath', 'stampCmd'];
 
 /**
  * Which repository fact the renderer appends to `command`.

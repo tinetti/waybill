@@ -12,6 +12,7 @@ import './cli.test.js';
 import './commands.test.js';
 import './fleet.test.js';
 import './frontmatter.test.js';
+import './guide.test.js';
 import './help.test.js';
 import './inference.test.js';
 import './inspection-gitignore.test.js';

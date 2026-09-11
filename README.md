@@ -36,6 +36,10 @@ judged by its **stamp** — a mark left on the docket itself: a branch, a bay, a
 command that exits 0. Waybill reads the last stamp off repository reality, so a leg done by hand is
 seen exactly as one done through the tool.
 
+New to all of this? [The Waybill Guide](docs/guide/) rides one change from the trunk to cleanup,
+defines every word a waybill uses, and collects the commands, flags and booking keys in one
+reference.
+
 ## The route
 
 | # | Leg | Stamped by | Booked to |
