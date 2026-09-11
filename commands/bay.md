@@ -23,20 +23,23 @@ No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next`: fallin
 operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not exist.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay "$ARGUMENTS"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --markdown "$ARGUMENTS"; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
 Show the block above to me **verbatim** — same lines, same order, same glyphs. Do not summarise it,
 re-word it, re-order it, or add commentary of your own. It is already the whole answer.
 
-The `cd` line is the one instruction in Waybill meant for my shell rather than for a session: do not
+It is markdown, with each command in a fence of its own so that each gets its own copy button: show
+it as markdown, and do not wrap it in a further fence.
+
+The `cd` command is the one instruction in Waybill meant for my shell rather than for a session: do not
 run it, and do not offer to. Nothing you do here can move me into the new bay — that is why the
 path is printed.
 
-Then stop. Running the command the waybill names is the next session's job, not this one's: the
-handover line says whether to `/clear` first, and acting on it here would spend the context the
-waybill is trying to hand over.
+Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
+first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
+would spend the context the waybill is trying to hand over.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.

@@ -151,7 +151,7 @@ The exact output shapes, expected strings and file:line anchors are in
 
 ## 4. Session command files
 
-- [ ] 4.1 Add failing assertions to `tests/commands.test.js`:
+- [x] 4.1 Add failing assertions to `tests/commands.test.js`:
   - `commands/next.md` contains `cli.js" next --markdown` and `next --markdown <branch>`
   - `commands/bay.md` contains `cli.js" bay --markdown`
   - `commands/new.md` says to run only the last command line of the NEXT block, and names `/clear`,
@@ -159,22 +159,22 @@ The exact output shapes, expected strings and file:line anchors are in
   - none of `new.md`, `next.md` or `bay.md` contains `then run:`
 
   The existing `${CLAUDE_PLUGIN_ROOT}` spelling tests must stay green. Verify: the new assertions fail.
-- [ ] 4.2 Edit `commands/next.md`: the `!` line becomes `… node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown; else …`,
+- [x] 4.2 Edit `commands/next.md`: the `!` line becomes `… node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown; else …`,
   with the bare `${CLAUDE_PLUGIN_ROOT}` and the else message unchanged. Step 2's command (~60) becomes
   `node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" next --markdown <branch>`. Reword "the handover line says
   whether to `/clear` first" (~40): the first block is `/clear` when the next leg wants a fresh
   session. Add that the markdown is shown as markdown, not wrapped in another fence. Keep the
   verbatim rule and the `SELECT A DOCKET:` exception. Verify: `node --test tests/commands.test.js`
   passes for next.md.
-- [ ] 4.3 Edit `commands/bay.md`: invoke `… cli.js" bay --markdown "$ARGUMENTS"`, and apply the same
+- [x] 4.3 Edit `commands/bay.md`: invoke `… cli.js" bay --markdown "$ARGUMENTS"`, and apply the same
   `/clear` wording fix (~38). Verify: `node --test tests/commands.test.js` passes for bay.md.
-- [ ] 4.4 Edit `commands/new.md`: replace the "Ignore the `/clear, then run:` line…" paragraph (~51–55)
+- [x] 4.4 Edit `commands/new.md`: replace the "Ignore the `/clear, then run:` line…" paragraph (~51–55)
   with an instruction to run **only the last** unindented command line in the NEXT block (the leg
   command, with its argument), and never `/clear`, `/model` or `/effort`: this session is already the
   fresh one, and its model and effort come from its own frontmatter. Keep the invocation plain, with
   no `--markdown`. Verify: `node --test tests/commands.test.js` passes, and
   `! grep -q 'the[n].run:' commands/new.md commands/next.md commands/bay.md` exits 0.
-- [ ] 4.5 Section boundary: `npm test` passes. Commit.
+- [x] 4.5 Section boundary: `npm test` passes. Commit.
 
 ## 5. README
 

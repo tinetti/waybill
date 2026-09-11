@@ -48,11 +48,14 @@ session, with whatever argument the block prints after it. This is the one place
 to act rather than to hand off: the other commands stop because their waybill belongs to a session
 that has not started yet, and this one is for the session already reading it.
 
-Ignore the `/clear, then run:` line above the command. It is there because the ideate leg is booked
-like every other leg, and because `waybill new` in a terminal prints this same block to an operator
-who *would* start a fresh session. You are already that fresh session — there is no previous leg
-whose context needs clearing — and clearing would throw away the instruction along with the block.
-Read it as "then run:" and run it.
+The `NEXT:` block lists commands one per line. Run **only the last** of them — the leg command,
+with whatever argument it carries — and never `/clear`, `/model` or `/effort`, whichever of them
+the block lists above it. They are there because the ideate leg is booked like every other leg, and
+because `waybill new` in a terminal prints this same block to an operator who *would* start a fresh
+session. You are already that fresh session: there is no previous leg whose context needs clearing,
+and clearing would throw away the instruction along with the block. This command's own frontmatter
+already set the model and effort, and running `/model` would change my default for every session
+after this one.
 
 If the command cannot be resolved — the plugin that provides it is not installed in this session —
 say so in one line, name the command, and leave the waybill on screen as the instruction. Do not

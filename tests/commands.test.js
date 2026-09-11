@@ -256,6 +256,33 @@ describe('the shipped command set', () => {
     );
     assert.match(meta['allowed-tools'] ?? '', /\bAskUserQuestion\b/);
   });
+
+  it('asks the CLI for markdown in `next` and `bay`, the re-run after selection included', () => {
+    // The fences have to come from the tool, where a golden pins them, rather than from a session
+    // reformatting plain text — so both waybill-showing commands must request them.
+    const source = (rel) => fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
+    assert.ok(source('next.md').includes('cli.js" next --markdown'));
+    assert.ok(source('next.md').includes('next --markdown <branch>'));
+    assert.ok(source('bay.md').includes('cli.js" bay --markdown'));
+    assert.equal(source('new.md').includes('--markdown'), false, '`new` rejects the option');
+  });
+
+  it('tells `new` to run only the last command line, and never /clear, /model or /effort', () => {
+    // Read literally against the command list, a session could run `/clear` — erasing its own
+    // instruction — or `/model`, which changes the operator's default for every later session.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    assert.match(source, /only the last/);
+    for (const command of ['/clear', '/model', '/effort']) {
+      assert.ok(source.includes(`\`${command}\``), `new.md does not name ${command}`);
+    }
+  });
+
+  it('points no command file at the removed "then run:" handover line', () => {
+    for (const rel of ['new.md', 'next.md', 'bay.md']) {
+      const source = fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
+      assert.equal(/then run:/.test(source), false, rel);
+    }
+  });
 });
 
 describe('the plugin manifest', () => {
