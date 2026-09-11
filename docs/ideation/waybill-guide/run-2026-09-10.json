@@ -1,0 +1,39 @@
+{
+  "projectName": "Waybill Guide",
+  "slug": "waybill-guide",
+  "date": "2026-09-10",
+  "branch": "feat/waybill-guide",
+  "baseBranch": "main",
+  "strict": true,
+  "summary": {
+    "completed": [
+      "Waybill Guide"
+    ],
+    "noops": [],
+    "failed": [],
+    "skipped": [],
+    "results": [
+      {
+        "title": "Waybill Guide",
+        "result": "PASS",
+        "reviewStatus": "passed",
+        "commitHash": "7ef23d72520e648051560dc21826a5d557791ddb",
+        "summary": "Built the Waybill Guide test-first. tests/guide.test.js has 7 named assertions, registered in tests/index.js; it failed first on the missing exports, then on ENOENT for the absent chapters, and the spec's mutation experiments showed that assertions 2–4 catch a waybill pasted into a text fence, a missing glossary heading and a glossary entry with no **Literally:** line. The other pieces: 4 Dispatcher-voiced chapters under docs/guide/, with all 7 leg goldens spliced in byte for byte by script; REQUIRED and OPTIONAL exported from src/bookings.js; the help-card pointer repointed to docs/guide/ and its golden re-blessed; the add-help-card spec delta and design.md amended; and a guide link in README.md. Every validation command and contract grep twin passes on Node 22: 521/521 tests. Not done: the Node 26 run, because Node 26 isn't installed, and the voice read-through, which is the author's call. The contract's --markdown-samples scope item was left out, following the spec; implementation-notes-phase-1.html explains why. — I read the whole diff but did not run the tests, because this review is limited to git commands. The builder's notes say the full suite passed on Node 22 (521 tests), and all 12 files match the spec's File Changes. tests/guide.test.js has the seven named `it`s, uses the helpers copied from tests/help.test.js, and reads its lists from the real sources (LEGS, the goldens, the WORDS block, `commands/**`, the `--help` flags and the exported REQUIRED/OPTIONAL) rather than hard-coding them. The chapters also check out: the golden samples in the ride-along are verbatim, the glossary follows the spec's order with a literal line under every term, and the facts and README links I checked against README.md and src/ are correct. The pointer edit to the help card and its golden, the OpenSpec amendments, the README link and the new exports in src/bookings.js are exactly as specified. No banned words or deleted verbs appear, and the Dispatcher is never gendered. There are only three low findings (two over-long lines, and the Node 26 run and voice read-through still to do), so it is ready to commit.",
+        "findings": [
+          "low/pattern-mismatch tests/guide.test.js:243 — The chapter-link assertion runs to about 130 columns on one line. tests/help.test.js wraps long assert calls across lines. → Break the `assert.ok(index.includes(...) || ..., ...)` call over several lines, the way help.test.js formats its long assertions.",
+          "low/pattern-mismatch docs/guide/01-ride-along.md:219 — This prose line runs past the roughly 100-column wrap that every other paragraph in the guide keeps (\"The next handler asks the counter, sees how many boxes are ticked, and picks it up. Nobody has to brief them.\"). → Wrap it to match the paragraphs around it.",
+          "low/testing docs/ideation/waybill-guide/spec.md:306 (Manual Testing) — The implementation notes say the suite passed only on Node 22.23.2. The spec also asks for a run on Node 26 and a read-through of the voice, and neither has happened yet. → Before merge, run `node --test tests/` on Node 26, read the guide through for voice, and record both results in the PR description."
+        ],
+        "warnings": [],
+        "reviewCycles": 1
+      }
+    ]
+  },
+  "verify": {
+    "line": "VERIFY waybill-guide: commits=1/1 pass=12 fail=0 judgment=1",
+    "exitCode": 0
+  },
+  "notesFiles": [
+    "implementation-notes-phase-1.html"
+  ]
+}
