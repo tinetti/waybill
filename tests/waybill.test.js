@@ -8,6 +8,7 @@ import { LEGS } from '../src/legs.js';
 import {
   cdCommand,
   cdLines,
+  renderBaySelect,
   renderFleet,
   renderPosition,
   renderSelect,
@@ -392,6 +393,53 @@ describe('renderWaybillMarkdown', () => {
 describe('cdCommand', () => {
   it('is the bare shell command, with no indent to ride along into a paste', () => {
     assert.equal(cdCommand('/repo/bays/x'), 'cd /repo/bays/x');
+  });
+});
+
+/**
+ * The rows `rankBranches` hands the renderer: one promoted by a signal, one plain, one with a bay.
+ * Three widths again, for the padding.
+ *
+ * @returns {import('../src/picker.js').BranchRow[]}
+ */
+function branchRows() {
+  return [
+    { branch: 'feat/session-handover', bay: null, isNew: false, reason: 'tmux window "session-handover"' },
+    { branch: 'fix/stamp-scoping', bay: null, isNew: false, reason: null },
+    { branch: 'ideation/fleet-view', bay: '/repo/.claude/worktrees/waybill-ideation-fleet-view', isNew: false, reason: null },
+  ];
+}
+
+describe('renderBaySelect', () => {
+  it('renders the branch menu `waybill bay --list` prints', () => {
+    assertGolden('bay-select', renderBaySelect('main', branchRows()));
+  });
+
+  it('renders a suggested new branch first, marked new, with the signal behind it', () => {
+    const rows = [
+      { branch: 'feat/bay-picker', bay: null, isNew: true, reason: 'tmux window "bay picker"' },
+      ...branchRows().slice(1),
+    ];
+    assertGolden('bay-select-new', renderBaySelect('main', rows));
+  });
+
+  it('carries the exact literal `commands/bay.md` branches on', () => {
+    assert.match(renderBaySelect('main', branchRows()), /^SELECT A BRANCH:$/m);
+  });
+
+  it('pads the branch column to the longest branch, so the statuses line up', () => {
+    const rows = renderBaySelect('main', branchRows())
+      .split('\n')
+      .filter((line) => line.startsWith('  ') && line.includes(' · '));
+    assert.equal(rows.length, 3);
+    assert.equal(new Set(rows.map((line) => line.indexOf(' · '))).size, 1);
+  });
+
+  it('answers an empty list in one line naming the trunk and the verb, with no heading', () => {
+    assert.equal(
+      renderBaySelect('trunk', []),
+      'no branches besides trunk — name one with `waybill bay <branch>`\n',
+    );
   });
 });
 

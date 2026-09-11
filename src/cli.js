@@ -5,6 +5,7 @@ import { LEGS } from './legs.js';
 import {
   cdCommand,
   cdLines,
+  renderBaySelect,
   renderFleet,
   renderPosition,
   renderSelect,
@@ -15,8 +16,17 @@ import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
-import { checkoutRoot, defaultBranch, superprojectRoot } from './repo.js';
+import { checkoutRoot, defaultBranch, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
+import { bayCandidates, rankBranches } from './picker.js';
+import { gatherSignals } from './signals.js';
+
+/**
+ * @typedef {{out:(text:string)=>void, err:(text:string)=>void,
+ *            signals:()=>import('./signals.js').Signals}} Io
+ *   `signals` is a thunk rather than a value so the terminal is only read by the one command that
+ *   ranks by it — every other verb would otherwise pay a tmux round-trip for nothing.
+ */
 
 const USAGE = [
   'Usage: waybill <command> [options]',
@@ -32,6 +42,8 @@ const USAGE = [
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
   '  --markdown        Fence each handover command for pasting (`next`, `bay`)',
+  '  --list            List the branches a bay could be cut or reopened for, and change',
+  '                    nothing (`bay` only, and instead of a branch name)',
   '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
   '                    `git config waybill.baydir`. Relative paths resolve against the main',
   '                    checkout; the default is .claude/worktrees',
@@ -362,6 +374,37 @@ function begin(cwd, args, io) {
 }
 
 /**
+ * `waybill bay --list` — the branches a bay could be cut or reopened for, ordered by what the
+ * terminal says is being worked on, and nothing changed.
+ *
+ * It exists for `/waybill:bay` typed with no argument: a session can offer these as a menu, where
+ * a bare `bay` could only fail. That failure is still what the CLI gives a bare `bay` — the verb's
+ * contract is one branch or a usage error, and a terminal user who forgot the name is better served
+ * by being told than by a listing they did not ask for.
+ *
+ * Exit 0 even when there is nothing to list, since "no branches besides the trunk" is a complete
+ * answer rather than a failure, and the `` ! `` invocation that asks drops its Task on a non-zero
+ * exit. Everything goes to stdout, which is the only stream that invocation shows.
+ *
+ * @param {string} cwd
+ * @param {Io} io
+ * @returns {number} exit code
+ */
+function listBranches(cwd, io) {
+  const root = repoRoot(cwd, io);
+  if (root === null) return 2;
+
+  const base = defaultBranch(root);
+  const rows = rankBranches(bayCandidates(root), io.signals(), {
+    base,
+    repoName: path.basename(mainCheckout(root)),
+    isValidBranch: (name) => isValidBranch(root, name),
+  });
+  io.out(renderBaySelect(base, rows));
+  return 0;
+}
+
+/**
  * `waybill bay <branch>` — cut the branch and its bay, then hand off the leg that follows.
  *
  * Leaving the operator at a bare success message would recreate the exact gap Waybill exists to
@@ -369,9 +412,12 @@ function begin(cwd, args, io) {
  * `cwd`: the bay leg takes its stamp from the branch that is checked out, so asked from the
  * operator's tree the answer would still be "create a bay" — the leg just done.
  *
+ * `--list` is the one other thing `bay` answers, and it answers it instead of a branch rather than
+ * alongside one — see {@link listBranches}.
+ *
  * @param {string} cwd
  * @param {string[]} args
- * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @param {Io} io
  * @returns {number} exit code
  */
 function bay(cwd, args, io) {
@@ -380,10 +426,15 @@ function bay(cwd, args, io) {
   /** @type {string|undefined} */
   let bayDir;
   let markdown = false;
+  let list = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--markdown') {
       markdown = true;
+      continue;
+    }
+    if (arg === '--list') {
+      list = true;
       continue;
     }
     if (arg === '--bay-dir') {
@@ -402,6 +453,18 @@ function bay(cwd, args, io) {
       return 2;
     }
     positional.push(arg);
+  }
+
+  if (list) {
+    // Rejected rather than ignored. A branch beside `--list` is two requests, and answering either
+    // one silently drops the other. `--bay-dir` would do nothing at all: the list finds bays wherever
+    // git has them registered, not where the setting says new ones go — so accepting it would let
+    // an operator believe the listing had been narrowed to that directory when it had not.
+    if (positional.length > 0 || bayDir !== undefined) {
+      io.err(`waybill: \`--list\` takes no branch name and no \`--bay-dir\`\n${USAGE}\n`);
+      return 2;
+    }
+    return listBranches(cwd, io);
   }
 
   const [branch, ...extra] = positional;
@@ -472,13 +535,20 @@ const COMMANDS = new Map([
  * Argument parsing lives here and only here: `bin/waybill` is a wrapper around this function, and a
  * second parser in the wrapper would drift from it.
  *
+ * `signals` is injected alongside the streams because it is the same kind of thing: something
+ * outside the repository that a test must be able to replace. Left to itself, `bay --list` reads
+ * the real tmux window and shell history, and a suite run inside tmux would order its menus by
+ * whatever the developer happened to be doing.
+ *
  * @param {string[]} [argv] arguments after the program name
- * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void}} [options]
+ * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void,
+ *          signals?:()=>import('./signals.js').Signals}} [options]
  * @returns {number} exit code
  */
 export function run(argv = [], options = {}) {
   const out = options.out ?? ((text) => process.stdout.write(text));
   const err = options.err ?? ((text) => process.stderr.write(text));
+  const signals = options.signals ?? (() => gatherSignals());
   const cwd = options.cwd ?? process.cwd();
   const [name, ...args] = argv;
 
@@ -498,7 +568,7 @@ export function run(argv = [], options = {}) {
     err(`waybill: unknown command \`${name}\`\n${USAGE}\n`);
     return 2;
   }
-  return command(cwd, args, { out, err });
+  return command(cwd, args, { out, err, signals });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

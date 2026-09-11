@@ -101,7 +101,8 @@ step.
 | Command | Slash command | Answers |
 | --- | --- | --- |
 | `waybill new` | `/waybill:new` | Begin an effort: the first leg's waybill, and nothing else |
-| `waybill bay <branch>` | `/waybill:bay` | Cut the branch and its bay, then hand off the leg that follows |
+| `waybill bay <branch>` | `/waybill:bay [<branch>]` | Cut the branch and its bay, then hand off the leg that follows |
+| `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>]` | `/waybill:next` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
 
@@ -155,6 +156,31 @@ same waybill as markdown instead, the position in a `text` fence and each comman
 included — in a fence of its own, so a chat client gives every one its own copy button.
 `/waybill:next` and `/waybill:bay` ask for that form; `--json` and `--markdown` cannot be combined.
 `waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag.
+
+`waybill bay` needs exactly one branch; a bare `waybill bay` is a usage error. `waybill bay --list`
+is what to ask instead when you have not decided: every local branch but the trunk (and whatever the
+main checkout has checked out, which git will not give a bay), the ones without a bay first. It
+exits 0 and changes nothing, even when the only answer is `no branches besides main`:
+
+```
+SELECT A BRANCH:
+  feat/bay-picker     · no bay · tmux window "bay picker"
+  fix/stamp-scoping   · no bay
+  ideation/fleet-view · bay at /repo/.claude/worktrees/waybill-ideation-fleet-view
+
+  waybill bay <branch>
+```
+
+The list is ordered by what your terminal says you are working on. A branch the **tmux window**
+names comes first, then branches named in your recent **shell history** (`git checkout -b`,
+`git switch`, `git worktree add -b`, `waybill bay` and the like, in the last 500 lines of
+`$HISTFILE`, `~/.zsh_history` or `~/.bash_history`), then the **tmux session** name, then the pane
+title — matched on the whole name or its last segment, ignoring case, spaces, `-` and `_`. Every
+promoted row says why. When nothing existing matches but the tmux window has a real name, a
+`feat/<window>` branch is suggested first, marked `new`. Each source is read best-effort and skipped
+silently when it is not there; iTerm tab titles are not read, since that needs an `osascript`
+permission prompt and answers for the frontmost window rather than yours. `/waybill:bay` with no
+argument runs `--list`, offers the first four rows as a menu, and cuts the one you choose.
 
 All four warn when a paper directory is git-ignored in the host repository — `next` and `status`
 before their position block, `new` in the leg-1 waybill it prints, and `bay` in the waybill it

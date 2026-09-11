@@ -13,5 +13,6 @@ import './fleet.test.js';
 import './frontmatter.test.js';
 import './inference.test.js';
 import './inspection-gitignore.test.js';
+import './picker.test.js';
 import './repo.test.js';
 import './waybill.test.js';
