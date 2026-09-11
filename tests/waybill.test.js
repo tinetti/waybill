@@ -5,7 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { cdLines, renderFleet, renderPosition, renderSelect, renderWaybill } from '../src/waybill.js';
+import {
+  cdLines,
+  renderBaySelect,
+  renderFleet,
+  renderPosition,
+  renderSelect,
+  renderWaybill,
+} from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
@@ -254,6 +261,53 @@ describe('renderSelect', () => {
   it('lists the same dockets in the same order as the fleet view', () => {
     const rows = (text) => text.split('\n').filter((line) => line.includes(' · ') && line.startsWith('  '));
     assert.deepEqual(rows(renderSelect('main', dockets(), CLEAN)), rows(renderFleet('main', dockets(), CLEAN)));
+  });
+});
+
+/**
+ * The rows `rankBranches` hands the renderer: one promoted by a signal, one plain, one with a bay.
+ * Three widths again, for the padding.
+ *
+ * @returns {import('../src/picker.js').BranchRow[]}
+ */
+function branchRows() {
+  return [
+    { branch: 'feat/session-handover', bay: null, isNew: false, reason: 'tmux window "session-handover"' },
+    { branch: 'fix/stamp-scoping', bay: null, isNew: false, reason: null },
+    { branch: 'ideation/fleet-view', bay: '/repo/.claude/worktrees/waybill-ideation-fleet-view', isNew: false, reason: null },
+  ];
+}
+
+describe('renderBaySelect', () => {
+  it('renders the branch menu `waybill bay --list` prints', () => {
+    assertGolden('bay-select', renderBaySelect('main', branchRows()));
+  });
+
+  it('renders a suggested new branch first, marked new, with the signal behind it', () => {
+    const rows = [
+      { branch: 'feat/bay-picker', bay: null, isNew: true, reason: 'tmux window "bay picker"' },
+      ...branchRows().slice(1),
+    ];
+    assertGolden('bay-select-new', renderBaySelect('main', rows));
+  });
+
+  it('carries the exact literal `commands/bay.md` branches on', () => {
+    assert.match(renderBaySelect('main', branchRows()), /^SELECT A BRANCH:$/m);
+  });
+
+  it('pads the branch column to the longest branch, so the statuses line up', () => {
+    const rows = renderBaySelect('main', branchRows())
+      .split('\n')
+      .filter((line) => line.startsWith('  ') && line.includes(' · '));
+    assert.equal(rows.length, 3);
+    assert.equal(new Set(rows.map((line) => line.indexOf(' · '))).size, 1);
+  });
+
+  it('answers an empty list in one line naming the trunk and the verb, with no heading', () => {
+    assert.equal(
+      renderBaySelect('trunk', []),
+      'no branches besides trunk — name one with `waybill bay <branch>`\n',
+    );
   });
 });
 

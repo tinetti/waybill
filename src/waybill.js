@@ -348,3 +348,44 @@ export function renderSelect(branch, dockets, inspection = { ignored: [], warnin
   const choice = `${docketBlock('SELECT A DOCKET:', dockets)}\n\n${INDENT}waybill next <branch>`;
   return withFindings([fleetHeader(branch, dockets), choice], fleetWarnings(dockets), inspection);
 }
+
+/**
+ * What one menu row says about its branch: whether `bay` would cut something or merely point at
+ * what is there, and — when a terminal signal moved it up the list — which one, so a row that
+ * jumped ahead of git's order is never unexplained.
+ *
+ * @param {import('./picker.js').BranchRow} row
+ * @returns {string}
+ */
+function branchStatus(row) {
+  const status = row.isNew ? 'new' : row.bay === null ? 'no bay' : `bay at ${row.bay}`;
+  return row.reason === null ? status : `${status} · ${row.reason}`;
+}
+
+/**
+ * The branches `waybill bay` could be pointed at, for `waybill bay --list`.
+ *
+ * `SELECT A BRANCH:` is an exact literal for the reason `SELECT A DOCKET:` is one: `commands/bay.md`
+ * keys its menu on finding it. The empty answer is keyed on too — `no branches besides` — and gets
+ * one line with no heading, since a heading over nothing reads as a list that failed to render.
+ *
+ * No findings and no warnings: this lists branches, and nothing has been resolved for any of them
+ * that could have raised one. The rows arrive already ordered by `rankBranches` (`src/picker.js`),
+ * so the renderer stays pure and the ranking stays testable without a terminal.
+ *
+ * @param {string} base the trunk, named in the empty answer so it is clear what was left out
+ * @param {import('./picker.js').BranchRow[]} rows
+ * @returns {string} ends with exactly one newline
+ */
+export function renderBaySelect(base, rows) {
+  if (rows.length === 0) return `no branches besides ${base} — name one with \`waybill bay <branch>\`\n`;
+
+  const width = Math.max(...rows.map((row) => row.branch.length));
+  return [
+    'SELECT A BRANCH:',
+    ...rows.map((row) => `${INDENT}${row.branch.padEnd(width)} · ${branchStatus(row)}`),
+    '',
+    `${INDENT}waybill bay <branch>`,
+    '',
+  ].join('\n');
+}
