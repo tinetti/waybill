@@ -6,10 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
-import { renderSelect, renderWaybill } from '../src/waybill.js';
+import { renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
 import { parseFrontmatter } from '../src/frontmatter.js';
 import { loadBookings } from '../src/bookings.js';
-import { cleanupAll, tempRoot, writeFile } from './helpers/repo-fixture.js';
+import { cleanupAll, createRepo, git, tempRoot, writeFile } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
 
@@ -255,6 +255,116 @@ describe('the shipped command set', () => {
       'next.md',
     );
     assert.match(meta['allowed-tools'] ?? '', /\bAskUserQuestion\b/);
+  });
+});
+
+/**
+ * The one `` ! `` line a command file runs, as the text between its backticks.
+ *
+ * HTML comments are skipped for the reason the spelling sweep above skips them: they are where a
+ * line is quoted to be explained, and extracting one of those would test the documentation.
+ *
+ * @param {string} rel
+ * @returns {string}
+ */
+function bangLine(rel) {
+  let inComment = false;
+  for (const line of fs.readFileSync(path.join(COMMANDS, ...rel.split('/')), 'utf8').split('\n')) {
+    if (line.includes('<!--')) inComment = true;
+    const commented = inComment;
+    if (line.includes('-->')) inComment = false;
+    if (!commented && line.startsWith('!`') && line.endsWith('`')) return line.slice(2, -1);
+  }
+  throw new Error(`${rel} has no \`!\` line`);
+}
+
+/**
+ * Run a command file's `` ! `` line the way Claude Code does: both placeholders rewritten out of
+ * the text first, then the result handed to a shell.
+ *
+ * The environment is built rather than inherited. `bay --list` reads the tmux window and the shell
+ * history it runs under, so an inherited `TMUX` or `HOME` would let the developer's own terminal
+ * reorder the menu this asserts on.
+ *
+ * @param {string} rel
+ * @param {string} args what `$ARGUMENTS` is replaced with
+ * @param {string} cwd
+ * @returns {import('node:child_process').SpawnSyncReturns<string>}
+ */
+function runBang(rel, args, cwd) {
+  const script = bangLine(rel)
+    .replaceAll('${CLAUDE_PLUGIN_ROOT}', ROOT)
+    .replaceAll('$ARGUMENTS', args);
+  return spawnSync('bash', ['-c', script], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      HOME: tempRoot(),
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+    },
+  });
+}
+
+describe('`/waybill:bay` with and without a branch', () => {
+  it('routes an empty argument to `bay --list` and a named branch to `bay <branch>`', () => {
+    // Each invocation is matched up to its last argument and no further, so a redirect or `||`
+    // appended after it — the shape the exit-guard change gives every `!` line — still passes.
+    const line = bangLine('bay.md');
+    assert.match(line, /if \[ -z "\$ARGUMENTS" \]; then node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" bay --list\b/);
+    assert.match(line, /else node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" bay "\$ARGUMENTS"/);
+    // The plugin-root guard is still the outermost test, so a broken install reports itself once
+    // rather than once per branch of the argument test.
+    assert.match(line, /^if \[ -f "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" \]; then /);
+    assert.match(line, /else echo "waybill: CLAUDE_PLUGIN_ROOT is unset/);
+  });
+
+  it('actually runs: an empty argument prints the branch menu and exits 0', () => {
+    const repo = createRepo();
+    git(repo, ['branch', 'feat/picked']);
+
+    const result = runBang('bay.md', '', repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /^SELECT A BRANCH:\n {2}feat\/picked · no bay\n/);
+  });
+
+  it('actually runs: a named branch still cuts its bay', () => {
+    const repo = createRepo();
+
+    const result = runBang('bay.md', 'feat/named', repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^bay created at /);
+  });
+
+  it('keys the branch menu on the heading and the empty answer the renderer actually emits', () => {
+    // Asserted against the renderer's output rather than a hand-typed copy, for the reason the
+    // `next` check above gives: reword the heading and the prompt silently turns off.
+    const heading = renderBaySelect('main', [{ branch: 'feat/x', bay: null, isNew: false, reason: null }])
+      .split('\n')
+      .find((line) => line.endsWith(':'));
+    const empty = renderBaySelect('main', []).split(' — ')[0].replace(/ main$/, '');
+
+    const source = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.ok(heading && source.includes(heading), `commands/bay.md does not branch on \`${heading}\``);
+    assert.ok(source.includes(empty), `commands/bay.md does not branch on \`${empty}\``);
+    assert.match(source, /\*\*verbatim\*\*/, 'commands/bay.md no longer states the verbatim rule');
+  });
+
+  it('declares AskUserQuestion on `bay`\'s allowed-tools line, and nothing beyond what it runs', () => {
+    const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
+    assert.deepEqual(
+      (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim()),
+      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion'],
+    );
+  });
+
+  it('shows the branch as optional in the argument hint', () => {
+    const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
+    assert.match(meta['argument-hint'] ?? '', /^\[/);
   });
 });
 

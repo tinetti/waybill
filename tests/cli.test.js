@@ -55,11 +55,16 @@ function isolated(fn) {
  * removes it: the golden comparison is byte-exact, and a CLI installed on the developer's machine
  * must not be able to change what is rendered.
  *
+ * The operator's shell is kept out for the same reason: `bay --list` ranks by the tmux window and
+ * the shell history it runs under, and a suite run inside tmux, by someone with a history, would
+ * otherwise order its rows by the developer's afternoon.
+ *
  * @param {string[]} argv
  * @param {string} cwd
+ * @param {import('../src/signals.js').Signals} [signals] what the shell is taken to say
  * @returns {{code:number, out:string, err:string}}
  */
-function cli(argv, cwd) {
+function cli(argv, cwd, signals = { tmux: null, history: [] }) {
   let out = '';
   let err = '';
   const code = isolated(() =>
@@ -72,6 +77,7 @@ function cli(argv, cwd) {
         err: (text) => {
           err += text;
         },
+        signals: () => signals,
       }),
     ),
   );
@@ -670,6 +676,103 @@ describe('waybill bay', () => {
     // An alias would be a second name to document and keep in step forever, so usage must not
     // offer the old verb back either.
     assert.equal(/^ {2}start /m.test(result.err), false, '`start` is still listed in usage');
+  });
+});
+
+describe('waybill bay --list', () => {
+  it('lists branches without a bay first, then those with one, and exits 0', () => {
+    const { repo, bays } = trunkWith('feat/has-bay');
+    git(repo, ['branch', 'feat/no-bay']);
+
+    const result = cli(['bay', '--list'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    assert.deepEqual(result.out.split('\n'), [
+      'SELECT A BRANCH:',
+      '  feat/no-bay  · no bay',
+      `  feat/has-bay · bay at ${bays[0]}`,
+      '',
+      '  waybill bay <branch>',
+      '',
+    ]);
+  });
+
+  it('touches nothing — no branch, no bay, no exclude line', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    git(repo, ['branch', 'feat/listed']);
+    const before = [git(repo, ['for-each-ref']), git(repo, ['worktree', 'list', '--porcelain'])];
+    const exclude = path.join(repo, '.git', 'info', 'exclude');
+    const excludeBefore = fs.readFileSync(exclude, 'utf8');
+
+    cli(['bay', '--list'], repo);
+
+    assert.deepEqual([git(repo, ['for-each-ref']), git(repo, ['worktree', 'list', '--porcelain'])], before);
+    assert.equal(fs.readFileSync(exclude, 'utf8'), excludeBefore);
+  });
+
+  it('says there is nothing to list in one line, naming the trunk, and still exits 0', () => {
+    const result = cli(['bay', '--list'], createRepo());
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out, 'no branches besides main — name one with `waybill bay <branch>`\n');
+  });
+
+  it('puts the branch the tmux window names first, and says why', () => {
+    const { repo } = trunkWith('feat/has-bay');
+    git(repo, ['branch', 'feat/no-bay']);
+
+    const result = cli(['bay', '--list'], repo, {
+      tmux: { session: 'repo', window: 'has-bay', pane: '' },
+      history: [],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^SELECT A BRANCH:\n {2}feat\/has-bay · bay at .* · tmux window "has-bay"\n/);
+  });
+
+  it('suggests a new branch from the tmux window, checked against git\'s own ref rules', () => {
+    const repo = createRepo();
+
+    const result = cli(['bay', '--list'], repo, {
+      tmux: { session: 'repo', window: 'bay picker', pane: '' },
+      history: [],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^SELECT A BRANCH:\n {2}feat\/bay-picker · new · tmux window "bay picker"\n/);
+  });
+
+  it('rejects a branch name alongside --list, on stderr, rather than guessing which was meant', () => {
+    const repo = createRepo();
+
+    for (const argv of [['bay', '--list', 'feat/x'], ['bay', 'feat/x', '--list']]) {
+      const result = cli(argv, repo);
+      assert.equal(result.code, 2);
+      assert.equal(result.out, '');
+      assert.match(result.err, /`--list` takes no branch name/);
+    }
+  });
+
+  it('rejects --bay-dir alongside --list, since the list finds bays wherever they are', () => {
+    const result = cli(['bay', '--list', '--bay-dir', 'bays'], createRepo());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.match(result.err, /`--list` takes no .*`--bay-dir`/);
+  });
+
+  it('explains itself in one line outside a repository and exits 2', () => {
+    const result = cli(['bay', '--list'], tempRoot());
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, '');
+    assert.equal(result.err.trimEnd().split('\n').length, 1, `not one line: ${result.err}`);
+    assert.match(result.err, /not inside a git repository/);
+  });
+
+  it('is listed in usage', () => {
+    assert.match(cli(['--help'], tempRoot()).out, /--list/);
   });
 });
 

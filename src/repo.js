@@ -88,6 +88,33 @@ export function listWorktrees(cwd) {
   return records;
 }
 
+/**
+ * Every local branch, in git's own order — sorted by ref name, so the same set of branches always
+ * lists the same way and a menu built from it can be asserted on.
+ *
+ * `for-each-ref` rather than `git branch`, whose `* ` and `+ ` markers would have to be stripped by
+ * hand; it is the same reason {@link isMerged} asks for a `--format`.
+ *
+ * @param {string} cwd
+ * @returns {string[]} empty outside a repository, or in one with no commits yet
+ */
+export function localBranches(cwd) {
+  const listing = tryGit(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/']);
+  return listing ? listing.split('\n').filter(Boolean) : [];
+}
+
+/**
+ * Whether git would accept `name` as a new branch — the same check `openBay` makes before it
+ * mutates anything, asked here as a query so a *suggested* name is never one `bay` then refuses.
+ *
+ * @param {string} cwd
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isValidBranch(cwd, name) {
+  return tryGit(cwd, ['check-ref-format', '--branch', name]) !== null;
+}
+
 /** Where bays go when nothing says otherwise: inside the main checkout, beside the other tooling. */
 const DEFAULT_BAY_DIR = '.claude/worktrees';
 
