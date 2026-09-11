@@ -220,7 +220,7 @@ describe('the CLI', () => {
     );
 
     assert.equal(code, 0);
-    assert.match(output, /^ {2}\/mar feat\/thing$/m);
+    assert.match(output, /^\/mar feat\/thing$/m);
     assert.match(output, /overlay-model/);
     assert.equal(output.includes('/waybill:cleanup'), false);
   });

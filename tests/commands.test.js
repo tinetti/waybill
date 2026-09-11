@@ -256,6 +256,34 @@ describe('the shipped command set', () => {
     );
     assert.match(meta['allowed-tools'] ?? '', /\bAskUserQuestion\b/);
   });
+
+  it('asks the CLI for markdown in `next` and `bay`, the re-run after selection included', () => {
+    // The fences have to come from the tool, where a golden pins them, rather than from a session
+    // reformatting plain text — so both waybill-showing commands must request them.
+    const source = (rel) => fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
+    assert.ok(source('next.md').includes('cli.js" next --markdown'));
+    assert.ok(source('next.md').includes('next --markdown <branch>'));
+    assert.ok(source('bay.md').includes('cli.js" bay --markdown'));
+    assert.ok(source('bay.md').includes(`bay --markdown '<branch>'`), 'the re-run after the branch menu');
+    assert.equal(source('new.md').includes('--markdown'), false, '`new` rejects the option');
+  });
+
+  it('tells `new` to run only the last command line, and never /clear, /model or /effort', () => {
+    // Read literally against the command list, a session could run `/clear` — erasing its own
+    // instruction — or `/model`, which changes the operator's default for every later session.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    assert.match(source, /only the last/);
+    for (const command of ['/clear', '/model', '/effort']) {
+      assert.ok(source.includes(`\`${command}\``), `new.md does not name ${command}`);
+    }
+  });
+
+  it('points no command file at the removed "then run:" handover line', () => {
+    for (const rel of ['new.md', 'next.md', 'bay.md']) {
+      const source = fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
+      assert.equal(/then run:/.test(source), false, rel);
+    }
+  });
 });
 
 /**
@@ -308,12 +336,12 @@ function runBang(rel, args, cwd) {
 }
 
 describe('`/waybill:bay` with and without a branch', () => {
-  it('routes an empty argument to `bay --list` and a named branch to `bay <branch>`', () => {
+  it('routes an empty argument to `bay --list` and a named branch to `bay --markdown <branch>`', () => {
     // Each invocation is matched up to its last argument and no further, so a redirect or `||`
     // appended after it — the shape the exit-guard change gives every `!` line — still passes.
     const line = bangLine('bay.md');
     assert.match(line, /if \[ -z "\$ARGUMENTS" \]; then node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" bay --list\b/);
-    assert.match(line, /else node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" bay "\$ARGUMENTS"/);
+    assert.match(line, /else node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" bay --markdown "\$ARGUMENTS"/);
     // The plugin-root guard is still the outermost test, so a broken install reports itself once
     // rather than once per branch of the argument test.
     assert.match(line, /^if \[ -f "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" \]; then /);
@@ -442,7 +470,7 @@ describe('the worked alternative binding in examples/', () => {
       warnings: [],
     });
 
-    assert.match(waybill, /^ {2}superpowers:subagent-driven-development$/m);
+    assert.match(waybill, /^superpowers:subagent-driven-development$/m);
     assert.equal(waybill.includes('subagent-driven-development add-thing'), false);
   });
 });

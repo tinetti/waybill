@@ -33,20 +33,23 @@ No `:-.` fallback on `CLAUDE_PLUGIN_ROOT`, for the same reason as `next`: fallin
 operator's cwd points the command at `./src/cli.js` in *their* repository, where it does not exist.
 -->
 
-!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then if [ -z "$ARGUMENTS" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --list; else node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay "$ARGUMENTS"; fi; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
+!`if [ -f "${CLAUDE_PLUGIN_ROOT}/src/cli.js" ]; then if [ -z "$ARGUMENTS" ]; then node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --list; else node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --markdown "$ARGUMENTS"; fi; else echo "waybill: CLAUDE_PLUGIN_ROOT is unset or does not point at the Waybill plugin directory — cannot locate src/cli.js"; fi`
 
 ## Task
 
 Show the block above to me **verbatim** — same lines, same order, same glyphs. Do not summarise it,
 re-word it, re-order it, or add commentary of your own. It is already the whole answer.
 
-The `cd` line is the one instruction in Waybill meant for my shell rather than for a session: do not
+It is markdown, with each command in a fence of its own so that each gets its own copy button: show
+it as markdown, and do not wrap it in a further fence.
+
+The `cd` command is the one instruction in Waybill meant for my shell rather than for a session: do not
 run it, and do not offer to. Nothing you do here can move me into the new bay — that is why the
 path is printed.
 
-Then stop. Running the command the waybill names is the next session's job, not this one's: the
-handover line says whether to `/clear` first, and acting on it here would spend the context the
-waybill is trying to hand over.
+Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
+first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
+would spend the context the waybill is trying to hand over.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.
@@ -80,7 +83,7 @@ Do not invent a branch, and do not pick one for me from whatever we were last wo
 **2. Run `bay` for the branch I chose**, with the same `node` path the block above ran:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay '<branch>'
+node "${CLAUDE_PLUGIN_ROOT}/src/cli.js" bay --markdown '<branch>'
 ```
 
 Strip any ` (Recommended)` suffix first — it is a label, not part of the name. Wrap the name in
@@ -89,5 +92,5 @@ escape it: say it cannot be used as given and ask me again. Not `waybill bay <br
 printed for *me*, and assumes a `waybill` on my PATH that a plugin install never puts there.
 
 **3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, the
-`cd` line left for me, and then stop. If it fails instead, show its error verbatim and stop; do not
+`cd` command left for me, and then stop. If it fails instead, show its error verbatim and stop; do not
 retry with a different name unless I give you one.

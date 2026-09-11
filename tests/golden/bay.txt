@@ -3,9 +3,9 @@ feat/thing · leg 2 of 7 (bay)
   ▶ bay
 
 NEXT:
-  run:
-  /waybill:bay
-  └ haiku · low effort
+/model haiku
+/effort low
+/waybill:bay
 
   Cut the feature branch and its isolated bay, then move into it — every leg after this one happens
   in the new bay. Pass the branch name as the argument (`feat/<short-name>`) and read the `cd` line

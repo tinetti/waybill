@@ -90,8 +90,8 @@ describe('swapping one booking', () => {
     writeFile(path.join(dir, 'openspec-execute.md'), ALTERNATE);
     const after = renderWaybill(resolve(fixture.dir, load(dir)), clean);
 
-    assert.match(after, /^ {2}\/ideation:execute-spec/m);
+    assert.match(after, /^\/ideation:execute-spec/m);
     assert.equal(after.includes('/spec:apply'), false);
-    assert.match(after, /^ {2}\/clear, then run:$/m);
+    assert.match(after, /^\/clear$/m);
   });
 });

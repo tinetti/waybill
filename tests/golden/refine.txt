@@ -3,9 +3,10 @@ feat/thing · leg 3 of 7 (refine)
   ▶ refine
 
 NEXT:
-  /clear, then run:
-  /ideation:ideation
-  └ opus · high effort
+/clear
+/model opus
+/effort high
+/ideation:ideation
 
   Run the ideation interview. Push on scope, sequencing, and the decisions worth recording as
   rejected, and keep going until the shape of the work is settled rather than merely described.

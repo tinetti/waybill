@@ -6,6 +6,7 @@ IN BAY:
   cd /repo/.claude/worktrees/waybill-feat-session-handover
 
 NEXT:
-  /clear, then run:
-  /spec:propose add-session-handover
-  └ placeholder-model · high effort
+/clear
+/model placeholder-model
+/effort high
+/spec:propose add-session-handover

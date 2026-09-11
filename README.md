@@ -14,12 +14,17 @@ feat/session-handover · leg 5 of 7 (specs)
   ▶ specs
 
 NEXT:
-  /clear, then run:
-  /spec:propose add-session-handover
-  └ opus · high effort
+/clear
+/model opus
+/effort high
+/spec:propose add-session-handover
 
   Scaffold the change: proposal, spec deltas, design notes, and a tasks list. …
 ```
+
+The NEXT block is the handover itself rather than a description of it: each command sits on its own
+line, to be pasted on its own, in order. They cannot share one paste — Claude Code submits a
+multi-line paste as a single input, so `/model` would take the lines after it as its argument.
 
 There is no state file and nothing to keep in sync, because nothing is being tracked. Every leg is
 judged by its **stamp** — a mark left on the docket itself: a branch, a bay, a file on disk, a
@@ -146,8 +151,11 @@ the session's `` ! `` invocation captures stdout only.
 
 `waybill next --json` prints the raw resolved state for scripts, and an object in the non-zero cases
 too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so the fleet is machine-
-readable without a second surface. `waybill status` takes no options; the fleet view is chosen by
-where you stand, not by a flag.
+readable without a second surface. `waybill next --markdown` and `waybill bay --markdown` print the
+same waybill as markdown instead, the position in a `text` fence and each command — the bay's `cd`
+included — in a fence of its own, so a chat client gives every one its own copy button.
+`/waybill:next` and `/waybill:bay` ask for that form; `--json` and `--markdown` cannot be combined.
+`waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag.
 
 `waybill bay` needs exactly one branch; a bare `waybill bay` is a usage error. `waybill bay --list`
 is what to ask instead when you have not decided: every local branch but the trunk (and whatever the
@@ -232,13 +240,18 @@ leg: execute                    # which leg this books
 command: /spec:apply            # what the waybill tells the next session to run
 model: opus                     # the model that leg wants
 effort: high                    # optional
-handover: transfer              # transfer (/clear first) | through (keep going)
+handover: transfer              # transfer (a /clear first) | through (none) | else: shown as-is
 argument: change-id             # change-id (default) | branch | none
 stampPath: openspec/changes/*/tasks.md   # at least one stamp is required
 stampCmd: test -f Makefile               # judged by exit code
 ---
 Everything below the fence is the waybill text, rendered verbatim.
 ```
+
+The NEXT block lists `/model`, then `/effort` when the booking declares one, then the command.
+`handover` decides what comes ahead of them: `transfer` adds a leading `/clear` command, `through`
+adds nothing, and any other value is printed verbatim above the commands, so a booking can ask for
+a handover Waybill never anticipated.
 
 `handover: transfer` is not an apology. Handlers are amnesiac by design: each session starts empty,
 reads one waybill, runs one leg, and leaves its mark on the docket. `/clear` between legs is the
