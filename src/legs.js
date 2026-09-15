@@ -19,7 +19,8 @@ import { inBay, isMerged, resolveBayPath } from './repo.js';
  *
  * `owner` says who supplies the *stamp*, not who supplies the waybill — the two wrapper-owned
  * legs still take their command and model from a booking, because the anchor and the terminus
- * must be relied on while everything they hand to is swappable.
+ * must be relied on while everything they hand to is swappable. A `progress` leg's stamp is further
+ * held to the docket's own task count — see `legIsDone` in `inference.js`.
  *
  * @type {Leg[]}
  */

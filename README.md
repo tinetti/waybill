@@ -48,24 +48,28 @@ reference.
 | 2 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
 | 3 | `refine` | `docs/ideation/*/contract-data.json` | `bookings/ideation-refine.md` |
 | 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
-| 5 | `specs` | `openspec/changes/*/tasks.md` | `bookings/openspec-specs.md` |
-| 6 | `execute` | every checkbox in `tasks.md` ticked | `bookings/openspec-execute.md` |
+| 5 | `specs` | `openspec/changes/**/tasks.md` — active or archived | `bookings/openspec-specs.md` |
+| 6 | `execute` | as row 5, **and** every checkbox in this branch's active change ticked | `bookings/openspec-execute.md` |
 | 7 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
 
 Legs 2 and 7 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
 anchor and the terminus have to be relied on while everything they hand to is swappable. They still
 take their command, model, and prose from a booking like every other leg.
 
-Every path glob above — rows 3, 4 and 5 — is scoped to the docket. A file only stamps its leg when
+Every path glob above — rows 3 to 6 — is scoped to the docket. A file only stamps its leg when
 it is also part of what this branch changed against the default branch: committed on the branch,
 staged, unstaged, or untracked. Papers that shipped with an earlier change are on disk in every
 worktree and stamp nothing. When Waybill cannot work out that diff at all it stamps nothing either,
 and says so under `WARNINGS:` — visibly unable to tell beats invisibly wrong.
 
-`stampCmd` bookings receive no such scoping — row 6 is the only shipped one that can ever succeed,
-and it runs against the repository as it stands, so a command that greps a directory tree can still
-match papers left over from history. On the default branch that no longer matters: with no docket
-open, nothing is reported as stamped at all.
+Row 6 is also held to the progress count the waybill prints, for the change this branch touches:
+a change still in flight keeps the leg open, and `0 of 0` is not finished. An archived change has
+no active change left to count, so its `tasks.md` under `openspec/changes/archive/` is the stamp.
+Checkboxes in changes inherited from the trunk count for nothing.
+
+`stampCmd` bookings receive no such scoping: a command runs against the repository as it stands, so
+one that greps a directory tree can still match papers left over from history. On the default
+branch that no longer matters: with no docket open, nothing is reported as stamped at all.
 
 ## Install
 
@@ -262,7 +266,7 @@ model: opus                     # the model that leg wants
 effort: high                    # optional
 handover: transfer              # transfer (a /clear first) | through (none) | else: shown as-is
 argument: change-id             # change-id (default) | branch | none
-stampPath: openspec/changes/*/tasks.md   # at least one stamp is required
+stampPath: openspec/changes/**/tasks.md  # at least one stamp is required
 stampCmd: test -f Makefile               # judged by exit code
 ---
 Everything below the fence is the waybill text, rendered verbatim.

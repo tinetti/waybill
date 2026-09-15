@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { LEGS } from '../src/legs.js';
 import { resolveLeg } from '../src/inference.js';
 import { executeProgress } from '../src/progress.js';
-import { loadBookings } from '../src/bookings.js';
+import { BUILTIN_BOOKINGS, loadBookings } from '../src/bookings.js';
 import { renderWaybill } from '../src/waybill.js';
 import {
   addSubmodule,
@@ -177,11 +177,11 @@ describe('resolveLeg', () => {
 
   it('adopts the CLI change id when the filesystem walk found none', () => {
     // The one case where the two sources disagree: `discoverChangeId` skips `archive` while the
-    // specs stamp's `openspec/changes/*/tasks.md` still matches it, so the leg is `execute`
+    // specs stamp's `openspec/changes/**/tasks.md` still matches it, so the leg is `execute`
     // with no id from disk. Phase 3 interpolates this id into the waybill command. The change is the
     // branch's own through its proposal alone, which the walk cannot see and the CLI can.
     const { dir } = specsFixture();
-    writeFile(path.join(dir, 'openspec', 'changes', 'archive', 'tasks.md'), '- [ ] a\n');
+    writeFile(path.join(dir, 'openspec', 'changes', 'archive', '2026-01-01-old', 'tasks.md'), '- [x] a\n');
     writeFile(path.join(dir, 'openspec', 'changes', CHANGE_ID, 'proposal.md'), '# Proposal\n');
 
     const listing = JSON.stringify({
@@ -390,6 +390,16 @@ describe('shipped papers do not stamp a docket', () => {
     assert.equal(state.changeId, null);
   });
 
+  it('does not stamp execute in a fresh bay from a finished change on the trunk', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    commitPapers(repo, { 'openspec/changes/add-thing/tasks.md': '- [x] a\n- [x] b\n' });
+    const bay = addWorktree(repo, 'feat/thing');
+
+    const state = resolve(bay);
+    assert.deepEqual(state.completed, ['ideate', 'bay']);
+    assert.deepEqual(state.skipped, []);
+  });
+
   it('stamps refine once this docket writes its own papers', () => {
     const repo = createRepo({ remote: true, originHead: true });
     commitPapers(repo, { 'docs/ideation/shipped/contract-data.json': '{}\n' });
@@ -468,16 +478,42 @@ describe('the change id is scoped to the branch', () => {
   });
 
   it('does not adopt an inherited change the openspec CLI lists', () => {
-    // The specs stamp matches the archive's tasks.md, so the leg is execute with no id from disk —
-    // exactly the case where the CLI's own pick would otherwise be taken.
+    // Bookings that put the docket at execute with no change of its own on disk — exactly the case
+    // where the CLI's own pick would otherwise be taken.
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
-    writeFile(path.join(bay, 'openspec', 'changes', 'archive', 'tasks.md'), '- [ ] a\n');
+    const bookings = new Map([...loadBookings(BUILTIN_BOOKINGS, { knownLegs: KNOWN_LEGS }), ...bookingMap({
+      'specs.md': ['---', 'leg: specs', 'command: /s', 'model: m', 'stampPath: docs/ideation/*/contract.md', '---', ''].join('\n'),
+      'execute.md': ['---', 'leg: execute', 'command: /e', 'model: m', 'stampCmd: exit 1', '---', ''].join('\n'),
+    })]);
     const stub = listStub([{ name: 'inherited', completedTasks: 0, totalTasks: 1 }]);
 
-    const state = withPath(`${stub}:${absent()}`, () => resolveLeg(bay));
+    const state = withPath(`${stub}:${absent()}`, () => resolveLeg(bay, bookings));
     assert.equal(state.leg, 'execute');
     assert.equal(state.changeId, null);
     assert.equal(state.progress.changeId, null);
+  });
+
+  it('reads an archived change of this docket as specs and execute done', () => {
+    const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
+    writeFile(path.join(bay, 'openspec', 'changes', 'archive', '2026-09-15-mine', 'tasks.md'), '- [x] a\n- [x] b\n');
+
+    const state = resolve(bay);
+    assert.deepEqual(state.completed, ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute']);
+    assert.equal(state.leg, 'cleanup');
+  });
+
+  it('stamps execute on the docket\'s own finished change despite an unfinished inherited one', () => {
+    const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
+    writeFile(path.join(bay, 'openspec', 'changes', 'mine', 'tasks.md'), '- [x] a\n');
+
+    assert.equal(resolve(bay).leg, 'cleanup');
+  });
+
+  it('does not stamp execute on a docket\'s own change with no tasks in it', () => {
+    const bay = docketAfter({ 'README.md': '# Repo\n' });
+    writeFile(path.join(bay, 'openspec', 'changes', 'mine', 'tasks.md'), '# Tasks\n');
+
+    assert.equal(resolve(bay).leg, 'execute');
   });
 
   it('names no change when the branch diff cannot be computed', () => {

@@ -15,9 +15,10 @@ import { discoverChangeId, executeProgress } from './progress.js';
  * @param {import('./legs.js').RepoState} state
  * @param {Map<string, import('./bookings.js').Booking>} bookings
  * @param {string[]} warnings collected in place
+ * @param {() => ReturnType<typeof executeProgress>} progress the docket's execute progress, on demand
  * @returns {boolean}
  */
-function legIsDone(leg, state, bookings, warnings) {
+function legIsDone(leg, state, bookings, warnings, progress) {
   if (leg.id === 'bay') return bayIsDone(state);
   if (leg.id === 'cleanup') return cleanupIsDone(state);
 
@@ -26,7 +27,14 @@ function legIsDone(leg, state, bookings, warnings) {
 
   const result = evaluateBooking(booking, state.root, state.changed);
   warnings.push(...result.warnings);
-  return result.done;
+  if (!result.done || !leg.progress) return result.done;
+
+  // A stamp cannot count checkboxes, and a shell command that tries sees every change on disk,
+  // inherited ones included. So a progress leg is also held to the branch-scoped count the waybill
+  // prints: a change of the docket's own still in flight keeps the leg open, and `0 of 0` is not
+  // finished. With no active change of its own — archived, or never scaffolded — the stamp decides.
+  const { done, total, changeId } = progress();
+  return changeId === null || (total > 0 && done === total);
 }
 
 /**
@@ -102,14 +110,20 @@ export function resolveLeg(cwd, bookings) {
   /** @type {import('./legs.js').RepoState} */
   const state = { cwd: anchor, root, branch, base, docketOpen, changed };
 
+  // Asked for at most once, and only when a progress leg's stamp passes or the walk stops on it:
+  // with the openspec CLI on PATH it costs a subprocess.
+  /** @type {ReturnType<typeof executeProgress>|undefined} */
+  let progress;
+  const executeState = () => (progress ??= executeProgress(root, docketOpen ? undefined : null, changed));
+
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
-  const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings)));
+  const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings, executeState)));
   done[0] = ideateIsDone(state, done.some(Boolean));
 
   // With no docket open there is no position to report, so the walk's verdict is discarded — the
   // walk still runs, because the warnings it collects are worth having either way. It cannot simply
-  // be trusted: `stampCmd` is unscoped by design, so a completed-but-unarchived change left in
-  // history stamps `execute`, which back-stamps `ideate` through `laterComplete` and leaves the
+  // be trusted: `stampCmd` is unscoped by design, so a booking whose command matches papers left in
+  // history stamps its leg, which back-stamps `ideate` through `laterComplete` and leaves the
   // position mid-workflow — handing the operator a `/waybill:start <change-id>` that cannot succeed.
   // The whole vector is cleared, not just the position: `next --json` would otherwise report
   // `docketOpen: false` beside a list of legs a docket that does not exist had supposedly finished,
@@ -139,7 +153,7 @@ export function resolveLeg(cwd, bookings) {
   };
 
   if (leg === 'execute') {
-    result.progress = executeProgress(root, result.changeId, changed);
+    result.progress = executeState();
     // The filesystem walk only sees changes that already carry a `tasks.md`; `openspec list --json`
     // names active changes regardless. When only the CLI found one, take its id — phase 3
     // interpolates `changeId` into the waybill's command, and an empty one beside a progress line
