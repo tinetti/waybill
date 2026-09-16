@@ -25,3 +25,5 @@ feat/thing · leg 6 of 7 (execute)
 ```
 /waybill:next feat/thing/execute
 ```
+
+→ runs `/spec:apply add-thing`

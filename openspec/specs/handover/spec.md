@@ -125,7 +125,13 @@ by one blank line:
   their line breaks survive. With no docket open, only the header is shown.
 - **NEXT**: the introducing line, any custom handover prose as a plain paragraph, then the command
   fences.
-- **Booking body**: unindented prose after the last command fence.
+- **Runs annotation**: ``→ runs `<command>` `` as a plain paragraph after the last command fence,
+  present exactly when that fence carries `/waybill:next <branch>/<leg>` in place of the leg's own
+  command. It names what the wrapper will run, which is otherwise the one part of a booking the
+  handover does not show. It SHALL NOT be fenced, and SHALL NOT begin with a keyed prefix: a fence
+  reads as another block to paste, and a `RUN:` line is one a session invokes.
+- **Booking body**: unindented prose, after the runs annotation where there is one and after the last
+  command fence otherwise.
 - **IGNORED BY GIT** and **WARNINGS**: each a bold heading followed by `- ⚠ …` bullets, with the same
   text and order as the plain rendering, WARNINGS last.
 
@@ -139,8 +145,13 @@ act on one, and the plain rendering keeps it for the shell.
 
 #### Scenario: Resolved from the trunk
 - **WHEN** the markdown waybill is rendered for a docket whose bay the operator is not standing in
-- **THEN** no IN BAY section and no `cd` appear, and a transfer handover ends in
-  `/waybill:next <branch>/<leg>`
+- **THEN** no IN BAY section and no `cd` appear, a transfer handover's last command is
+  `/waybill:next <branch>/<leg>`, and the runs annotation names the leg's own command below it
+
+#### Scenario: A handover with no wrapper carries no annotation
+- **WHEN** the markdown waybill is rendered for a through leg, or for a transfer leg on a docket with
+  no bay — the cases whose last fence already holds the leg's own command
+- **THEN** no `→ runs` line appears anywhere in the document
 
 #### Scenario: Findings in markdown
 - **WHEN** a paper path is ignored by git and a warning was raised

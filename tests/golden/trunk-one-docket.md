@@ -21,3 +21,5 @@ feat/session-handover · leg 5 of 7 (specs)
 ```
 /waybill:next feat/session-handover/specs
 ```
+
+→ runs `/spec:propose add-session-handover`

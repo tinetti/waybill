@@ -84,8 +84,8 @@ when the caller is not already in that bay (never for the `cleanup` leg), then `
 [<argument>]` — the booking's own command — when the named leg is the docket's next leg, or
 `NEXT LEG: <leg>` when it is not. A docket with nothing left to hand off, or a leg with no booking,
 SHALL get neither line. Markdown output SHALL print no `cd`, and a `transfer` handover for a docket
-with a bay SHALL end in `/waybill:next <branch>/<leg>` in place of the raw command. Plain output is
-unchanged.
+with a bay SHALL take `/waybill:next <branch>/<leg>` as its last command in place of the raw one,
+with the runs annotation naming that raw command below it. Plain output is unchanged.
 
 #### Scenario: Naming a docket and its next leg
 - **WHEN** `next --markdown feat/x/refine` is run from the trunk and `feat/x` is at the refine leg
@@ -106,7 +106,8 @@ unchanged.
 
 #### Scenario: Asking where things stand moves nobody
 - **WHEN** `next --markdown` is run on the trunk with one docket open and no argument
-- **THEN** the handover ends in `/waybill:next <branch>/<leg>` and no `ENTER BAY:` line is printed
+- **THEN** the handover's last command is `/waybill:next <branch>/<leg>` and no `ENTER BAY:` line is
+  printed
 
 ### Requirement: `status` on the trunk is a fleet view
 
