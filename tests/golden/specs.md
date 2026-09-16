@@ -22,6 +22,8 @@ feat/thing · leg 5 of 7 (specs)
 /waybill:next feat/thing/specs
 ```
 
+→ runs `/spec:propose`
+
 Scaffold the change: proposal, spec deltas, design notes, and a tasks list. Write the tasks so each
 one is a checkbox a later session can tick without re-reading the whole proposal, because the
 execute leg reports progress by counting exactly those boxes.

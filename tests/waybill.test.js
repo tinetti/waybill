@@ -411,14 +411,29 @@ describe('renderWaybillMarkdown', () => {
   it('hands a transfer leg with a bay over to /waybill:next, and prints no cd in markdown', () => {
     const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
     assert.match(output, /```\n\/effort high\n```\n\n```\n\/waybill:next feat\/thing\/specs\n```/);
-    assert.equal(output.includes('/spec:propose'), false);
+    // The leg's own command is named, but never as a fence: a fence is a block to paste, and the
+    // wrapper above is the one the operator pastes.
+    assert.equal(fences(output).flat().includes('/spec:propose add-thing'), false);
     assert.equal(output.includes('IN BAY'), false);
     assert.equal(output.includes('cd '), false);
+  });
+
+  it('names the command the wrapper runs, as prose under the last fence', () => {
+    const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
+    assert.match(output, /```\n\/waybill:next feat\/thing\/specs\n```\n\n→ runs `\/spec:propose add-thing`\n/);
+  });
+
+  it('puts the annotation between the last fence and the booking body', () => {
+    const booking = { ...state().booking, body: 'Do the thing.\n' };
+    const output = renderWaybillMarkdown(state({ booking }), CLEAN, { bay: '/repo/bays/x' });
+    assert.ok(output.endsWith('```\n\n→ runs `/spec:propose add-thing`\n\nDo the thing.\n'));
   });
 
   it('keeps the raw command in markdown when the docket has no bay to move into', () => {
     assert.match(markdown(), /```\n\/spec:propose add-thing\n```/);
     assert.equal(markdown().includes('/waybill:next'), false);
+    // No wrapper, nothing to annotate: the fence already names the command.
+    assert.equal(markdown().includes('→ runs'), false);
   });
 
   it('keeps the raw command on a through leg, whose session never leaves the bay', () => {
@@ -426,6 +441,7 @@ describe('renderWaybillMarkdown', () => {
     const output = renderWaybillMarkdown(state({ leg: 'contract', booking: through }), CLEAN, { bay: BAY });
     assert.match(output, /```\n\/ideation:ideation add-thing\n```/);
     assert.equal(output.includes('/waybill:next'), false);
+    assert.equal(output.includes('→ runs'), false);
   });
 
   it('carries the booking body unindented in markdown, after the last fence', () => {
@@ -456,7 +472,16 @@ describe('renderWaybillMarkdown', () => {
   });
 
   it('ends markdown with exactly one newline', () => {
-    for (const output of [markdown(), markdown({ body: 'Body.\n\n' })]) {
+    // The wrapper shapes too: with a body the annotation is mid-document, without one it is the
+    // last line, which is the case that could pick up a second newline.
+    const wrapped = (booking = {}) =>
+      renderWaybillMarkdown(state({ booking: { ...state().booking, ...booking } }), CLEAN, { bay: BAY });
+    for (const output of [
+      markdown(),
+      markdown({ body: 'Body.\n\n' }),
+      wrapped(),
+      wrapped({ body: 'Body.\n\n' }),
+    ]) {
       assert.equal(output.endsWith('\n'), true);
       assert.equal(output.endsWith('\n\n'), false);
     }

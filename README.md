@@ -174,10 +174,12 @@ too — `{"error": …, "dockets": [{"branch", "path", "leg", "index"}]}` — so
 readable without a second surface. `waybill next --markdown` and `waybill bay --markdown` print the
 same waybill as markdown instead, the position in a `text` fence and each command in a fence of its
 own, so a chat client gives every one its own copy button. Markdown prints no `cd`: a docket with a
-bay hands a `/clear` leg over to `/waybill:next <branch>/<leg>`. Given that argument, `next
---markdown` prints `ENTER BAY: <path>` when you are not in the bay, then `RUN: <command>` when the
-leg is still the next one or `NEXT LEG: <leg>` when it is not — the lines `/waybill:next` acts on, by
-moving the session with `EnterWorktree` and invoking the command. A stale leg runs nothing.
+bay hands a `/clear` leg over to `/waybill:next <branch>/<leg>`, and a `→ runs` line under that last
+fence names the leg command the wrapper will run — prose rather than a fence, because a fence would
+read as one more block to paste. Given that argument, `next --markdown` prints `ENTER BAY: <path>`
+when you are not in the bay, then `RUN: <command>` when the leg is still the next one or
+`NEXT LEG: <leg>` when it is not — the lines `/waybill:next` acts on, by moving the session with
+`EnterWorktree` and invoking the command. A stale leg runs nothing.
 `/waybill:next` and `/waybill:bay` ask for that form; `--json` and `--markdown` cannot be combined.
 `waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag.
 

@@ -25,3 +25,5 @@ feat/thing · leg 5 of 7 (specs)
 ```
 /waybill:next feat/thing/specs
 ```
+
+→ runs `/spec:propose add-thing`

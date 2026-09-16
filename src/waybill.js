@@ -147,10 +147,12 @@ function waybillText(body) {
  * @param {import('./inference.js').Inference} state
  * @param {string|null} [bay] the docket's bay; a transfer handover then names `/waybill:next` in
  *   place of the raw command (see {@link Route})
- * @returns {{ prose: string|null, commands: string[], command: string }} `prose` is a `handover`
- *   value that is neither `transfer` nor `through`, rendered verbatim rather than dropped, so a
- *   booking can ask for something Waybill never anticipated and still be obeyed; `command` is the
- *   booking's own command and argument, whatever the last pasted line became
+ * @returns {{ prose: string|null, commands: string[], command: string, wrapped: boolean }} `prose`
+ *   is a `handover` value that is neither `transfer` nor `through`, rendered verbatim rather than
+ *   dropped, so a booking can ask for something Waybill never anticipated and still be obeyed;
+ *   `command` is the booking's own command and argument, whatever the last pasted line became;
+ *   `wrapped` says the last line became `/waybill:next` instead, so a renderer that wants to name
+ *   the leg's own command asks here rather than working the condition out a second time
  */
 function handoverCommands(booking, state, bay = null) {
   // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
@@ -164,6 +166,8 @@ function handoverCommands(booking, state, bay = null) {
 
   const known = booking.handover === 'transfer' || booking.handover === 'through';
   const transfer = booking.handover === 'transfer';
+  // Only a transfer strands the session outside the bay; a through leg's session never leaves.
+  const wrapped = Boolean(transfer && bay);
   return {
     prose: known ? null : (booking.handover ?? null),
     commands: [
@@ -172,10 +176,10 @@ function handoverCommands(booking, state, bay = null) {
       // Only what the booking declares. A default effort would be a choice nobody made, attributed
       // to a booking that never made it.
       ...(booking.effort ? [`/effort ${booking.effort}`] : []),
-      // Only a transfer strands the session outside the bay; a through leg's session never leaves.
-      transfer && bay ? `/waybill:next ${state.branch}/${state.leg}` : command,
+      wrapped ? `/waybill:next ${state.branch}/${state.leg}` : command,
     ],
     command,
+    wrapped,
   };
 }
 
@@ -328,13 +332,19 @@ function nextMarkdown(state, bay) {
   }
 
   // The body comes after every command fence, so a body carrying a fence of its own cannot break
-  // the pairing of the fences the operator actually copies.
-  const { prose, commands } = handoverCommands(booking, state, bay);
+  // the pairing of the fences the operator actually copies. The annotation sits there for the same
+  // reason, and is prose rather than a fence on purpose: the header above says to paste each block
+  // in order, so a fence would read as a fifth step and run the leg a second time.
+  const { prose, commands, command, wrapped } = handoverCommands(booking, state, bay);
   const body = booking.body.trim();
   return [
     '**NEXT** — paste each block on its own, in order:',
     ...(prose === null ? [] : [prose]),
-    ...commands.map((command) => fence([command])),
+    ...commands.map((line) => fence([line])),
+    // What the wrapper above will run, which is otherwise the one part of a booking the handover
+    // does not show. `RUN:` would name it too, but commands/next.md tells a session to invoke any
+    // line carrying that key — a pasted handover would start the leg unasked.
+    ...(wrapped ? [`→ runs \`${command}\``] : []),
     ...(body === '' ? [] : [body]),
   ];
 }

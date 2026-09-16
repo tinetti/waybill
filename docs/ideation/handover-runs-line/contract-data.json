@@ -1,0 +1,206 @@
+{
+  "projectName": "Handover Runs Line",
+  "slug": "handover-runs-line",
+  "date": "2026-09-15",
+  "status": "Approved",
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "An operator reading a markdown handover into a bay cannot see which leg command or argument they are about to start: `nextMarkdown` (src/waybill.js:332) replaces the raw command with `/waybill:next <branch>/<leg>`, and the `RUN:` line naming it (commands/next.md:87) only appears after the paste has already run."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "Every markdown handover that shows the `/waybill:next <branch>/<leg>` wrapper also prints the command it runs, and no other handover shape gains a line — both halves are asserted against generated golden text rather than judged."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "Five of six criteria are greps over renderer-generated goldens and the OpenSpec delta, each failing on today's checkout; `node --test tests/` (package.json:15, the CI command) covers byte-exactness on top."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "In: `handoverCommands`/`nextMarkdown`, the eight goldens carrying a wrapper fence, guard assertions folded into the two existing negative tests, the `handover` spec delta, and the README `--markdown` paragraph. Out: plain-text rendering, through legs, cwd detection, the `/clear`/`/model`/`/effort` fences, and the four prose surfaces whose claim stays true."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "Two collisions in the handover spec, both scoped: :128 says the booking body is unindented prose after the last command fence, which is where the annotation goes, and the :140-143 scenario has the handover ending at the wrapper fence, which `tests/golden/next-branch-only.md` shows is literally true today. The remaining prose hits say the handover's last *command* is `/waybill:next <branch>/<leg>`, which the annotation does not change."
+      }
+    ]
+  },
+  "problem": [
+    "A transfer leg on a docket with a bay renders its last handover command as `/waybill:next <branch>/<leg>` instead of the leg's own command. The wrapper is what moves the next session into the bay, so it has to stay — but it also hides what the leg actually is. The operator pastes a command whose effect they cannot read.",
+    "Waybill's whole argument is that a leg's booking should be visible: the model, the effort and the instructions are all printed. The command is the one part that is not. Today it surfaces only as the `RUN:` line `/waybill:next` prints once it is already running (commands/next.md:87), which is too late to be a decision.",
+    "The terminal rendering does not have this problem — `renderWaybill` calls `handoverCommands` with no bay (src/waybill.js:202) and prints the raw command next to a `cd` line. Only the markdown handover, the one a session reads, drops it."
+  ],
+  "goals": [
+    "Every markdown handover whose last fence is `/waybill:next <branch>/<leg>` prints, directly under that fence, the leg command and argument it will run.",
+    "No handover without that wrapper gains a line: through legs and dockets with no bay render exactly as they do today, asserted by a grep over their goldens rather than by inspection.",
+    "The annotation is never mistaken for a step: it is prose rather than a fence, it begins with `→ runs`, and it uses none of the keyed prefixes `RUN:`, `ENTER BAY:` or `NEXT LEG:` that commands/next.md acts on."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "The wrapper goldens carry the annotation as its own unindented line, beginning `→ runs` and naming the leg command.",
+      "check": {
+        "cmd": "grep -q '^→ runs `/spec:apply' tests/golden/execute.md",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "Goldens whose handover has no wrapper — a through leg, or a docket with no bay — gain no annotation line.",
+      "check": {
+        "cmd": "sh -c '! grep -q \"^→ runs\" tests/golden/ideate.md tests/golden/cleanup.md tests/golden/contract.md'",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The annotation never uses a keyed prefix: no line of a non-routed markdown handover begins with `RUN:`, `ENTER BAY:` or `NEXT LEG:`, which stay exclusive to the keyed lines `keyedLines` emits above the position fence.",
+      "check": {
+        "cmd": "sh -c '! grep -nE \"^(RUN|ENTER BAY|NEXT LEG): \" tests/golden/execute.md tests/golden/specs.md tests/golden/refine.md tests/golden/bay-cut.md'",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The whole suite passes, including byte-exactness on all eight regenerated wrapper goldens and the six that must not change.",
+      "check": {
+        "cmd": "node --test tests/",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The `handover` spec records the annotation, and no longer says the booking body follows the last command fence directly.",
+      "check": {
+        "cmd": "sh -c 'grep -q \"→ runs\" openspec/specs/handover/spec.md && ! grep -q \"Booking body\\*\\*: unindented prose after the last command fence\" openspec/specs/handover/spec.md'",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The `--markdown` paragraph in README.md describes the annotation, so the one prose surface that spells out the markdown shape does not contradict what the tool prints.",
+      "check": {
+        "judgment": "the reviewer reads the `--markdown` paragraph in README.md against a freshly rendered handover"
+      }
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "Return a `wrapped` flag from `handoverCommands` (src/waybill.js:155-180) and emit the annotation in `nextMarkdown` when it is set.",
+        "reason": "The wrapper condition `transfer && bay` lives only at :166/:176; re-deriving it in the renderer gives two predicates that can drift."
+      },
+      {
+        "item": "Regenerate the eight markdown goldens carrying a wrapper fence: trunk-one-docket, next-branch-only, next-run, next-stale-leg, specs, refine, execute, bay-cut.",
+        "reason": "They are byte-exact comparisons; the change fails until they match. Seven are blessed through tests/waybill.test.js, bay-cut through tests/cli.test.js."
+      },
+      {
+        "item": "Fold an `includes('→ runs') === false` assertion into the two existing negative tests (tests/waybill.test.js:419-421 and :424-426), and assert the annotation's shape in the wrapper case.",
+        "reason": "Goldens get blind-regenerated; a semantic assertion resists that. Separate negative test cases would be a fourth copy of a fact already pinned three ways."
+      },
+      {
+        "item": "Amend openspec/specs/handover/spec.md directly: the Markdown document shape (:117-134) and the transfer-handover scenario (:140-143).",
+        "reason": "The delta route needs the opsx:propose skill, which is not installed on this machine. The living spec is edited in place instead, because leaving :128 saying the booking body follows the last command fence would make the repo's own record false."
+      },
+      {
+        "item": "Update the `--markdown` paragraph in README.md.",
+        "reason": "It is the one prose surface that spells out the markdown shape, so it goes stale the moment the annotation ships."
+      }
+    ],
+    "full": [],
+    "stretch": [],
+    "future": [],
+    "outOfScope": [
+      {
+        "item": "The plain-text rendering (`renderWaybill`) and the `waybill status` and fleet surfaces.",
+        "reason": "Plain text already prints the raw command next to a `cd` line; there is nothing to reveal."
+      },
+      {
+        "item": "Any change to the `/clear`, `/model` or `/effort` fences.",
+        "reason": "They apply whether or not you are already in the bay; a transfer still needs a fresh session at the booked model."
+      },
+      {
+        "item": "Detecting whether the operator is already in the bay, and varying the output on it.",
+        "reason": "The renderer is pure and the handover is read in a different session from the one that printed it, so the cwd at render time proves nothing."
+      },
+      {
+        "item": "Changing which command the wrapper runs, or letting the operator skip it.",
+        "reason": "The wrapper is what moves a session into the bay; this change makes it legible, not optional."
+      },
+      {
+        "item": "The four surfaces saying the handover ends in `/waybill:next <branch>/<leg>`: bookings/waybill-bay.md:11, commands/bay.md:52, docs/guide/01-ride-along.md:88 and :99-100, and the `--markdown` cell at docs/guide/03-reference.md:45.",
+        "reason": "They describe the last *command*, which is unchanged — prose already followed it. Editing bookings/waybill-bay.md would also drag tests/golden/bay.md and bay.txt in, since its body renders verbatim."
+      },
+      {
+        "item": "Updating archived OpenSpec changes under openspec/changes/archive/.",
+        "reason": "They are the historical record of what shipped; rewriting them would falsify it."
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "decision": "Annotate the wrapper with what it runs (`→ runs `/spec:apply add-thing``) as prose under the last fence.",
+      "rejected": "A fifth fence carrying the raw command.",
+      "reason": "The block header says `paste each block on its own, in order`. A fence is a block, so the leg would be pasted twice — once through the wrapper and once directly."
+    },
+    {
+      "decision": "Word it as what the wrapper runs.",
+      "rejected": "Word it as an alternative to paste: `already in the bay? paste X instead`.",
+      "reason": "The operator chose visibility (seeing what will run) over skipping the wrapper. The `instead` wording carries the same double-run risk as a fence, and the raw command is still copyable from the inline code for anyone who wants it."
+    },
+    {
+      "decision": "Put the annotation directly under the last fence, above the booking body.",
+      "rejected": "Fold it into the `**NEXT**` header line as a parenthetical.",
+      "reason": "The header sits four fences above the command it would describe; the annotation belongs next to the thing it annotates."
+    },
+    {
+      "decision": "Keep the `RUN:` line as the only keyed way to name a command, and scope the guard to the NEXT section.",
+      "rejected": "Reuse the `RUN:` prefix for the annotation; assert globally that no handover line carries a keyed prefix.",
+      "reason": "commands/next.md:87 tells a session to invoke any line starting `RUN:`, so a pasted handover carrying one would run the leg unasked. The global assertion was also false by construction: `keyedLines` (src/waybill.js:354-359) emits those prefixes above the position fence, pinned in three goldens."
+    },
+    {
+      "decision": "Accept that a routed render prints the command twice — once as its `RUN:` keyed line, once as the annotation (tests/golden/next-run.md, next-stale-leg.md).",
+      "rejected": "Suppress the annotation when keyed lines are present.",
+      "reason": "The two lines address different sessions: the keyed line tells this session what to invoke now, the NEXT block hands the next session its paste. Suppression would make the handover's content depend on how it was requested, which is exactly the coupling the pure renderer avoids."
+    },
+    {
+      "decision": "Branch on a `wrapped` flag returned by `handoverCommands`.",
+      "rejected": "Re-derive `transfer && bay` inside `nextMarkdown`.",
+      "reason": "One predicate in one place. The wrapper condition already governs the last fence; a second copy in the renderer is what drifts when a future handover mode is added."
+    },
+    {
+      "decision": "Execute through /ideation:execute-spec, and amend openspec/specs/handover/spec.md in place.",
+      "rejected": "The docket's booked specs and execute legs (/spec:propose, /spec:apply), which would have produced a change delta.",
+      "reason": "/spec:propose delegates to the opsx:propose skill, which is not installed here, and improvising the OpenSpec artifacts by hand would guess at a shape the skill owns. The trade is that this change lands with no entry under openspec/changes/, so the docket's specs leg never stamps and the living spec is edited without a delta."
+    },
+    {
+      "decision": "Leave the terminal rendering untouched.",
+      "rejected": "Add the annotation to `renderWaybill` too, for symmetry.",
+      "reason": "Plain text already shows the raw command; a second copy would be noise, and the two renderers deliberately share no formatting (src/waybill.js:366-369)."
+    },
+    {
+      "decision": "Anchor the criteria on greps over generated golden text, keeping `node --test tests/` as the byte-exactness check.",
+      "rejected": "Point every criterion at `node --test tests/waybill.test.js`.",
+      "reason": "Critic finding: that suite passes on the untouched checkout, so four of six criteria were green before any work started and none could tell a written assertion from a missing one."
+    }
+  ],
+  "openQuestions": [],
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      {
+        "title": "Annotate the wrapper fence",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/handover-runs-line/spec.md",
+        "notes": "One flag on handoverCommands, one conditional in nextMarkdown, assertions folded into two existing tests, eight goldens, one OpenSpec delta, one README paragraph. Goldens are blessed with UPDATE_GOLDEN=1 node --test tests/waybill.test.js and, for bay-cut.md, UPDATE_GOLDEN=1 node --test tests/cli.test.js."
+      }
+    ]
+  }
+}
