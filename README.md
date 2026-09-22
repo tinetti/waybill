@@ -362,3 +362,7 @@ UPDATE_GOLDEN=1 node --test tests/waybill.test.js   # re-bless the rendered-outp
 Zero runtime dependencies, zero dev dependencies, no build step — `node --test` and `git` are the
 entire toolchain, and `tests/commands.test.js` asserts it stays that way. Read the regenerated golden
 files before committing them; that is the whole point of making regeneration explicit.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
