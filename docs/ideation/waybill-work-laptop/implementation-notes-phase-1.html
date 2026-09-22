@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 1</title>
+    <style>
+      /* === DESIGN TOKENS === */
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --max-width: 900px;
+        --sidebar-width: 220px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+
+      /* === LAYOUT === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--color-text);
+        background: var(--color-bg);
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4);
+      }
+
+      .doc-header {
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .doc-header h1 {
+        margin: 0 0 var(--space-1) 0;
+        font-size: 28px;
+        line-height: 1.25;
+      }
+
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .doc-content h2 {
+        margin-top: var(--space-6);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 22px;
+      }
+
+      .doc-content h3 {
+        margin-top: var(--space-5);
+        font-size: 18px;
+      }
+
+      .doc-content p,
+      .doc-content li {
+        font-size: 15px;
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      /* === COMPONENTS === */
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-left: 3px solid var(--color-accent);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .note-entry h3 {
+        margin-top: 0;
+        font-size: 17px;
+      }
+
+      .note-entry dl {
+        margin: 0;
+      }
+
+      .note-entry dt {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-muted);
+        margin-top: var(--space-3);
+      }
+
+      .note-entry dd {
+        margin: var(--space-1) 0 0 0;
+        font-size: 15px;
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        color: var(--color-accent);
+        padding: 1px var(--space-1);
+        border-radius: var(--radius-sm);
+      }
+
+      /* === PRINT === */
+      @media print {
+        body {
+          max-width: none;
+          padding: 0;
+        }
+        .note-entry {
+          break-inside: avoid;
+          background: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 1</h1>
+      <p class="doc-meta">waybill-work-laptop · 2026-09-22 · phase 1 (gate, runbook)</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Steps 2 &amp; 4 — link target is the main checkout, not this worktree</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Open Item 3 of the spec left this unresolved, and the Failure Modes table warns that
+            <code>npm link</code> run from <code>.claude/worktrees/...</code> yields a dangling
+            <code>wyb</code>. The executing session was itself inside the worktree
+            <code>.claude/worktrees/waybill-feat-work-laptop-readiness</code>, so <code>$PWD</code>
+            would have produced exactly that failure.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Both <code>npm link</code> and the four <code>/spec:*</code> symlinks were run against
+            the absolute path <code>/Users/jtinetti/Projects/tinetti/waybill</code> (the main
+            checkout, currently 0.8.0 on <code>main</code>). Verified:
+            <code>/opt/homebrew/lib/node_modules/waybill</code> resolves there, and
+            <code>readlink ~/.claude/commands/spec/*.md | grep -c 'plugins/cache'</code> prints 0.
+            This closes Open Item 3 in favour of the spec's own recommendation. Under this repo's
+            worktree-per-branch workflow a worktree-targeted link would die on every branch cleanup.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Linking the feature worktree, so <code>wyb</code> would track in-progress branch edits.
+            Rejected: the links would break the moment the branch is retired, and the failure would
+            present as "waybill is broken" rather than "the link target is gone". The consequence
+            accepted instead is that <code>wyb</code> reflects whatever is checked out on
+            <code>main</code>, not the branch under development.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Step 2 — npm's <code>waybill</code> shim was removed so the plugin keeps the name</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>package.json</code> maps both <code>waybill</code> and <code>wyb</code> to
+            <code>bin/waybill</code>, so <code>npm link</code> created both shims.
+            <code>/opt/homebrew/bin</code> is PATH position 1 and the plugin-cache bin is position
+            21, so the shadowing described in Failure Modes row 3 was guaranteed here, not merely
+            possible. The spec is contradictory on the remedy: step 2 calls the plugin cache winning
+            "the desired outcome" and npm winning "a Failure Mode … not a success", while the
+            mitigation column says to leave PATH alone and spell out the absolute plugin path.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Deleted the generated shim <code>/opt/homebrew/bin/waybill</code> (confirmed with the
+            human first). <code>waybill</code> now resolves to
+            <code>~/.claude/plugins/cache/tinetti/waybill/0.3.1/bin/waybill</code> and
+            <code>wyb</code> to <code>/opt/homebrew/bin/wyb</code> → the main checkout. PATH was not
+            reordered, so the spec's standing constraint holds. Two names, two jobs, as the
+            Technical Approach intends. <strong>Caveat for later phases:</strong> any re-run of
+            <code>npm link</code> recreates the shim and silently re-shadows the name — re-check
+            <code>command -v waybill</code> after any relink.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Leave the shim and use the absolute plugin-cache path wherever the installed build is
+            meant, per the mitigation column. Rejected because it makes the bare name a trap for
+            phase 6's "what does the <em>installed</em> plugin report?" check — the check most
+            likely to be typed from memory, and the one the spec says must get an honest answer.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Step 5 — the work-host credential already existed; only the default host was wrong</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec describes <code>glab auth status</code> as returning 401 against
+            <code>gitlab.com</code> with the self-hosted work host unconfigured, and marks the whole
+            step HUMAN because of the interactive credential flow. The observed state was different:
+            <code>gitlab.windlogics.com</code> was <em>already</em> logged in as
+            <code>jtinetti</code>, and the only defect was the global default
+            <code>host</code>, still <code>gitlab.com</code> (<code>GITLAB_HOST</code> unset). So the
+            credential half of step 5 was already satisfied and the remaining half writes no secret.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Confirmed with the human, then ran
+            <code>glab config set -g host gitlab.windlogics.com</code> — a hostname only; no token
+            was read, written, printed or placed on a command line, and no interactive login was
+            attempted. Verified by <code>glab auth status</code> (work host, valid) and by an
+            authenticated read, <code>glab api user</code>, returning
+            <code>jtinetti / active</code>. The pre-existing <code>gitlab.com</code> entry was left
+            untouched per step 5.4. Note that <code>glab auth status</code> now reports
+            <em>only</em> the default host, so the stale <code>gitlab.com</code> 401 no longer
+            appears in the inner-loop probe — the credential still exists in config; it is merely
+            out of frame.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Hand the whole step back because the spec marks it HUMAN, or skip the host setting on
+            the grounds that <code>glab</code> resolves the host from the git remote inside a repo
+            and the global default is only a repo-less fallback. Both were offered; the human chose
+            to have it set. Skipping would have left
+            <code>glab repo view &lt;group&gt;/&lt;project&gt;</code> 401ing when run outside a repo.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Step 6 — the scout's "inventory is wrong" finding was refuted</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The readiness scout reported that <code>~/.claude/commands/mar.md</code>,
+            <code>~/.claude/skills/mr-review</code> and <code>~/.claude/skills/cpr</code> were all
+            absent, that <code>~/.claude/skills/</code> held only <code>mr-ready/</code>, and
+            therefore that three of the six rows in the spec's already-satisfied inventory were
+            factually wrong and the checklist item could not be ticked as written.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Rejected the finding after direct verification. All three exist:
+            <code>~/.claude/commands/</code> contains <code>mar.md</code>,
+            <code>merge-and-reset.md</code>, <code>start-my-day.md</code> and <code>wt.md</code>;
+            <code>~/.claude/skills/</code> contains 16 entries including <code>cpr</code>,
+            <code>mr-review</code> and <code>tidy</code>. <code>node</code> is v26.7.0 and the
+            ideation plugin is at 0.15.0, both as the spec states. The spec's inventory is correct
+            as written and step 6 required no action, exactly as specified.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Take the scout at its word and amend the spec's inventory table. Rejected — that would
+            have written a false correction into a gate other phases trust, on the strength of one
+            unverified read.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
