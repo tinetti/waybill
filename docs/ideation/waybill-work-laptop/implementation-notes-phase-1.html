@@ -325,6 +325,64 @@
           </dd>
         </dl>
       </section>
+      <section class="note-entry">
+        <h3>Step 1 — installed version recorded: <code>0.8.0</code>, and it is <em>not</em> the eight-leg release</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Open Item 2 asks which version the plugin update actually lands on, so phase 6 can
+            assert the eight-leg release specifically rather than "anything newer than 0.3.1". The
+            human ran <code>/plugin marketplace update tinetti</code> and reloaded;
+            <code>~/.claude/plugins/cache/tinetti/waybill/</code> now holds both
+            <code>0.3.1</code> and <code>0.8.0</code>, and <code>command -v waybill</code> resolves
+            to <code>0.8.0/bin/waybill</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Recorded <strong>0.8.0</strong> as the version phase 6 must distinguish itself from.
+            Critically, <code>waybill help</code> on this build prints a <strong>seven</strong>-leg
+            route (ideate, bay, refine, contract, specs, execute, cleanup) — so 0.8.0 is
+            <em>not</em> the eight-leg release the contract expects phase 6 to install. Phase 6 must
+            assert the leg count or an explicit version string, never "newer than 0.3.1", which
+            0.8.0 already satisfies while still being the wrong build.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Treat "resolves outside 0.3.1" as sufficient, per the phase-1 checklist wording.
+            Rejected — that is precisely the Failure Modes row "Phase 6 believes it installed the
+            eight-leg route when it did not", and this machine is now in exactly the state that
+            triggers it.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Step 2 addendum — the <code>wyb</code> / <code>waybill</code> experiment no longer differs</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The step 2 feedback loop says to run <code>wyb help</code> and <code>waybill help</code>
+            and expect them to <em>differ</em> before phase 6, the working tree being ahead of the
+            installed plugin. Before the update that held sharply: 0.3.1 had three commands and no
+            <code>help</code> verb at all, against the working tree's full route.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            After the update both print the identical seven-leg route, because the installed plugin
+            (0.8.0) and the main checkout (0.8.0) are now the same version. Recording this so the
+            next executor does not read the sameness as a broken link or a shadowed name — the two
+            shims are still distinct and still point at different places, verified by
+            <code>command -v</code> on each. The experiment's premise simply expired when step 1
+            caught the plugin up.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Flag the identical output as a step 2 regression. Rejected — <code>command -v</code>
+            proves the two names resolve to different files; identical output is a fact about the
+            two builds' versions, not about the linking.
+          </dd>
+        </dl>
+      </section>
     </main>
   </body>
 </html>
