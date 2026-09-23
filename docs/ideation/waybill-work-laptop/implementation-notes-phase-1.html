@@ -383,6 +383,36 @@
           </dd>
         </dl>
       </section>
+      <section class="note-entry">
+        <h3>Step 1 caveat — 0.8.1 is being cut concurrently, so the recorded version is a snapshot</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            While phase 1 was closing, another agent was cutting <code>0.8.1</code> on
+            <code>chore/release-0.8.1</code> (a locked worktree under
+            <code>.claude/worktrees/</code>). The version recorded above, <code>0.8.0</code>, is
+            therefore true as of this run and expected to be superseded the next time
+            <code>/plugin marketplace update tinetti</code> is run.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Leave <code>0.8.0</code> recorded as the observed value, but phase 6 should assert the
+            <strong>leg count</strong> (eight) rather than a version string — the leg count is the
+            property the contract actually cares about and it does not rot when a patch release
+            lands. Re-run the phase-1 probe at the start of phase 6 rather than trusting this
+            number. Note also that the concurrent release does <em>not</em> disturb this phase's
+            artifacts: <code>wyb</code> and the four <code>/spec:*</code> symlinks target the main
+            checkout, so they follow <code>main</code> forward as 0.8.1 merges — which is the
+            intended behaviour of symlinking rather than copying, not a hazard.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Wait for 0.8.1 to land and record that instead. Rejected — the gate is about the machine
+            being in a known-good state, not about pinning a release. Chasing the version would make
+            phase 1 re-run on every patch, and the leg-count assertion makes the number unnecessary.
+          </dd>
+        </dl>
+      </section>
     </main>
   </body>
 </html>
