@@ -413,6 +413,50 @@
           </dd>
         </dl>
       </section>
+      <section class="note-entry">
+        <h3>Steps 3 &amp; 4 — work uses ideation, not OpenSpec; kept anyway, but phase 7 is affected</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            After phase 1 closed, the human stated that <strong>OpenSpec is not used at work — only
+            ideation is</strong>. Steps 3 and 4 exist solely to serve the OpenSpec legs: step 3
+            installs <code>@fission-ai/openspec</code> so <code>openspecAvailable()</code>
+            (<code>src/openspec.js:32-33</code>) returns true, and step 4 symlinks the four
+            <code>/spec:*</code> commands so the bare <code>/spec:propose</code> and
+            <code>/spec:apply</code> that legs 5 and 6 emit can resolve. Both were justified in the
+            spec by a premise that does not hold for work usage.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <strong>Keep both.</strong> This machine is also where Waybill itself is developed, and
+            the plugin ships the OpenSpec legs as its stock route — phases 3, 5 and 6 all exercise
+            that route against this machine. Removing <code>openspec</code> would put
+            <code>openspecAvailable()</code> back to false and reinstate the silent
+            <code>tasks.md</code> fallback that this gate exists to eliminate. The cost of keeping
+            them is one global npm package and four symlinks; the cost of removing them is that
+            three later phases can no longer verify the thing they are written to verify.
+            <strong>Phase 7 is the real casualty</strong> — its §5 (<code>openspec init</code> in the
+            work repo, the <code>openspec/</code> untracked-not-excluded decision,
+            <code>.claude/commands/opsx/</code>, and
+            <code>stampPath: openspec/changes/**/tasks.md</code>), its route table rows for legs 5
+            and 6, three checklist items and three failure-mode rows are all built on a premise the
+            human has now contradicted. Phase 7 needs its legs 5 and 6 re-specified against
+            <code>/ideation:ideation</code> and <code>/ideation:execute-spec</code> before it is
+            executed. The contract's success criteria (lines 12, 21, 53) name
+            <code>openspec</code> installed as part of "every setup step done" and want the same
+            revisit.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Roll step 3 and step 4 back (<code>npm rm -g @fission-ai/openspec</code> and
+            <code>rm ~/.claude/commands/spec/*.md</code>) on the grounds that work will never use
+            them. Rejected for now: it conflates "the work <em>route</em> does not use OpenSpec" with
+            "this <em>machine</em> does not need OpenSpec", and the second is false while Waybill's
+            own stock route still ships those legs. Revisit if phase 7 re-specifies legs 5 and 6 and
+            phases 3/5/6 stop depending on the OpenSpec path.
+          </dd>
+        </dl>
+      </section>
     </main>
   </body>
 </html>
