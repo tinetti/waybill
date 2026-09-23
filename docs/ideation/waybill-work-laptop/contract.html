@@ -1130,63 +1130,63 @@ body {
       </div>
       <ul class="criteria-grid">
         <li class="criteria-item">
-          <span class="line-num">01</span>
+          <span class="line-num">1</span>
           <div class="criteria-body">
             <span>`waybill doctor` exits 0 on this machine with every check green, run against the working tree rather than whichever binary PATH happens to resolve.</span>
             <code class="criteria-check">node bin/waybill doctor — exits 0</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">02</span>
+          <span class="line-num">2</span>
           <div class="criteria-body">
             <span>Doctor exits non-zero and names a remediation command when a prerequisite is genuinely missing, exercised through the existing stubBin/withPath sandbox rather than by breaking the real machine.</span>
             <code class="criteria-check">node --test tests/doctor.test.js — exits 0, with one case per gap asserting both the non-zero exit and the remediation string in stdout</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">03</span>
+          <span class="line-num">3</span>
           <div class="criteria-body">
             <span>An absent bookings overlay is reported as informational and never fails the run, because an empty overlay is a healthy steady state on the personal machine.</span>
             <code class="criteria-check">node --test tests/doctor.test.js — exits 0, including a case asserting exit 0 with the overlay absent</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">04</span>
+          <span class="line-num">4</span>
           <div class="criteria-body">
             <span>Doctor reports 'cannot locate plugin cache' rather than a green check when the `~/.claude/plugins/cache/&lt;owner&gt;/&lt;plugin&gt;/&lt;version&gt;/` layout does not match, since that layout is an undocumented Claude Code internal and `CLAUDE_CONFIG_DIR` can relocate it.</span>
             <code class="criteria-check">node --test tests/doctor.test.js — exits 0, including a withEnv case relocating the config dir</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">05</span>
+          <span class="line-num">5</span>
           <div class="criteria-body">
             <span>`commands/doctor.md` ships and is declared in the plugin manifest — already mechanically enforced by the existing both-directions parity assertion.</span>
             <code class="criteria-check">node --test tests/commands.test.js — exits 0 (tests/commands.test.js:112 asserts deepEqual(shipped(COMMANDS), DECLARED))</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">06</span>
+          <span class="line-num">6</span>
           <div class="criteria-body">
             <span>The full suite still passes after every phase; no golden fixture is left stale.</span>
             <code class="criteria-check">node --test tests/ — exits 0</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">07</span>
+          <span class="line-num">7</span>
           <div class="criteria-body">
             <span>A stampCmd whose binary is missing produces a visible warning naming the binary, replacing the current silent 'not done'. The existing test at tests/bookings.test.js:195, which asserts the silent behaviour, is updated rather than left passing.</span>
             <code class="criteria-check">node --test tests/bookings.test.js — exits 0; grep -c 'missing binary' tests/bookings.test.js — at least 1</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">08</span>
+          <span class="line-num">8</span>
           <div class="criteria-body">
             <span>`~` expands in the WAYBILL_BAY_DIR and WAYBILL_BOOKINGS_DIR env tiers and in the `waybill.baydir` git tier, which reads a plain `config --get` at src/repo.js:134 and does not expand today.</span>
             <code class="criteria-check">node --test tests/repo.test.js tests/bookings.test.js — exits 0; grep -cE 'tilde|expand' tests/repo.test.js tests/bookings.test.js — each at least 1</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">09</span>
+          <span class="line-num">9</span>
           <div class="criteria-body">
             <span>The leg count is derived from LEGS, and bay and cleanup remain anchor and terminus after de-hardcoding.</span>
             <code class="criteria-check">node --test tests/legs.test.js tests/inference.test.js — exits 0 (tests/legs.test.js is a new deliverable of phase 4)</code>
@@ -1216,26 +1216,33 @@ body {
         <li class="criteria-item">
           <span class="line-num">13</span>
           <div class="criteria-body">
-            <span>With `waybill.bookingsdir` pointed at the overlay, the route names /mr-review at review and /mar at cleanup; with it unset, the stock bookings resolve unchanged.</span>
+            <span>With `waybill.bookingsdir` pointed at the overlay, the route names /mr-review at review, /mar at cleanup, /ideation:ideation at specs and /ideation:execute-spec at execute; with it unset, the stock bookings resolve unchanged, /spec:propose and /spec:apply included.</span>
             <code class="criteria-check">node --test tests/bookings-overlay.test.js — exits 0</code>
           </div>
         </li>
         <li class="criteria-item">
           <span class="line-num">14</span>
           <div class="criteria-body">
+            <span>The work route's execute leg does not stamp while any `- [ ]` remains in its phase specs, so specs and execute cannot complete in the same instant.</span>
+            <code class="criteria-check">node --test tests/bookings-overlay.test.js — exits 0, asserting `execute` carries a stampCmd and `specs` does not</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">15</span>
+          <div class="criteria-body">
             <span>The installed plugin — not the working tree — reports the eight-leg route before any overlay is written, since the overlay would otherwise throw `unknown leg` and break every /waybill:* command.</span>
             <code class="criteria-check">node ${CLAUDE_PLUGIN_ROOT}/src/cli.js help — names 8 legs. This is the exact entry point slash commands run (commands/status.md:33). Deliberately not `command -v waybill`: npm link installs global shims for both `waybill` and `wyb`, so which one PATH resolves is ambiguous after phase 1.</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">15</span>
+          <span class="line-num">16</span>
           <div class="criteria-body">
             <span>`wyb` resolves on PATH to the npm-linked working tree, not to a plugin cache directory.</span>
             <code class="criteria-check">command -v wyb — prints a path outside ~/.claude/plugins/cache</code>
           </div>
         </li>
         <li class="criteria-item">
-          <span class="line-num">16</span>
+          <span class="line-num">17</span>
           <div class="criteria-body">
             <span>One real work ticket traverses all eight legs, and at each leg the waybill named the command you would have reached for anyway.</span>
             <span class="criteria-judgment">judgment call — no mechanical check</span>
@@ -1283,7 +1290,7 @@ body {
               <li><strong>Stock eighth `review` leg with a forge-detecting done-signal that distinguishes no-MR, unreviewed-MR, and unusable-CLI</strong><span class="tier-reason">— A glab-only stamp would stall waybill on its own GitHub repo. The three-state verdict exists because an unauthenticated glab exits non-zero rather than 127, so the exit-127 warning alone would not catch the 401 this machine currently returns.</span></li>
               <li><strong>`/waybill:review` wrapper — detect the forge, push, open the PR/MR, hand off for review</strong><span class="tier-reason">— The one leg that must work on a bare machine is the one leg that cannot depend on a skill the user supplies separately. The work overlay still replaces it whole.</span></li>
               <li><strong>Cut and publish the release carrying the eight-leg route, then install it on this laptop and confirm it reports eight legs</strong><span class="tier-reason">— Every /waybill:* command runs node &quot;${CLAUDE_PLUGIN_ROOT}/src/cli.js&quot; (commands/status.md:33), so the plugin cache is the runtime. Writing the overlay against a seven-leg installed plugin throws `unknown leg` (src/bookings.js:72-73) and breaks every waybill command on the machine.</span></li>
-              <li><strong>Work bookings overlay at `~/.waybill/bookings`: review pinned to glab + /mr-review, bay naming branches JIRA-123/short-name, cleanup routed to /mar</strong><span class="tier-reason">— Uses waybill's designed per-machine extension point, so the work route never leaks onto the personal machine. All three carriers were confirmed present on this laptop.</span></li>
+              <li><strong>Work bookings overlay at `~/.waybill/bookings` rebooking five legs: review pinned to glab + /mr-review, bay naming branches JIRA-123/short-name, cleanup routed to /mar, and — because work uses ideation rather than OpenSpec — specs to /ideation:ideation and execute to /ideation:execute-spec</strong><span class="tier-reason">— Uses waybill's designed per-machine extension point, so the work route never leaks onto the personal machine. All five carriers were confirmed present on this laptop.</span></li>
               <li><strong>A `review` scenario fixture in tests/fixtures/, and sweeping every prose surface that claims seven legs — five known hits in README.md and docs/guide/, in word form not digits</strong><span class="tier-reason">— tests/inference.test.js:74 ties fixture count to LEGS.length + 1, so the suite enforces the fixture itself; the prose surfaces do not enforce anything, which is exactly the next-from-anywhere learning in docs/ideation/learnings.md.</span></li>
             </ul>
           </div>
@@ -1463,7 +1470,7 @@ body {
               <td class="phase-title">Work overlay and the live run</td>
               <td class="phase-kind">phase</td>
               <td class="phase-risk" style="color: var(--caution)">med</td>
-              <td class="phase-notes phase-notes-col">Write ~/.waybill/bookings with review pinned to glab + /mr-review, bay naming JIRA-123/short-name, cleanup routed to /mar, and point git config --global waybill.bookingsdir at it. Also run `openspec init` in the work repo and decide whether openspec/ and .claude/commands/opsx/ are committed or git-excluded there. Closes with the one criterion no command can prove: a real work ticket carried through all eight legs.</td>
+              <td class="phase-notes phase-notes-col">Write ~/.waybill/bookings with five bookings: review pinned to glab + /mr-review, bay naming JIRA-123/short-name, cleanup routed to /mar, specs rebooked to /ideation:ideation, and execute rebooked to /ideation:execute-spec with a completion stampCmd counting unticked boxes — without it, legs 5 and 6 would stamp together and the route would step over execute. Point git config --global waybill.bookingsdir at the directory. No openspec init: work uses ideation end to end, and docs/ideation/ is left untracked and not excluded so the stamps can match. Closes with the one criterion no command can prove: a real work ticket carried through all eight legs.</td>
             </tr>
           </tbody>
         </table>

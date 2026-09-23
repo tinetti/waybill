@@ -105,8 +105,12 @@
       "check": "node --test tests/inference.test.js — exits 0 (tests/inference.test.js:74 asserts fixture count === LEGS.length + 1)"
     },
     {
-      "criterion": "With `waybill.bookingsdir` pointed at the overlay, the route names /mr-review at review and /mar at cleanup; with it unset, the stock bookings resolve unchanged.",
+      "criterion": "With `waybill.bookingsdir` pointed at the overlay, the route names /mr-review at review, /mar at cleanup, /ideation:ideation at specs and /ideation:execute-spec at execute; with it unset, the stock bookings resolve unchanged, /spec:propose and /spec:apply included.",
       "check": "node --test tests/bookings-overlay.test.js — exits 0"
+    },
+    {
+      "criterion": "The work route's execute leg does not stamp while any `- [ ]` remains in its phase specs, so specs and execute cannot complete in the same instant.",
+      "check": "node --test tests/bookings-overlay.test.js — exits 0, asserting `execute` carries a stampCmd and `specs` does not"
     },
     {
       "criterion": "The installed plugin — not the working tree — reports the eight-leg route before any overlay is written, since the overlay would otherwise throw `unknown leg` and break every /waybill:* command.",
@@ -157,7 +161,7 @@
         "reason": "Every /waybill:* command runs node \"${CLAUDE_PLUGIN_ROOT}/src/cli.js\" (commands/status.md:33), so the plugin cache is the runtime. Writing the overlay against a seven-leg installed plugin throws `unknown leg` (src/bookings.js:72-73) and breaks every waybill command on the machine."
       },
       {
-        "item": "Work bookings overlay at `~/.waybill/bookings`: review pinned to glab + /mr-review, bay naming branches JIRA-123/short-name, cleanup routed to /mar",
+        "item": "Work bookings overlay at `~/.waybill/bookings` rebooking five legs: review pinned to glab + /mr-review, bay naming branches JIRA-123/short-name, cleanup routed to /mar, and — because work uses ideation rather than OpenSpec — specs to /ideation:ideation and execute to /ideation:execute-spec",
         "reason": "Uses waybill's designed per-machine extension point, so the work route never leaks onto the personal machine. All three carriers were confirmed present on this laptop."
       },
       {
@@ -197,6 +201,14 @@
       {
         "item": "Doctor pre-flighting the binaries referenced by an overlay's stampCmds",
         "reason": "The exit-127 fix already surfaces a missing binary at route time, which is when it matters."
+      },
+      {
+        "item": "Changing Waybill's shipped legs 5 and 6 away from OpenSpec",
+        "reason": "The OpenSpec legs stay the stock opinion and this machine keeps openspec installed and /spec:* symlinked for them. Work's ideation route is an overlay, not a fork — that is what the overlay mechanism is for."
+      },
+      {
+        "item": "Restoring `n of m` progress on an ideation execute leg",
+        "reason": "The count reads the CHANGES = 'openspec/changes' constant (src/progress.js:6) and discoverChangeId matches that prefix (src/progress.js:98-133). `0 of 0` is accepted; the leg still stamps correctly via its stampCmd. Generalising it is a code change with no consumer until the overlay is in daily use."
       }
     ],
     "future": [
@@ -229,7 +241,9 @@
         "title": "waybill doctor",
         "risk": "medium",
         "blocking": false,
-        "prereqs": ["Portability fixes: exit-127 and tilde expansion"],
+        "prereqs": [
+          "Portability fixes: exit-127 and tilde expansion"
+        ],
         "specPath": "docs/ideation/waybill-work-laptop/spec-phase-3.md",
         "notes": "New src/doctor.js plus a `doctor` verb in src/cli.js and commands/doctor.md. Report-only: each failure prints its own remediation. Checks the six gaps this machine had, including glab auth and host. An absent overlay is informational, never failing. An unrecognised plugin-cache layout reports 'cannot locate' rather than green, since that path is an undocumented Claude Code internal. Tests use the existing stubBin/withPath/withEnv sandbox."
       },
@@ -237,7 +251,9 @@
         "title": "De-hardcode the leg count",
         "risk": "low",
         "blocking": true,
-        "prereqs": ["Portability fixes: exit-127 and tilde expansion"],
+        "prereqs": [
+          "Portability fixes: exit-127 and tilde expansion"
+        ],
         "specPath": "docs/ideation/waybill-work-laptop/spec-phase-4.md",
         "notes": "Downgraded from medium to low risk once the spec pass established the renderer already derives from LEGS (src/waybill.js:67-68,85; src/help.js:80). Remaining work: a 25-site test-literal sweep, one `index: 7`, moving the bay/cleanup pairing into a declarative map so legIsDone needs no per-leg literals, and a new tests/legs.test.js pinning bay as anchor and cleanup as terminus. Zero golden diff is the acceptance signal. `after:` splicing deferred to Future."
       },
@@ -245,7 +261,9 @@
         "title": "Stock review leg and /waybill:review",
         "risk": "high",
         "blocking": true,
-        "prereqs": ["De-hardcode the leg count"],
+        "prereqs": [
+          "De-hardcode the leg count"
+        ],
         "specPath": "docs/ideation/waybill-work-laptop/spec-phase-5.md",
         "notes": "Append `review` (owner: booking, never wrapper — legIsDone short-circuits wrapper legs before reading their stamp) between execute and cleanup with a three-state forge-detecting stamp, add the /waybill:review wrapper and a review fixture, and sweep six prose hits claiming seven legs: README.md:3, docs/guide/01-ride-along.md:6 and :271, docs/guide/README.md:13, docs/guide/02-glossary.md:32 and :39. 31 golden fixtures exist (22 contain `of 7`) and become 33 — tests/guide.test.js:147 requires a golden per leg id, and :134-143 mechanically requires a new `## Leg 7 · review` section in the ride-along. Also guard against the stamp shelling out to the developer's real gh during golden renders. Breaking change for existing plugin users."
       },
@@ -265,9 +283,11 @@
         "title": "Work overlay and the live run",
         "risk": "medium",
         "blocking": false,
-        "prereqs": ["Release and install the eight-leg route"],
+        "prereqs": [
+          "Release and install the eight-leg route"
+        ],
         "specPath": "docs/ideation/waybill-work-laptop/spec-phase-7.md",
-        "notes": "Write ~/.waybill/bookings with review pinned to glab + /mr-review, bay naming JIRA-123/short-name, cleanup routed to /mar, and point git config --global waybill.bookingsdir at it. Also run `openspec init` in the work repo and decide whether openspec/ and .claude/commands/opsx/ are committed or git-excluded there. Closes with the one criterion no command can prove: a real work ticket carried through all eight legs."
+        "notes": "Write ~/.waybill/bookings with five bookings: review pinned to glab + /mr-review, bay naming JIRA-123/short-name, cleanup routed to /mar, specs rebooked to /ideation:ideation, and execute rebooked to /ideation:execute-spec with a completion stampCmd counting unticked boxes — without it, legs 5 and 6 would stamp together and the route would step over execute. Point git config --global waybill.bookingsdir at the directory. No openspec init: work uses ideation end to end, and docs/ideation/ is left untracked and not excluded so the stamps can match. Closes with the one criterion no command can prove: a real work ticket carried through all eight legs."
       }
     ]
   }

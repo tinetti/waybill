@@ -39,7 +39,8 @@ The deeper gap is that the route does not describe how work actually ships here.
 - [ ] No prose surface claims a seven-leg route, in digit or word form — check: `grep -rniE 'of 7|7/7|7[- ]legs|seven[- ]legs?|seven-leg' README.md docs/guide/ src/ commands/ bookings/` — returns no matches
 - [ ] `/waybill:review` opens a PR with only `gh`, an MR with only `glab`, warns when neither is present, and reports auth failure distinctly from "no MR yet" — check: `node --test tests/review.test.js` — exits 0, driving all four cases through `stubBin`
 - [ ] A `review` scenario fixture exists and the fixture-count invariant holds — check: `node --test tests/inference.test.js` — exits 0
-- [ ] With `waybill.bookingsdir` set the route names `/mr-review` and `/mar`; unset, stock bookings resolve — check: `node --test tests/bookings-overlay.test.js` — exits 0
+- [ ] With `waybill.bookingsdir` set the route names `/mr-review`, `/mar`, `/ideation:ideation` at specs and `/ideation:execute-spec` at execute; unset, the stock bookings resolve including `/spec:propose` and `/spec:apply` — check: `node --test tests/bookings-overlay.test.js` — exits 0
+- [ ] The work route's execute leg does not stamp while any `- [ ]` remains in its phase specs, so specs and execute cannot complete together — check: `node --test tests/bookings-overlay.test.js` — exits 0, asserting `execute` carries a `stampCmd` and `specs` does not
 - [ ] The installed plugin reports the eight-leg route before any overlay is written — check: `node ${CLAUDE_PLUGIN_ROOT}/src/cli.js help` — names 8 legs (the exact entry point slash commands run, per `commands/status.md:33`; deliberately not `command -v waybill`, which `npm link` makes ambiguous)
 - [ ] `wyb` resolves to the npm-linked working tree — check: `command -v wyb` — prints a path outside `~/.claude/plugins/cache`
 - [ ] One real work ticket traverses all eight legs — **judgment call**: at each leg, the waybill named the command you would have reached for anyway
@@ -61,7 +62,7 @@ The deeper gap is that the route does not describe how work actually ships here.
 - Stock eighth `review` leg (`owner: 'booking'`) with a three-state forge-detecting done-signal
 - `/waybill:review` wrapper — detect the forge, push, open the PR/MR, hand off
 - Cut and publish the release carrying the eight-leg route, then install and confirm it here
-- Work bookings overlay at `~/.waybill/bookings`
+- Work bookings overlay at `~/.waybill/bookings`, rebooking five legs: `review` to `/mr-review`, `cleanup` to `/mar`, `bay` to Jira-prefixed branch names, and — because work uses ideation and not OpenSpec — `specs` to `/ideation:ideation` and `execute` to `/ideation:execute-spec`
 - A `review` scenario fixture, and the six-hit prose sweep
 
 ### Out of Scope
@@ -70,6 +71,8 @@ The deeper gap is that the route does not describe how work actually ships here.
 - `waybill doctor --fix` — several remediations mutate state outside any repo
 - Generalising the hardcoded `origin` remote — every remote in play is already named origin
 - Committing `.waybill/bookings` into work repos — personal tool config does not belong in a corporate repo
+- Changing Waybill's *shipped* legs 5 and 6 — the OpenSpec legs stay the stock opinion and this machine keeps `openspec` installed for them; the ideation route is an overlay, not a fork
+- Restoring `n of m` progress on an ideation execute leg — the count reads `openspec/changes/` (`src/progress.js:6`); `0 of 0` is accepted, and generalising it is a code change with no consumer until the overlay is in daily use
 - A scripted live GitLab dry-run harness — needs a throwaway project, network and real MR creation
 - Doctor pre-flighting an overlay's stampCmd binaries — the exit-127 fix already surfaces this at route time
 

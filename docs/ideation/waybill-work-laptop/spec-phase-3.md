@@ -325,6 +325,15 @@ and every caller treats `null` as "ask `tasks.md` instead".
 
 **Fix line**: `npm install -g @fission-ai/openspec`
 
+**Known limitation, named not fixed**: checks 3 and 4 assume the *stock* route. Phase 7's work
+overlay rebooks legs 5 and 6 to `/ideation:ideation` and `/ideation:execute-spec`, and a machine
+running only that overlay needs neither `openspec` nor `~/.claude/commands/spec/` — doctor would
+report two failures for prerequisites nothing on that machine consumes. This laptop is unaffected:
+it keeps both installed for Waybill's own development, so both checks pass honestly here. Making
+doctor overlay-aware means resolving the bookings and probing only what the resolved carriers
+actually need, which is a larger change than this phase carries. If doctor later grows that
+awareness, checks 3 and 4 are the first two it should govern.
+
 ### Check 4 — `~/.claude/commands/spec/`
 
 **Overview**: the bare `/spec:propose` and `/spec:apply` the OpenSpec waybills name resolve only
