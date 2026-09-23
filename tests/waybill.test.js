@@ -302,11 +302,11 @@ describe('renderFleet', () => {
 
   it('names the branch a warning came from, rather than blaming the repository at large', () => {
     const fleet = dockets();
-    fleet[1].state.warnings = ['stampCmd command not found: nope'];
+    fleet[1].state.warnings = ['stampCmd missing binary `nope`: nope'];
 
     const output = renderFleet('main', fleet, CLEAN);
     assert.match(output, /^WARNINGS:$/m);
-    assert.match(output, /^ {2}⚠ fix\/stamp-scoping: stampCmd command not found: nope$/m);
+    assert.match(output, /^ {2}⚠ fix\/stamp-scoping: stampCmd missing binary `nope`: nope$/m);
   });
 
   it('reports an inspection finding alongside the dockets, as every other surface does', () => {
@@ -803,7 +803,7 @@ describe('renderWaybill reports what it could not do', () => {
 
   it('names the offending booking when a stamp could not run', () => {
     const output = renderWaybill(
-      state({ warnings: ['/bookings/openspec-specs.md: stampCmd command not found: nope'] }),
+      state({ warnings: ['/bookings/openspec-specs.md: stampCmd missing binary `nope`: nope'] }),
       CLEAN,
     );
     assert.match(output, /^WARNINGS:$/m);

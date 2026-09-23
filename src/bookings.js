@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseFrontmatter } from './frontmatter.js';
-import { checkoutRoot, configPath } from './repo.js';
+import { checkoutRoot, configPath, expandTilde } from './repo.js';
 
 /**
  * @typedef {{leg:string,command:string,model:string,effort?:string,handover?:string,
@@ -107,11 +107,14 @@ export function loadBookings(dir, options = {}) {
  * machine or this repository finishes work, not something retyped per invocation, and a default
  * would make Waybill read a directory nobody configured.
  *
+ * Both tiers expand a leading `~`, by the route each one has: {@link expandTilde} for the
+ * environment, git's own `--type=path` for the config.
+ *
  * @param {string} cwd
  * @returns {string|null}
  */
 function configuredBookingsDir(cwd) {
-  const tiers = [process.env.WAYBILL_BOOKINGS_DIR, configPath(cwd, 'waybill.bookingsdir')];
+  const tiers = [expandTilde(process.env.WAYBILL_BOOKINGS_DIR), configPath(cwd, 'waybill.bookingsdir')];
   return tiers.find((value) => value !== undefined && value !== null && value.trim() !== '')?.trim() ?? null;
 }
 
@@ -257,15 +260,51 @@ function runStamp(command, cwd) {
 }
 
 /**
- * `stampCmd`: judged by exit code only; stdout is ignored. A missing binary (exit 127) is simply
- * not-done — a stamp never throws, because one broken booking must not stop inference.
+ * The word a shell would look up first — the best available guess at which binary was missing.
+ *
+ * @param {string} command
+ * @returns {string}
+ */
+function binaryOf(command) {
+  return command.trim().split(/\s+/)[0];
+}
+
+/**
+ * The one wording for a stamp that could not run, so the two call sites cannot drift apart.
+ *
+ * "missing binary" rather than the shell's own "command not found": the latter reads as if the
+ * stamp answered no, and this is the case where it never answered at all. The full command follows
+ * the binary name because `shell: true` means 127 can come from any word in a pipeline — naming the
+ * first word is a guess, and printing both makes a wrong guess checkable rather than misleading.
+ *
+ * @param {string} prefix '' from {@link stampedByCmd}, `${label}: ` from {@link evaluateBooking}
+ * @param {string} command
+ * @param {{ran:boolean, notFound:boolean, status:number|null}} result
+ * @returns {string}
+ */
+function stampWarning(prefix, command, result) {
+  return result.notFound
+    ? `${prefix}stampCmd missing binary \`${binaryOf(command)}\`: ${command}`
+    : `${prefix}stampCmd could not be executed: ${command}`;
+}
+
+/**
+ * `stampCmd`: judged by exit code only; stdout is ignored. A stamp never throws, because one broken
+ * booking must not stop inference.
+ *
+ * A stamp that could not run at all — missing binary (exit 127), spawn failure, timeout — is still
+ * not-done, but it says so through `warnings` rather than silently: a stamp naming a binary this
+ * machine does not have would otherwise stall a leg forever with no explanation. Only an explicit
+ * non-zero exit is silent, because that is a stamp that ran and honestly said "not finished yet".
  *
  * @param {string} command
  * @param {string} cwd
+ * @param {string[]} [warnings] collected in place; a stamp that could not run at all says so here
  * @returns {boolean}
  */
-export function stampedByCmd(command, cwd) {
+export function stampedByCmd(command, cwd, warnings = []) {
   const result = runStamp(command, cwd);
+  if (!result.ran) warnings.push(stampWarning('', command, result));
   return result.ran && result.status === 0;
 }
 
@@ -317,8 +356,7 @@ export function evaluateBooking(booking, repoRoot, changed) {
     checked = true;
     const result = runStamp(booking.stampCmd, repoRoot);
     if (!result.ran) {
-      const reason = result.notFound ? 'command not found' : 'could not be executed';
-      warnings.push(`${label}: stampCmd ${reason}: ${booking.stampCmd}`);
+      warnings.push(stampWarning(`${label}: `, booking.stampCmd, result));
       done = false;
     } else {
       done = result.status === 0;

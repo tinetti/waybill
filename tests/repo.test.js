@@ -1,5 +1,6 @@
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -152,6 +153,62 @@ describe('resolveBayPath is configurable', () => {
 
     const target = withEnv({ WAYBILL_BAY_DIR: '  ' }, () => resolveBayPath('feat/x', repo));
     assert.equal(target, path.join(repo, '.claude', 'worktrees', 'repo-feat-x'));
+
+    // Blank is not an answer, so the tier below still gets to give one.
+    const configured = createRepo();
+    git(configured, ['config', 'waybill.baydir', 'from-config']);
+    const fellThrough = withEnv({ WAYBILL_BAY_DIR: '  ' }, () => resolveBayPath('feat/x', configured));
+    assert.equal(fellThrough, path.join(configured, 'from-config', 'repo-feat-x'));
+  });
+
+  it('expands a leading tilde in waybill.baydir', () => {
+    const repo = createRepo();
+    const home = tempRoot();
+    git(repo, ['config', 'waybill.baydir', '~/bays']);
+
+    // The fixture pins GIT_CONFIG_GLOBAL to /dev/null, so overriding HOME cannot drag in the
+    // developer's own global config — only the expansion is under test.
+    const target = withEnv({ HOME: home }, () => resolveBayPath('feat/x', repo));
+    assert.equal(target, path.join(home, 'bays', 'repo-feat-x'));
+  });
+
+  it('expands a leading tilde in WAYBILL_BAY_DIR', () => {
+    const repo = createRepo();
+    const home = tempRoot();
+
+    const target = withEnv({ HOME: home, WAYBILL_BAY_DIR: '~/bays' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(target, path.join(home, 'bays', 'repo-feat-x'));
+
+    const bare = withEnv({ HOME: home, WAYBILL_BAY_DIR: '~' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(bare, path.join(home, 'repo-feat-x'));
+
+    // The tier trims its answer, so padding is not meaningful — and must not be the difference
+    // between an expanded home and a directory named `~`.
+    const padded = withEnv({ HOME: home, WAYBILL_BAY_DIR: ' ~/bays' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(padded, path.join(home, 'bays', 'repo-feat-x'));
+  });
+
+  it('falls back to the OS home when HOME is unset, rather than leaving a literal tilde', () => {
+    const repo = createRepo();
+
+    // A hook or a daemon can run Waybill with no HOME at all. `os.homedir()` asks the OS directly;
+    // the remaining case — an OS that will not name a home either — cannot be provoked without
+    // injecting the lookup, and is covered by inspection.
+    // `os.homedir()` is read inside the block for the same reason the production code reads it
+    // there: with HOME unset it answers from the passwd entry, which need not equal $HOME.
+    const { target, home } = withEnv({ HOME: undefined, WAYBILL_BAY_DIR: '~/bays' }, () => ({
+      target: resolveBayPath('feat/x', repo),
+      home: os.homedir(),
+    }));
+    assert.equal(target, path.join(home, 'bays', 'repo-feat-x'));
+  });
+
+  it('leaves a tilde that is not the leading segment alone — it is a legal directory name', () => {
+    const repo = createRepo();
+    const home = tempRoot();
+
+    const target = withEnv({ HOME: home, WAYBILL_BAY_DIR: 'bays/~keep' }, () => resolveBayPath('feat/x', repo));
+    assert.equal(target, path.join(repo, 'bays', '~keep', 'repo-feat-x'));
   });
 
   it('lets an explicit bayDir win over both the environment and the config', () => {
