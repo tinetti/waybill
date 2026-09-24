@@ -3,16 +3,20 @@ import { resolveLeg } from './inference.js';
 
 /**
  * @typedef {{branch:string, path:string, state:import('./inference.js').Inference,
- *            openedAt?:number|null, idleAt?:number|null, stackedOn?:string|null}} Docket
+ *            openedAt?:number|null, idleAt?:number|null, stackedOn?:string|null,
+ *            pane?:{session:string, windowIndex:string, windowName:string}|null,
+ *            activity?:import('./procs.js').Activity}} Docket
  *   `state` is the whole inference rather than a flattened leg and index, because the fleet view
  *   also renders execute's task progress and attributes each docket's warnings to the branch they
  *   came from — both of which live on the inference and neither of which the caller can rebuild.
  *
- *   The three optional fields are the fleet view's own, hung on by `scan.js` after this function
+ *   The five optional fields are the fleet view's own, hung on by `scan.js` after this function
  *   has returned: `openedAt` is the unix seconds of the merge-base commit with the trunk, `idleAt`
  *   the unix seconds of the branch tip's committer date, and `stackedOn` the sibling branch this
- *   one was cut from, or `null` when it was cut from the trunk. Absent from a plain `fleet` call,
- *   which is every caller that asks where one docket stands rather than how the whole fleet looks.
+ *   one was cut from, or `null` when it was cut from the trunk. `pane` is the tmux pane sitting in
+ *   this docket's bay, matched on exact path, and `activity` what is running in it. Absent from a
+ *   plain `fleet` call, which is every caller that asks where one docket stands rather than how the
+ *   whole fleet looks.
  *
  *   Unix seconds, never a formatted age: the model has no clock, so a golden file of it is stable.
  */

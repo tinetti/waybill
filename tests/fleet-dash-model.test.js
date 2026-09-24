@@ -70,10 +70,22 @@ describe('FleetModel', () => {
 
     const model = withEnv({ WAYBILL_BOOKINGS_DIR: undefined }, () => scanFleet(root, { depth: 1 }));
 
-    assert.deepEqual(Object.keys(model).sort(), ['inRepo', 'repos', 'root', 'scanned']);
+    assert.deepEqual(Object.keys(model).sort(), [
+      'inRepo',
+      'psAvailable',
+      'repos',
+      'root',
+      'scanned',
+      'tmuxAvailable',
+    ]);
     assert.equal(model.root, root);
     assert.equal(model.inRepo, false);
     assert.equal(model.scanned, 1);
+    // Whether either source answered depends on the machine the suite runs on — a developer inside
+    // tmux and a CI container disagree — so only the shape is asserted here. What the flags *mean*
+    // is pinned against stubs in `fleet-dash-signals` and `fleet-dash-agent`.
+    assert.equal(typeof model.tmuxAvailable, 'boolean');
+    assert.equal(typeof model.psAvailable, 'boolean');
 
     const [entry] = model.repos;
     assert.deepEqual(Object.keys(entry).sort(), ['bookings', 'dockets', 'name', 'root', 'trunk', 'warnings']);

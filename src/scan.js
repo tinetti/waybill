@@ -7,6 +7,8 @@ import { defaultBranch, mainCheckout } from './repo.js';
 import { fleet } from './fleet.js';
 import { branchTips, openedAt } from './age.js';
 import { stackParents } from './stack.js';
+import { listPanes, paneFor, panesByPath } from './panes.js';
+import { activityFor, childIndex, snapshot } from './procs.js';
 
 /**
  * @typedef {{root:string, name:string, trunk:string,
@@ -17,11 +19,17 @@ import { stackParents } from './stack.js';
  */
 
 /**
- * @typedef {{root:string, inRepo:boolean, scanned:number, repos:RepoFleet[]}} FleetModel
+ * @typedef {{root:string, inRepo:boolean, scanned:number, repos:RepoFleet[],
+ *            tmuxAvailable:boolean, psAvailable:boolean}} FleetModel
  *   `scanned` counts every repository found, *before* the ones with nothing in flight are dropped:
  *   an empty `repos` beside `scanned: 0` is "there is nothing here", and beside `scanned: 12` it is
  *   "everything is clean", and a dashboard that cannot tell those apart reads a failed scan as
  *   success.
+ *
+ *   The two availability flags exist for the same reason at the column level. A blank pane column
+ *   means "no pane is open on this bay"; a blank one because tmux never answered means nothing at
+ *   all, and rendering the two identically invites the operator to trust an absence that was never
+ *   checked. False here is the renderer's signal to omit the column rather than to print it empty.
  */
 
 /** How many directory levels below the cwd the walk descends. `~/Projects/<org>/<repo>` needs 2. */
@@ -222,6 +230,31 @@ function decorate(root, trunk, dockets, warnings) {
 }
 
 /**
+ * Hang the two environment-derived facts off every docket: the tmux pane sitting in its bay, and
+ * what is running in that pane.
+ *
+ * Separate from {@link decorate} because the inputs are: those come from one repository's git, these
+ * from one snapshot of the whole machine, taken once per scan and passed in.
+ *
+ * Both degrade to `null`, never to a guess. A docket with no pane is not asked what is running in
+ * it — there is no pid to ask about, and answering anyway would mean naming a process that belongs
+ * to somebody else's terminal.
+ *
+ * @param {import('./fleet.js').Docket[]} dockets mutated in place
+ * @param {Map<string, import('./panes.js').Pane>} byPath
+ * @param {Map<number, import('./procs.js').Proc[]>} children
+ * @returns {void}
+ */
+function decorateSignals(dockets, byPath, children) {
+  for (const docket of dockets) {
+    const pane = paneFor(byPath, docket.path);
+    docket.pane =
+      pane === null ? null : { session: pane.session, windowIndex: pane.windowIndex, windowName: pane.windowName };
+    docket.activity = pane === null ? null : activityFor(pane.panePid, children);
+  }
+}
+
+/**
  * Every repository in play and every effort in flight in each.
  *
  * Multi-repo mode — a cwd outside any repository — differs from single-repo mode in exactly two
@@ -245,6 +278,15 @@ export function scanFleet(cwd, options = {}) {
   // repository whose commands these are.
   const skipStampCmd = !inRepo;
 
+  // One tmux call and one ps snapshot for the entire scan. Both describe the machine rather than
+  // any one repository, so paying for them per repository — or worse, per docket — would buy the
+  // same answer several times over. Empty means the source could not be read, which is a fact the
+  // model carries rather than one it hides.
+  const panes = listPanes();
+  const byPath = panesByPath(panes);
+  const procs = snapshot();
+  const children = childIndex(procs);
+
   /** @type {RepoFleet[]} */
   const repos = [];
   for (const root of roots) {
@@ -258,8 +300,16 @@ export function scanFleet(cwd, options = {}) {
 
     const trunk = defaultBranch(root);
     decorate(root, trunk, dockets, warnings);
+    decorateSignals(dockets, byPath, children);
     repos.push({ root, name: path.basename(root), trunk, bookings, dockets, warnings });
   }
 
-  return { root: cwd, inRepo, scanned: roots.length, repos };
+  return {
+    root: cwd,
+    inRepo,
+    scanned: roots.length,
+    repos,
+    tmuxAvailable: panes.length > 0,
+    psAvailable: procs.length > 0,
+  };
 }

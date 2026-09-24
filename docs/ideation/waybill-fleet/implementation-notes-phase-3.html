@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 3</title>
+    <style>
+      /* === DESIGN TOKENS === */
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas,
+          monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --max-width: 900px;
+        --sidebar-width: 220px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+
+      /* === LAYOUT === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--color-text);
+        background: var(--color-bg);
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4);
+      }
+
+      .doc-header {
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .doc-header h1 {
+        margin: 0 0 var(--space-1) 0;
+        font-size: 28px;
+        line-height: 1.25;
+      }
+
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .doc-content h2 {
+        margin-top: var(--space-6);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 22px;
+      }
+
+      .doc-content h3 {
+        margin-top: var(--space-5);
+        font-size: 18px;
+      }
+
+      .doc-content p,
+      .doc-content li,
+      .doc-content dd {
+        font-size: 15px;
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 0 var(--space-1);
+      }
+
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .note-entry h3 {
+        margin-top: 0;
+      }
+
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-text-muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: var(--space-3);
+      }
+
+      .note-entry dd {
+        margin: var(--space-1) 0 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 3</h1>
+      <p class="doc-meta">Waybill Fleet · 2026-09-24 · tmux and agent signals</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>procs.js — what &ldquo;busiest descendant&rdquo; resolves to</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec asks for &ldquo;the busiest non-shell descendant by command&rdquo;, but the process shape it
+            declares is <code>{pid, ppid, comm, args}</code> and the call it prescribes is
+            <code>ps -eo pid=,ppid=,comm=,args=</code>. There is no busyness metric in that data, so
+            &ldquo;busiest&rdquo; has no literal reading.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The <em>shallowest</em> non-shell descendant — the command the operator actually invoked. A
+            <code>npm test</code> run reports <code>npm</code> rather than the <code>node</code> it spawned, which
+            is both the more legible label and deterministic, so a golden file of the rendered fleet cannot flicker
+            between two processes of the same tree.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Add <code>%cpu</code> to the <code>ps</code> format and take the maximum. Rejected: it changes the
+            declared <code>Proc</code> shape, macOS reports a cumulative average that says little about the last
+            second, and the winner would then vary run to run — a dashboard column that changes while nothing
+            changed is noise.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>procs.js — positional parsing against a truncated <code>comm</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec says to parse <code>ps</code> positionally with <code>args</code> taking the rest of the line.
+            On macOS <code>comm</code> is the executable <em>path</em>, and a path can contain spaces — which would
+            break a positional parse. Measured against this machine's real table: 1348 processes, 1158 of them with
+            a <code>comm</code> truncated to exactly 16 characters, and zero lines that the greedy parse got wrong.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Keep the positional parse, taking <code>comm</code> as the first whitespace-delimited token. The
+            truncation that loses a long path's basename is exactly why the spec also matches on
+            <code>argv[0]</code>, which arrives whole in <code>args</code> — so the two fields cover each other.
+            <code>args</code> was additionally made optional, since a defunct process has none and dropping its
+            line would break the parent chain between a pane and whatever is still running below it.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Two <code>ps</code> calls with unambiguous single-field formats. Rejected: it doubles the cost of the
+            one call the whole design is built around, to fix a mangling that only ever affects processes no pane
+            is an ancestor of.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>panes.js — a third export, <code>paneFor</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec declares <code>listPanes</code> and <code>panesByPath</code>. The map that second one returns
+            is keyed by <em>resolved</em> path, so a caller cannot look a docket up in it without performing the
+            same <code>realpathSync</code>-and-strip-trailing-slash normalisation on its own side.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Export <code>paneFor(byPath, dir)</code> and keep the normalisation private to the module. One
+            definition of &ldquo;the same directory&rdquo;, in the module that owns the join.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Export the key function and let <code>scan.js</code> call <code>byPath.get(key(dir))</code>. Rejected:
+            it publishes the representation instead of the operation, and a future caller that forgets the key
+            function gets a silent miss rather than an error.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>scan.js — the model key assertion had to move</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>tests/fleet-dash-model.test.js:73</code> pins the exact key set of <code>FleetModel</code>. The
+            spec's append-only <code>tmuxAvailable</code> / <code>psAvailable</code> flags break it, and the spec's
+            Modified Files table does not list that suite.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Extend the assertion to the six keys and add a type-only check on the two flags. Their <em>values</em>
+            depend on the machine the suite runs on — a developer inside tmux and a CI container disagree — so what
+            the flags mean is pinned against stubs in the two new suites instead.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Loosen the assertion to a subset check. Rejected: that assertion's job is to catch an accidental
+            addition to the model, and a subset check cannot.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>KNOWN_AGENTS — the spec's open item, closed against the real machine</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec left open whether its guessed agent list matches what the operator runs, and whether matching
+            <code>comm</code> and <code>argv[0]</code> basenames is enough to find a real Claude Code session.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Kept the list as specced, after running the finished walk against this machine's live tmux server: 16
+            panes, 1340 processes, 94&nbsp;ms for both calls, and eleven of twelve joined bays correctly named
+            <code>claude</code>. The twelfth held a plain shell and correctly reported nothing — the false-positive
+            case the whole design exists to avoid. <code>claude</code> appears with <code>comm</code> of
+            <code>claude</code>, so the basename match is sufficient without reaching into <code>argv[1]</code>.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Also scan <code>argv[1]</code> for an agent entry point, covering a launcher that execs
+            <code>node &lt;script&gt;</code>. Rejected for now: unnecessary against the observed shape, and every
+            widening of the match is a step back toward the confident wrong claims the picker's denylist exists to
+            suppress.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
