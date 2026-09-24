@@ -155,6 +155,10 @@ describe('renderHelp', () => {
       contract: 'contract.md',
       specs: 'tasks.md',
       execute: 'all tasks ticked',
+      // The one stock leg whose stamp asks something outside the repository. `repo state` — the
+      // fallback for any booking with no `stampPath` — would contradict both the booking and the
+      // README, and send the operator looking for a file that is never written.
+      review: 'request open',
       cleanup: 'merged, bay gone',
     };
     for (const [id, stamp] of Object.entries(stamps)) {

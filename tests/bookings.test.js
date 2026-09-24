@@ -267,6 +267,16 @@ describe('evaluateBooking', () => {
     assert.match(result.warnings[0], new RegExp(PROBE));
   });
 
+  it('reads a stamp that floods stdout as done, with no warning', () => {
+    // stdout is piped so the 125 branch can quote the stamp's own reason, and `spawnSync`'s
+    // default 1 MB buffer would turn that into a trap: past it `result.error` is set, an exit-0
+    // "done" becomes not-done, and the leg grows a "could not be executed" warning it has not
+    // earned. Volume was irrelevant before stdout was piped; it has to stay irrelevant.
+    const loud = "yes 'a chatty stamp says a great deal on its way to exit 0' | head -n 100000";
+    const booking = { leg: 'contract', path: 'bookings/loud.md', stampCmd: loud };
+    assert.deepEqual(evaluateBooking(booking, tempRoot(), null), { done: true, warnings: [] });
+  });
+
   it('is silent when a stampCmd runs and simply says not-done', () => {
     const booking = { leg: 'contract', path: 'bookings/probe.md', stampCmd: 'exit 1' };
     const result = evaluateBooking(booking, tempRoot(), null);

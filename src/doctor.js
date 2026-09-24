@@ -212,25 +212,39 @@ export function checkOpenspec() {
  */
 export function checkSpecCommands(configDir, pluginRoot = PLUGIN_ROOT) {
   const label = 'spec commands';
-  const fix =
-    'for f in explore propose apply archive; do ln -sf "$PWD/commands/spec/$f.md" "$HOME/.claude/commands/spec/$f.md"; done';
   const source = path.join(pluginRoot, 'commands', 'spec');
+
+  // `mkdir -p` first in both forms: the failure this remediates is a *missing* directory, and
+  // `ln -sf` does not create a parent.
+  //
+  // The three early returns below fire before the target or the required set is known, so they can
+  // only offer the generic form — the config directory resolved the way `configDir` resolves it,
+  // and a glob standing in for a set that could not be read.
+  const generic =
+    'd="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/commands/spec"; ' +
+    `mkdir -p "$d" && ln -sf "${source}"/*.md "$d/"`;
 
   /** @type {string[]} */
   let required;
   try {
     required = fs.readdirSync(source).filter((name) => name.endsWith('.md')).sort();
   } catch {
-    return { label, verdict: 'warn', detail: `cannot read ${source}, so there is no required set to check against`, fix };
+    return { label, verdict: 'warn', detail: `cannot read ${source}, so there is no required set to check against`, fix: generic };
   }
   if (required.length === 0) {
-    return { label, verdict: 'warn', detail: `${source} ships no commands, so there is nothing to link`, fix };
+    return { label, verdict: 'warn', detail: `${source} ships no commands, so there is nothing to link`, fix: generic };
   }
   if (configDir === null) {
-    return { label, verdict: 'warn', detail: 'neither CLAUDE_CONFIG_DIR nor HOME is set, so no config directory can be read', fix };
+    return { label, verdict: 'warn', detail: 'neither CLAUDE_CONFIG_DIR nor HOME is set, so no config directory can be read', fix: generic };
   }
 
   const target = path.join(configDir, 'commands', 'spec');
+  // Both halves are read off the machine rather than written out here: the directory doctor
+  // actually checked, and the names the source actually ships — so a fifth vendored command is
+  // linked by a fix nobody edited, and an operator with `CLAUDE_CONFIG_DIR` set links where doctor
+  // will look next time.
+  const all = required.map((name) => name.slice(0, -'.md'.length)).join(' ');
+  const fix = `mkdir -p "${target}" && for f in ${all}; do ln -sf "${source}/$f.md" "${target}/$f.md"; done`;
   const missing = required.filter((name) => !fs.existsSync(path.join(target, name)));
   if (missing.length === 0) {
     return { label, verdict: 'ok', detail: `${required.length} of ${required.length} present in ${target}/` };

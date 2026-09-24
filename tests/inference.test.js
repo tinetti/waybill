@@ -66,6 +66,20 @@ function bookingMap(files) {
   return loadBookings(dir, { knownLegs: KNOWN_LEGS });
 }
 
+/**
+ * The shipped bookings with some of them replaced — the arrangement an overlay produces, and the
+ * one a `stampCmd` test needs: the walk defers a costly stamp behind an open leg, so a leg left
+ * unbooked ahead of the one under test would keep its stamp from ever running.
+ *
+ * @param {Record<string,string>} files basename → contents
+ * @returns {Map<string, import('../src/bookings.js').Booking>}
+ */
+function bookingsWith(files) {
+  const base = loadBookings(BUILTIN_BOOKINGS, { knownLegs: KNOWN_LEGS });
+  for (const [leg, booking] of bookingMap(files)) base.set(leg, booking);
+  return base;
+}
+
 describe('LEGS', () => {
   it('is the fixed leg model, in order', () => {
     assert.deepEqual(KNOWN_LEGS, [
@@ -193,6 +207,17 @@ describe('resolveLeg', () => {
     assert.match(result.warnings[0], /no forge CLI/);
   });
 
+  it('leaves the forge alone while an earlier leg is still open', () => {
+    // The counterpart to the test above, and the reason the walk defers `stampCmd` legs. The
+    // review stamp is the route's only subprocess, and the walk runs every leg to find the holes
+    // behind the current one — so without deferral a machine carrying neither CLI prints that
+    // same warning under every command at every leg, where it is not yet actionable.
+    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(refineFixture().dir));
+
+    assert.equal(result.leg, 'refine');
+    assert.deepEqual(result.warnings, []);
+  });
+
   it('leaves booking undefined for a leg no booking is bound to', () => {
     // Every shipped leg is bound now, so the unbound render path is reachable only by an operator
     // who removed a booking — which is exactly the case worth keeping covered.
@@ -308,7 +333,9 @@ describe('resolveLeg', () => {
   });
 
   it('degrades a stamp that cannot run to a warning rather than a throw', () => {
-    const bookings = bookingMap({
+    // Overlaid on the shipped set rather than standing alone: `specs` has to be the leg in hand for
+    // its stamp to be run at all, and an unbooked leg ahead of it would defer the stamp instead.
+    const bookings = bookingsWith({
       'broken-specs.md': [
         '---',
         'leg: specs',

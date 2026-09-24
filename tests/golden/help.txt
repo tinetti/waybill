@@ -14,7 +14,7 @@ ROUTE
   4  contract  /ideation:ideation    contract.md
   5  specs     /spec:propose         tasks.md
   6  execute   /spec:apply           all tasks ticked
-  7  review    /waybill:review       repo state
+  7  review    /waybill:review       request open
   8  cleanup   /waybill:cleanup      merged, bay gone
 
 WORDS

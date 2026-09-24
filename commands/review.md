@@ -23,11 +23,16 @@ Every segment of the `!` line below ends in a fallback, so the whole line exits 
 discards a command file whose `!` line exits non-zero, and the Task section then never renders at
 all — on a branch with no remote and no forge CLI, which is exactly when the guidance is needed
 most.
+
+`default branch:` is printed with its `origin/` prefix stripped, because step 1 compares it with
+`branch:` literally and `origin/main` can never equal `main`. The strip is POSIX parameter
+expansion inside an `if`, not a pipe to `sed`: a pipe would report the last command's status and
+so destroy the very failure the fallback is watching for.
 -->
 
 # Waybill: review
 
-!`b=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(no branch)"); echo "--- branch: $b"; echo "--- default branch:"; git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo "(no origin/HEAD — fall back to main, then master)"; echo "--- origin:"; git remote get-url origin 2>/dev/null || echo "(no origin remote — there is nothing to push to)"; echo "--- commits not yet pushed:"; git log --oneline @{upstream}..HEAD 2>/dev/null || echo "(no upstream — this branch has never been pushed)"; echo "--- uncommitted:"; git status --porcelain 2>/dev/null || echo "(not inside a git repository)"; echo "--- gh:"; command -v gh 2>/dev/null && (gh repo view --json nameWithOwner 2>/dev/null || echo "(installed, but cannot answer for this repository — check auth and host)") || echo "(not installed)"; echo "--- glab:"; command -v glab 2>/dev/null && (glab repo view >/dev/null 2>&1 && echo "(can see this repository)" || echo "(installed, but cannot answer for this repository — check auth and host)") || echo "(not installed)"; echo "--- requests already open for this branch:"; gh pr list --head "$b" --state open 2>/dev/null || glab mr list --source-branch "$b" 2>/dev/null || echo "(no forge CLI could answer — whether one is open is unknown)"`
+!`b=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(no branch)"); echo "--- branch: $b"; echo "--- default branch:"; if d=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); then echo "${d#origin/}"; else echo "(no origin/HEAD — fall back to main, then master)"; fi; echo "--- origin:"; git remote get-url origin 2>/dev/null || echo "(no origin remote — there is nothing to push to)"; echo "--- commits not yet pushed:"; git log --oneline @{upstream}..HEAD 2>/dev/null || echo "(no upstream — this branch has never been pushed)"; echo "--- uncommitted:"; git status --porcelain 2>/dev/null || echo "(not inside a git repository)"; echo "--- gh:"; command -v gh 2>/dev/null && (gh repo view --json nameWithOwner 2>/dev/null || echo "(installed, but cannot answer for this repository — check auth and host)") || echo "(not installed)"; echo "--- glab:"; command -v glab 2>/dev/null && (glab repo view >/dev/null 2>&1 && echo "(can see this repository)" || echo "(installed, but cannot answer for this repository — check auth and host)") || echo "(not installed)"; echo "--- requests already open for this branch:"; gh pr list --head "$b" --state open 2>/dev/null || glab mr list --source-branch "$b" 2>/dev/null || echo "(no forge CLI could answer — whether one is open is unknown)"`
 
 ## Task
 

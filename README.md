@@ -278,10 +278,13 @@ waybill doctor — 0.8.0
   ok    gh             authenticated
   WARN  glab           present, but `glab auth status` exited 1 — the review leg cannot open an MR
         fix: glab auth login --hostname <your-self-hosted-host>
+  WARN  glab host      not read — `glab auth status` did not pass, so the host answers for nothing
+        fix: glab config set -g host <your-self-hosted-host>
   ok    plugin cache   0.8.0 at /Users/you/.claude/plugins/cache/tinetti/waybill/0.8.0
   info  bookings       no overlay in force — the stock route applies
+  info  waybill        not on PATH — this CLI: /Users/you/.claude/plugins/cache/tinetti/waybill/0.8.0/src/cli.js
 
-1 failed, 1 warned — fix the FAIL rows above, then re-run `waybill doctor`
+1 failed, 2 warned — fix the FAIL rows above, then re-run `waybill doctor`
 ```
 
 Every `FAIL` and every `WARN` carries the command that closes it; `ok` and `info` carry none. It

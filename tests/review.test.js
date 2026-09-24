@@ -241,6 +241,26 @@ describe('the `!` line in commands/review.md', () => {
     assert.match(result.stdout, /never been pushed/);
   });
 
+  it('prints the default branch bare, so step 1 can compare it with `branch:`', () => {
+    // `git symbolic-ref --short refs/remotes/origin/HEAD` prints `origin/main`, which no
+    // `branch:` value can ever equal. Step 1 stops "if `branch:` is the default branch", so with
+    // the two differently shaped the guard never fires and step 3 goes on to push the trunk.
+    const result = run(createRepo({ branch: 'main', remote: true, originHead: true }));
+
+    assert.equal(result.status, 0);
+    const printed = /^--- default branch:\n(.*)$/m.exec(result.stdout);
+    assert.ok(printed, result.stdout);
+    assert.equal(printed[1], 'main');
+    assert.match(result.stdout, /^--- branch: main$/m);
+  });
+
+  it('keeps the exit-0 fallback when there is no origin/HEAD to read', () => {
+    const result = run(createRepo({ branch: 'feat/thing' }));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^--- default branch:\n\(no origin\/HEAD — fall back to main, then master\)$/m);
+  });
+
   it('exits 0 outside a git repository at all', () => {
     const result = run(tempRoot());
 

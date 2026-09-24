@@ -10,10 +10,15 @@ import { resolveBookings } from './bookings.js';
 export const MAX_LINES = 45;
 
 /**
- * What stamps a wrapper-owned leg. Those two judge themselves in `src/legs.js` rather than through
- * a booking, so there is no booking field to read the phrase from.
+ * How to say a leg's stamp when no booking field says it well. Purely a display map for this page —
+ * distinct from the behavioural `STAMPS` in `src/legs.js`, which decides whether a leg is done.
+ *
+ * `bay` and `cleanup` judge themselves in `src/legs.js` rather than through a booking, so there is
+ * no booking field to read the phrase from. `review` has a booking, but its stamp is a `stampCmd`
+ * asking the forge — the one stock leg whose mark is outside the repository, which the generic
+ * `repo state` fallback would misdescribe.
  */
-const WRAPPER_STAMPS = { bay: 'bay exists', cleanup: 'merged, bay gone' };
+const STAMP_LABELS = { bay: 'bay exists', review: 'request open', cleanup: 'merged, bay gone' };
 
 /** Stands in for a carrier or a stamp the bookings in force could not supply. */
 const NONE = '—';
@@ -64,7 +69,7 @@ const OUTRO = [
  * @returns {string}
  */
 function stampOf(leg, booking) {
-  if (leg.owner === 'wrapper' && WRAPPER_STAMPS[leg.id]) return WRAPPER_STAMPS[leg.id];
+  if (STAMP_LABELS[leg.id]) return STAMP_LABELS[leg.id];
   if (leg.progress) return 'all tasks ticked';
   if (booking.stampPath) return path.posix.basename(booking.stampPath);
   return 'repo state';

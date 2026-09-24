@@ -35,6 +35,13 @@ const ARGUMENT_SOURCES = ['change-id', 'branch', 'none'];
 const STAMP_TIMEOUT_MS = 10000;
 
 /**
+ * Bytes of a `stampCmd`'s stdout held in memory. Deliberately far past anything a stamp prints:
+ * only its first line is ever read, so this is a ceiling against a runaway, not a budget. The 10s
+ * timeout is the real bound on how much a stamp can produce.
+ */
+const STAMP_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
  * The exit code a `stampCmd` uses to say it could not answer, as distinct from answering "no".
  *
  * 125 rather than 1, because 1 is what every ordinary failing command returns and a stamp that
@@ -270,8 +277,9 @@ export function stampedByPath(pattern, repoRoot, changed) {
  *
  * stdout is piped rather than discarded so the 125 branch can quote the stamp's own reason. Only
  * its first line is kept, and only on 125 — an ordinary chatty stamp cannot inject text into a
- * warning. The cost: a stamp that floods stdout past `maxBuffer` now sets `result.error` and reads
- * as "could not be executed" where it previously read as a plain verdict.
+ * warning. Piping it must not change any other verdict, so `maxBuffer` is raised far past anything
+ * a stamp plausibly prints: at the default 1 MB a chatty stamp sets `result.error` and an exit-0
+ * verdict reads as "could not be executed", which volume alone must never cause.
  *
  * @param {string} command
  * @param {string} cwd
@@ -283,6 +291,7 @@ function runStamp(command, cwd) {
     shell: true,
     stdio: ['ignore', 'pipe', 'ignore'],
     encoding: 'utf8',
+    maxBuffer: STAMP_MAX_BUFFER,
     timeout: STAMP_TIMEOUT_MS,
     windowsHide: true,
   });

@@ -16,9 +16,10 @@ import { discoverChangeId, executeProgress } from './progress.js';
  * @param {Map<string, import('./bookings.js').Booking>} bookings
  * @param {string[]} warnings collected in place
  * @param {() => ReturnType<typeof executeProgress>} progress the docket's execute progress, on demand
+ * @param {boolean} deferred whether some earlier leg is already open
  * @returns {boolean}
  */
-function legIsDone(leg, state, bookings, warnings, progress) {
+function legIsDone(leg, state, bookings, warnings, progress, deferred) {
   // The walk names no leg. A wrapper-owned leg judges itself through the table `src/legs.js`
   // declares; everything else is judged purely by its booking's stamp, so a new leg is a line in
   // `LEGS` and a booking, with nothing to edit here.
@@ -27,6 +28,17 @@ function legIsDone(leg, state, bookings, warnings, progress) {
 
   const booking = bookings.get(leg.id);
   if (!booking) return false;
+
+  // A `stampCmd` is the one stamp that can cost something — a subprocess, and for the review leg a
+  // network round trip to a forge. Behind an open leg it cannot change the position, so it is not
+  // run at all: reported not-done and left unasked. Without this the route's only network stamp
+  // fires under every command at every leg, and on a machine carrying no forge CLI prints a
+  // warning naming a leg the operator has not reached.
+  //
+  // The cost is bounded and deliberate: a hole at a `stampCmd` leg goes unseen, where a hole at a
+  // `stampPath` leg still surfaces in `skipped`. Path stamps stay eager precisely so out-of-order
+  // detection survives — every leg it covers today is one.
+  if (deferred && booking.stampCmd) return false;
 
   const result = evaluateBooking(booking, state.root, state.changed);
   warnings.push(...result.warnings);
@@ -120,7 +132,17 @@ export function resolveLeg(cwd, bookings) {
   const executeState = () => (progress ??= executeProgress(root, docketOpen ? undefined : null, changed));
 
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
-  const done = LEGS.map((leg, i) => (i === 0 ? false : legIsDone(leg, state, bookings, warnings, executeState)));
+  //
+  // `deferred` tracks whether the walk has passed an open leg yet, so a costly stamp behind one is
+  // never run. `ideate` is skipped here and judged below, so it must not set the flag — the walk
+  // would otherwise defer every stamp on the route.
+  let deferred = false;
+  const done = LEGS.map((leg, i) => {
+    if (i === 0) return false;
+    const complete = legIsDone(leg, state, bookings, warnings, executeState, deferred);
+    if (!complete) deferred = true;
+    return complete;
+  });
   done[0] = ideateIsDone(state, done.some(Boolean));
 
   // With no docket open there is no position to report, so the walk's verdict is discarded — the

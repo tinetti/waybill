@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { checkNode, renderDoctor, runChecks } from '../src/doctor.js';
+import { checkNode, checkSpecCommands, renderDoctor, runChecks } from '../src/doctor.js';
 import { run } from '../src/cli.js';
 import {
   cleanupAll,
@@ -201,6 +201,65 @@ describe('renderDoctor', () => {
   });
 });
 
+describe('checkSpecCommands — the remediation it offers', () => {
+  /**
+   * A plugin root shipping exactly the named commands, so the required set is under the case's
+   * control rather than whatever `commands/spec/` happens to hold today.
+   *
+   * @param {...string} names
+   * @returns {string}
+   */
+  function pluginWith(...names) {
+    const root = path.join(tempRoot(), 'plugin');
+    fs.mkdirSync(path.join(root, 'commands', 'spec'), { recursive: true });
+    for (const name of names) writeFile(path.join(root, 'commands', 'spec', name), '# stub\n');
+    return root;
+  }
+
+  /** A config directory that does not exist — the state the FAIL is reported for. */
+  const absent = () => path.join(tempRoot(), 'no-config');
+
+  it('creates the directory it is about to link into', () => {
+    // `ln -sf` does not create a parent, and the FAIL fires precisely when the parent is missing:
+    // without `mkdir -p` the remediation fails in the one case it is offered for.
+    const check = checkSpecCommands(absent(), pluginWith('propose.md'));
+
+    assert.equal(check.verdict, 'fail');
+    assert.ok(check.fix.includes('mkdir -p'), check.fix);
+  });
+
+  it('links into the config directory doctor read, not a hardcoded $HOME/.claude', () => {
+    // With CLAUDE_CONFIG_DIR set, a fix naming `$HOME/.claude` writes somewhere doctor never
+    // looks: the operator runs it and the same FAIL comes back.
+    const configured = path.join(tempRoot(), 'elsewhere');
+    const check = checkSpecCommands(configured, pluginWith('propose.md'));
+
+    assert.ok(check.fix.includes(path.join(configured, 'commands', 'spec')), check.fix);
+    assert.equal(check.fix.includes('$HOME/.claude'), false, check.fix);
+  });
+
+  it('names what the source ships rather than four hardcoded words', () => {
+    const check = checkSpecCommands(absent(), pluginWith('propose.md', 'vendored.md'));
+
+    assert.match(check.fix, /\bvendored\b/);
+    assert.match(check.fix, /\bpropose\b/);
+    assert.equal(/\barchive\b/.test(check.fix), false, check.fix);
+  });
+
+  it('still offers a remediation before the target and the required set are known', () => {
+    // Three early returns fire before both are in hand. A `warn` with no fix recreates the cost
+    // doctor exists to remove, and neither may throw.
+    const unreadable = checkSpecCommands(absent(), path.join(tempRoot(), 'not-a-plugin'));
+    const empty = checkSpecCommands(absent(), pluginWith());
+    const noConfig = checkSpecCommands(null, pluginWith('propose.md'));
+
+    for (const check of [unreadable, empty, noConfig]) {
+      assert.equal(check.verdict, 'warn');
+      assert.ok(check.fix?.includes('mkdir -p'), `${check.detail}: ${check.fix}`);
+    }
+  });
+});
+
 describe('waybill doctor — the gaps, each with its remediation', () => {
   it('reports a missing git, and exits 1', () => {
     const config = configDirFixture();
@@ -230,7 +289,9 @@ describe('waybill doctor — the gaps, each with its remediation', () => {
     const { code, out } = healthy({ config: { commands: [] } });
 
     assert.equal(code, 1);
-    assert.ok(out.includes('ln -sf "$PWD/commands/spec/$f.md"'), out);
+    const fix = out.split('\n').find((line) => line.trim().startsWith('fix: mkdir -p'));
+    assert.ok(fix, out);
+    assert.ok(fix.includes('ln -sf'), fix);
   });
 
   it('names exactly which spec commands are missing when the directory is half populated', () => {
