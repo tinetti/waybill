@@ -1,0 +1,1612 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Waybill Fleet — Mission Brief</title>
+    <script>
+      // Apply a saved forced theme before first paint to avoid a flash
+      try {
+        const saved = localStorage.getItem('ideation-contract-theme');
+        if (saved === 'light' || saved === 'dark')
+          document.documentElement.dataset.theme = saved;
+      } catch {}
+    </script>
+    <style>
+/* Command Deck — Contract Design Tokens & Components
+   Dark-first instrument panel with a co-equal light deck.
+   Cyan-teal telemetry accent; go/caution/danger status trio.
+   Inlined into generated HTML by contract-gen.ts at runtime.
+
+   Anchors: Linear (dark density + restraint), Grafana panels
+   (status rails, dense data), flight-telemetry go/no-go boards.
+   Explicitly NOT: neon glow, scanlines, fake terminal chrome. */
+
+:root {
+  /* Auto: follow the system. The header toggle forces a deck by setting
+     data-theme, which pins color-scheme and resolves every light-dark(). */
+  color-scheme: light dark;
+
+  /* ── Tokens: light-dark(light deck, dark deck) ──
+     OKLCH-derived, hued toward the cyan accent (~h230).
+     Dark deck is canonical; the light deck is co-equal, AA-verified. */
+  --bg: light-dark(#eef1f4, #0a0f16);
+  --surface-1: light-dark(#f9fafb, #101723);
+  --surface-2: light-dark(#ffffff, #161f2e);
+  --line: light-dark(#d4dce3, #243140);
+  --line-strong: light-dark(#aab8c4, #38485a);
+  --ink: light-dark(#16202b, #e6edf3);
+  --muted: light-dark(#46545f, #a2b2c2);
+  --faint: light-dark(#5b6b7a, #8295a8);
+
+  --accent: light-dark(#0a6d89, #56c8ea);
+  --accent-down: light-dark(#0a5e76, #3ba8c9);
+  --accent-tint: light-dark(#ddeef4, #11313f);
+
+  --go: light-dark(#137455, #46d49c);
+  --caution: light-dark(#8c6000, #e9b65a);
+  --danger: light-dark(#b62b50, #f5839b);
+  --go-tint: light-dark(#dff3ea, #0d2b21);
+  --caution-tint: light-dark(#f6ecd4, #2e2410);
+  --danger-tint: light-dark(#fae3e9, #331620);
+
+  /* ── Type ──────────────────────────────────────
+     Mono carries structure (headers, labels, data);
+     sans carries prose. Fixed rem scale, product register. */
+  --font-mono:
+    'Berkeley Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas,
+    monospace;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif;
+  --text-label: 0.6875rem; /* 11px mono labels   */
+  --text-meta: 0.75rem; /*    12px mono metadata */
+  --text-data: 0.8125rem; /*  13px mono data     */
+  --text-body: 1rem; /*       16px sans prose    */
+  --text-title: 1.25rem; /*   20px panel moments */
+  --text-display: 2.5rem; /*  40px project name  */
+
+  /* ── Space (4pt base) ─────────────────────────── */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+/* ── Forced themes (header toggle) ──────────────── */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* ── Reset ──────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.65;
+  /* light-on-dark compensation: +letter-spacing, raised line-height */
+  letter-spacing: 0.011em;
+  color: var(--ink);
+  background: var(--bg);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s6) var(--s8);
+  -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+}
+
+/* ── Shared voices ──────────────────────────────── */
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.label-accent {
+  color: var(--accent);
+}
+.label-danger {
+  color: var(--danger);
+}
+.mono-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status indicator: glyph + color, never color alone */
+.status-ind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.status-go {
+  color: var(--go);
+}
+.status-caution {
+  color: var(--caution);
+}
+
+/* ── Deck header ────────────────────────────────── */
+
+.deck-header {
+  padding-bottom: var(--s5);
+  border-bottom: 2px solid var(--line-strong);
+  margin-bottom: var(--s6);
+}
+.deck-id {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s5);
+}
+.deck-slug {
+  margin-bottom: var(--s3);
+}
+.deck-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.deck-meta {
+  text-align: right;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  align-items: flex-end;
+}
+.deck-meta .mono-meta {
+  line-height: 1.5;
+}
+.theme-toggle {
+  position: relative;
+  background: transparent;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: var(--s1);
+}
+/* expand hit area to ~44px without growing the visual */
+.theme-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+.theme-toggle:hover {
+  color: var(--accent);
+  border-color: var(--line-strong);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Gate strip: go/no-go board */
+.gate-strip {
+  margin-top: var(--s5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.gate-cell {
+  padding: var(--s3) var(--s4);
+  border-inline-start: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s1) var(--s3);
+  align-items: baseline;
+}
+.gate-cell:first-child {
+  border-inline-start: 0;
+}
+.gate-mark {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 700;
+  grid-row: span 2;
+}
+.gate-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.gate-evidence {
+  grid-column: 2;
+  font-size: var(--text-meta);
+  font-family: var(--font-sans);
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.gate-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s3);
+}
+
+/* ── Panels & sections ──────────────────────────── */
+
+.section {
+  margin-top: var(--s7);
+}
+.section-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.section-hdr .label {
+  flex: 0 0 auto;
+}
+.section-hdr-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+  align-self: center;
+}
+.section-count {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.05em;
+  color: var(--faint);
+}
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s6);
+}
+
+/* ── Prose (problem statement) ──────────────────── */
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-width: 68ch;
+}
+.prose p {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.65;
+  color: var(--ink);
+}
+.line-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--faint);
+  margin-right: var(--s2);
+  letter-spacing: 0.08em;
+  vertical-align: 0.12em;
+}
+
+/* ── Goals ──────────────────────────────────────── */
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.goal-row {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  align-items: baseline;
+}
+.goal-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.goal-text {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+/* ── Success criteria ───────────────────────────── */
+
+.criteria-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--s6);
+}
+.criteria-item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--s3);
+  align-items: baseline;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.criteria-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.criteria-check {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: var(--s1) var(--s2);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+  align-self: flex-start;
+}
+.criteria-judgment {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--caution);
+  font-weight: 600;
+}
+
+/* ── Scope ──────────────────────────────────────── */
+
+.scope-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--s6);
+}
+.nested-tiers {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+.tier-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius);
+}
+.tier-box-stretch {
+  width: 300px;
+  height: 300px;
+  border: 1px dashed var(--line-strong);
+}
+.tier-box-full {
+  width: 218px;
+  height: 218px;
+  border: 1px solid var(--accent-down);
+}
+.tier-box-mvp {
+  width: 136px;
+  height: 136px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+}
+.tier-box-label {
+  position: absolute;
+  top: var(--s2);
+  left: var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.tier-box-stretch .tier-box-label {
+  color: var(--faint);
+}
+.tier-box-full .tier-box-label {
+  color: var(--accent);
+}
+.tier-box-mvp .tier-box-label {
+  color: var(--accent);
+}
+.tier-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+.tier-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.tier-glyph {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 700;
+  color: var(--accent);
+}
+.tier-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.tier-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.tier-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--faint);
+}
+.tier-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.tier-items li {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tier-items strong {
+  font-weight: 500;
+}
+.tier-reason {
+  color: var(--muted);
+  margin-left: var(--s2);
+  font-size: 0.8125rem;
+}
+.scope-extras {
+  margin-top: var(--s5);
+}
+.scope-panel {
+  padding: var(--s4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+}
+.scope-panel-out {
+  background: var(--danger-tint);
+}
+.scope-panel .label {
+  display: block;
+  margin-bottom: var(--s3);
+}
+.scope-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.scope-list li {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.scope-out-item {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+}
+
+/* ── Pipeline (DAG) ─────────────────────────────── */
+
+.pipeline-wrap {
+  padding: var(--s5);
+  overflow-x: auto;
+}
+.pipeline {
+  display: block;
+  min-width: 560px;
+  max-width: 100%;
+  height: auto;
+}
+.pipeline .node-box {
+  fill: var(--surface-2);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.pipeline .node-gate .node-box {
+  fill: var(--accent-tint);
+  stroke: var(--accent-down);
+}
+.pipeline .node-rail {
+  stroke-width: 3;
+}
+.pipeline .node-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--faint);
+  letter-spacing: 0.08em;
+}
+.pipeline .node-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+.pipeline .node-kind {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pipeline .edge {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  fill: none;
+}
+.pipeline .edge-head {
+  fill: var(--line-strong);
+}
+
+/* ── Phase table ────────────────────────────────── */
+
+.phase-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-data);
+}
+.phase-table th {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--line-strong);
+}
+.phase-table td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+.phase-table tr:last-child td {
+  border-bottom: 0;
+}
+.phase-num {
+  font-family: var(--font-mono);
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.phase-title {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--ink);
+}
+.phase-kind {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.phase-risk {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.phase-notes {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+/* ── Commands ───────────────────────────────────── */
+
+.run-bar {
+  margin-top: var(--s5);
+  padding: var(--s5);
+  border: 1px solid var(--accent-down);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.4fr);
+  gap: var(--s5);
+  align-items: center;
+}
+.run-bar-headline {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: var(--s1) 0;
+}
+.run-bar-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.cmd-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.cmd-field-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.cmd-field-wide {
+  white-space: pre-wrap;
+}
+.cmd-field-wide .cmd-field-text {
+  white-space: pre-wrap;
+}
+.copy-btn {
+  position: relative;
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line-strong);
+  padding: var(--s1) var(--s3);
+  border-radius: 4px;
+  font-size: var(--text-label);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+/* expand hit area to ~44px without growing the visual */
+.copy-btn::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+.copy-btn:hover {
+  background: var(--accent-tint);
+  border-color: var(--accent-down);
+}
+.copy-btn:active {
+  color: var(--accent-down);
+}
+.copy-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cmd-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.cmd-row {
+  display: grid;
+  grid-template-columns: 36px 220px 1fr;
+  gap: var(--s4);
+  align-items: center;
+}
+.cmd-row-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.cmd-row-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Disclosure ─────────────────────────────────── */
+
+.disclosure {
+  margin-top: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.disclosure summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--s3) var(--s4);
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.disclosure summary:hover {
+  color: var(--ink);
+}
+.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure summary::before {
+  content: '▸';
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.disclosure[open] summary::before {
+  transform: rotate(90deg);
+}
+.disclosure summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.disclosure-body {
+  padding: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+/* ── First move / approval / close bands ────────── */
+
+.approval-bar {
+  margin-top: var(--s5);
+  padding: var(--s5);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+.approval-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: var(--s2);
+  max-width: 64ch;
+}
+.plan-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+.contract-close {
+  margin-top: var(--s7);
+  padding: var(--s5);
+  border: 1px solid var(--line-strong);
+  border-top: 2px solid var(--go);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s5);
+  align-items: center;
+}
+.close-headline {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin-top: var(--s2);
+}
+.close-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: var(--s2);
+  max-width: 60ch;
+}
+.close-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  align-items: flex-end;
+}
+
+/* ── Responsive ─────────────────────────────────── */
+
+@media (max-width: 820px) {
+  body {
+    padding: var(--s4) var(--s4) var(--s7);
+  }
+  .deck-id {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .deck-meta {
+    text-align: left;
+    align-items: flex-start;
+  }
+  .deck-title {
+    font-size: 1.75rem;
+  }
+  .gate-cell {
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+  }
+  .gate-cell:first-child {
+    border-top: 0;
+  }
+  .two-col,
+  .scope-layout,
+  .scope-extras,
+  .run-bar,
+  .contract-close {
+    grid-template-columns: 1fr;
+  }
+  .close-meta {
+    text-align: left;
+    align-items: flex-start;
+  }
+  .criteria-grid {
+    grid-template-columns: 1fr;
+  }
+  .nested-tiers {
+    display: none;
+  }
+  .cmd-row {
+    grid-template-columns: 36px 1fr;
+  }
+  .cmd-row .cmd-field {
+    grid-column: 1 / -1;
+  }
+  .phase-notes-col {
+    display: none;
+  }
+}
+
+/* ── Reduced motion ─────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure summary::before {
+    transition: none;
+  }
+}
+
+/* ── Print: the deck renders as a paper document ── */
+
+@media print {
+  /* Paper always wins, even when the toggle forced the dark deck */
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
+  }
+  :root {
+    --bg: #ffffff;
+    --surface-1: #ffffff;
+    --surface-2: #f4f6f8;
+    --line: #c9d2da;
+    --line-strong: #8d9aa6;
+    --ink: #000000;
+    --muted: #333d46;
+    --faint: #4d5a66;
+    --accent: #0a5e76;
+    --accent-down: #0a5e76;
+    --accent-tint: #e8f2f6;
+    --go: #0d5c43;
+    --caution: #6e4b00;
+    --danger: #9c2547;
+  }
+  body {
+    font-size: 11pt;
+    max-width: none;
+    padding: 20px;
+  }
+  .copy-btn,
+  .theme-toggle {
+    display: none !important;
+  }
+  .pipeline-wrap {
+    overflow: visible;
+  }
+  .disclosure:not([open]) > *:not(summary) {
+    display: block !important;
+  }
+  .disclosure summary::before {
+    display: none;
+  }
+  .panel,
+  .goal-row,
+  .gate-strip,
+  .run-bar,
+  .contract-close {
+    page-break-inside: avoid;
+  }
+}
+
+    </style>
+  </head>
+  <body data-contract-status="Approved">
+
+    <header class="deck-header">
+      <div class="deck-id">
+        <div>
+          <div class="deck-slug label">mission brief · waybill-fleet</div>
+          <h1 class="deck-title">Waybill Fleet</h1>
+        </div>
+        <div class="deck-meta">
+          <span class="status-ind status-go"><span class="status-dot" aria-hidden="true"></span>Approved</span>
+          <span class="mono-meta">created 2026-09-24</span>
+          
+          
+          <button type="button" class="theme-toggle" id="theme-toggle">theme · auto</button>
+        </div>
+      </div>
+
+      <div class="gate-verdict">
+        <span class="label">Readiness gates</span>
+        <span class="status-ind status-go">All gates ready</span>
+      </div>
+      <div class="gate-strip">
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Problem Clarity</span>
+          <span class="gate-evidence">Four concrete failures named by the operator — stalled dockets go unnoticed, no signal which to advance next, stacked branches merged out of order, no single morning glance — against a stated baseline of 5–10 dockets across several repos under ~/Projects.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Goal Definition</span>
+          <span class="gate-evidence">Six goals, each naming an observable change with a number, split so that the MVP-tier goals are satisfiable by the MVP scope tier alone and the live-mode and signal goals are pinned to the Full tier.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Success Criteria</span>
+          <span class="gate-evidence">Nineteen pass/fail criteria, all nineteen carrying a runnable command; every check runs a whole suite file or a shell assertion, because `node --test --test-name-pattern` exits 0 when nothing matches and would pass vacuously against tests never written.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Scope Boundaries</span>
+          <span class="gate-evidence">`waybill status`, the existing picker/signals tmux matching, persisted preferences, project toggles, the filter tree, HTML output and `--json` are each excluded with rationale; every in-scope item carries an MVP/Full/Stretch tier.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Consistency</span>
+          <span class="gate-evidence">The live contradiction — cutting the TUI as too expensive, then requiring live fill-in and self-update, which need the same ANSI machinery — was surfaced and knowingly accepted, and is resolved by a pure renderer beneath a separate paint layer forked on TTY detection, with the injection seam defined in Phase 4 before Phase 5 consumes it.</span>
+        </div>
+      </div>
+    </header>
+    <main>
+
+    <section class="run-bar">
+      <div>
+        <div class="label label-accent">First move</div>
+        <div class="run-bar-headline">Run this.</div>
+        <div class="run-bar-desc">Phase 01 of 06 — <strong>Fleet model, multi-repo discovery, deferrable progress</strong></div>
+      </div>
+      <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-first">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-1.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-first">copy</button>
+          </div>
+    </section>
+
+    <div class="section two-col">
+      <section>
+      <div class="section-hdr">
+        <span class="label">The problem</span>
+        <span class="section-hdr-rule"></span>
+      </div>
+        <div class="prose">
+          <p><span class="line-num">01</span>Waybill's only fleet view today is `waybill status` run from a repository's trunk, which reaches `renderFleet()` at src/cli.js:328 and prints one line per docket in that single repository — `feat/work-laptop-readiness · leg 5 of 7 (specs)`. That is the entire picture. There is no age, no indication of which docket has stalled, no signal about which is closest to done, no record of which branches were cut from which, and no visibility whatsoever beyond the current repository.</p>
+          <p><span class="line-num">02</span>The operator runs 5–10 dockets at once, spread across several repositories under ~/Projects. Four concrete failures follow. Stalled dockets go unnoticed — a branch sits untouched for days and nothing surfaces it until it is stumbled back into. There is no signal for which docket to advance next, so selection is guesswork. Branches cut from other branches get merged out of order, producing conflicts or a broken trunk, because nothing anywhere records that B was stacked on A. And starting the day means running `status` in each repository in turn, checking git by hand, and reconstructing the whole picture mentally.</p>
+          <p><span class="line-num">03</span>None of this is blocked by missing data. Waybill is stateless by design (docs/guide/02-glossary.md:44 — 'reads the stamps off the repository every time and keeps no state file'), and `fleet()` at src/fleet.js:31 already enumerates every open docket with its branch, worktree path and resolved leg. Progress exists as leg index/7 for every docket and as done/total tasks for the execute leg (src/progress.js:149). Age and stacking are one git call each. The view simply has never been written.</p>
+        </div>
+      </section>
+      <section>
+      <div class="section-hdr">
+        <span class="label">Goals</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">×6</span>
+      </div>
+        <div class="goal-list">
+          <div class="goal-row">
+            <span class="goal-num">01</span>
+            <span class="goal-text">One command, run from any directory, lists every open docket in every git repository at or beneath the working directory to a configurable depth defaulting to 4 — missing no repository with an open docket, showing no repository without one, and counting a repository exactly once however many of its bays fall inside the scan.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">02</span>
+            <span class="goal-text">Every docket row carries three facts absent from any waybill surface today: a progress bar, time since the branch opened, and time since it was last touched.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">03</span>
+            <span class="goal-text">Each docket additionally shows its stacked-branch parent where one exists, and whether a tmux pane is open on its bay together with what is running there — with all three degrading to blank rather than to a false claim when tmux or ps is absent or unreadable.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">04</span>
+            <span class="goal-text">In live mode the first frame paints before the slow lane — openspec task counts and the ps process walk — has resolved, targeting 500ms at 10 dockets across 3 repositories; the one-shot path instead waits for complete data, because a single frame printed early would omit task counts permanently rather than filling them in.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">05</span>
+            <span class="goal-text">In a TTY the view self-updates every ~2s until dismissed with `q`, with `r` forcing an immediate repaint and slower data filling in after the first frame; piped or redirected it prints exactly one frame and exits 0, so `fleet | grep` and every golden-file test work unchanged.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">06</span>
+            <span class="goal-text">Ships with zero new dependencies, no build step and exactly one package script, leaving the zero-dependency assertion at tests/commands.test.js:540-553 passing without modification.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Done when</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">19 signals · all mechanically checked</span>
+      </div>
+      <ul class="criteria-grid">
+        <li class="criteria-item">
+          <span class="line-num">01</span>
+          <div class="criteria-body">
+            <span>Run inside a repository, `fleet` lists that repository's open dockets and no others.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-cmd.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">02</span>
+          <div class="criteria-body">
+            <span>Run outside any repository, `fleet` discovers repositories in subdirectories, halts descent at each repository it finds, and aggregates their dockets; `--depth 1` finds a top-level repository and misses one nested two levels down, proving the depth is genuinely configurable and not hardcoded.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-scan.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">03</span>
+          <div class="criteria-body">
+            <span>A repository whose bays sit inside the scan root — the supported `waybill.baydir=..` / `WAYBILL_BAY_DIR` sibling layout (src/repo.js:119-135) — is reported exactly once, deduplicated by main checkout, with its dockets not repeated per bay.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-scan.test.js — exits 0 (fixture sets waybill.baydir to a sibling path)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">04</span>
+          <div class="criteria-body">
+            <span>Bookings are resolved per discovered repository root, so a repository with a `.waybill/bookings` overlay reports its own legs rather than the built-ins, even though the scan cwd is outside every repository.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-scan.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">05</span>
+          <div class="criteria-body">
+            <span>Repositories with zero open dockets are absent from the body, and a footer reports how many repositories were scanned so nothing looks silently dropped.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-scan.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">06</span>
+          <div class="criteria-body">
+            <span>The execute leg's openspec task count is off the synchronous path: the model can be assembled without it, and the first frame is emitted before a deliberately-slow openspec stub resolves.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-model.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">07</span>
+          <div class="criteria-body">
+            <span>The progress bar renders leg index of 7, with the execute leg's slice filled proportionally by its done/total task count rather than snapping to a whole leg, and falls back to the whole-leg bar when the task count has not yet arrived.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-render.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">08</span>
+          <div class="criteria-body">
+            <span>Within a repository, dockets are ordered most-idle first, and repositories are grouped rather than interleaved.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-render.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">09</span>
+          <div class="criteria-body">
+            <span>Both age columns are correct: opened is derived from the merge-base commit date against trunk, idle from the branch tip's committer date.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-age.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">10</span>
+          <div class="criteria-body">
+            <span>The renderer stays pure and clock-free per src/waybill.js:286 — `now` is an injected parameter, and two calls with the same model and the same `now` produce byte-identical output.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-render.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">11</span>
+          <div class="criteria-body">
+            <span>A branch cut from another open docket rather than from trunk is identified as stacked on it, and renders nested under its parent.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-deps.test.js — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">12</span>
+          <div class="criteria-body">
+            <span>A tmux pane is matched to a docket by exact pane_current_path against the docket's worktree path — never by fuzzy name match — and the session:window is shown; an absent tmux leaves the column blank.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-signals.test.js — exits 0 (tmux stubbed via stubBin, tests/helpers/repo-fixture.js:149)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">13</span>
+          <div class="criteria-body">
+            <span>Agent detection walks the process tree down from pane_pid: a known agent binary is named, any other busiest descendant is shown by command, and an absent or unreadable ps degrades to blank rather than a false claim.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-agent.test.js — exits 0 (ps stubbed via stubBin)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">14</span>
+          <div class="criteria-body">
+            <span>With stdout not a TTY the command prints exactly one frame, emits no ANSI escape bytes, and exits 0, matching goldens namespaced away from status's existing tests/golden/fleet.txt and fleet-empty.txt.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-cmd.test.js — exits 0 (goldens at tests/golden/fleet-dash-*.txt)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">15</span>
+          <div class="criteria-body">
+            <span>In live mode the first frame is written before the slow lane resolves — with openspec and ps stubbed to a deliberate delay, the first stdout write precedes both stubs and interpolated bars appear only in a later frame — while the one-shot path waits for complete data and prints exactly one frame.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-perf.test.js — exits 0 (ordering assertion is primary; the wall-clock ceiling is secondary and generously margined, since the repo has no CI runner)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">16</span>
+          <div class="criteria-body">
+            <span>In live mode the view repaints on the injected clock's ~2s tick, `r` forces an immediate repaint, and `q` exits 0 restoring cooked mode and the cursor — including on SIGINT.</span>
+            <code class="criteria-check">node --test tests/fleet-dash-live.test.js — exits 0 (injected clock and simulated stdin)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">17</span>
+          <div class="criteria-body">
+            <span>Every new suite file is registered in the manual barrel tests/index.js — unregistered suites silently never run on Node 26, a mistake this repo records making five times, and tests/index.js:13 already imports an unrelated './fleet.test.js' so a bare grep for 'fleet' passes vacuously.</span>
+            <code class="criteria-check">for f in tests/fleet-dash-*.test.js; do grep -q &quot;'./$(basename &quot;$f&quot;)'&quot; tests/index.js || { echo &quot;unregistered: $f&quot;; exit 1; }; done — exits 0</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">18</span>
+          <div class="criteria-body">
+            <span>The prose surfaces the test suite mechanically enforces are updated: tests/guide.test.js:197 requires every commands/*.md to appear as /waybill:&lt;name&gt; in docs/guide/03-reference.md, and :200-202 requires every --flag in USAGE's Options block to appear there too.</span>
+            <code class="criteria-check">node --test tests/guide.test.js tests/commands.test.js tests/help.test.js — exits 0 (covers the guide cross-reference, the DECLARED command list at tests/commands.test.js:32-43, zero-dependencies at :540, and the MAX_LINES=45 help-card budget at src/help.js:10)</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">19</span>
+          <div class="criteria-body">
+            <span>`waybill status` behavior is unchanged — asserted as protected behavior plus untouched artifacts, not as a blanket ban on editing files (docs/ideation/learnings.md:39).</span>
+            <code class="criteria-check">node --test tests/cli.test.js tests/waybill.test.js tests/fleet.test.js — exits 0, and git diff --exit-code main -- tests/cli.test.js tests/waybill.test.js tests/fleet.test.js tests/golden/status.txt tests/golden/fleet.txt tests/golden/fleet-empty.txt — exits 0</code>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Scope</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">MVP nests inside Full nests inside Stretch</span>
+      </div>
+      <div class="scope-layout">
+        <div class="nested-tiers" aria-hidden="true">
+          <div class="tier-box tier-box-stretch"><span class="tier-box-label">Stretch ×1</span></div>
+          <div class="tier-box tier-box-full"><span class="tier-box-label">Full ×5</span></div>
+          <div class="tier-box tier-box-mvp"><span class="tier-box-label">MVP ×11</span></div>
+        </div>
+        <div class="tier-lists">
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">MVP — must ship</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×11</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>`waybill fleet` CLI verb wired into COMMANDS and USAGE (src/cli.js:588, :31), plus commands/fleet.md with its bang line, its entry in the DECLARED list at tests/commands.test.js:32-43, and its /waybill:fleet row in docs/guide/03-reference.md</strong><span class="tier-reason">— The surface itself; and tests/guide.test.js:197 plus tests/commands.test.js:113 make the prose and list edits mechanically required, not optional polish</span></li>
+              <li><strong>An OpenSpec change with a MODIFIED command-surface requirement admitting the fifth verb, stacked on the pending add-help-card delta's wording</strong><span class="tier-reason">— openspec/specs/command-surface/spec.md:10-19 states the surface SHALL consist of exactly four verbs; shipping fleet makes the living spec false unless the delta lands with it</span></li>
+              <li><strong>Single-repository mode — cwd inside a repo renders that repo's fleet</strong><span class="tier-reason">— Builds on fleet() at src/fleet.js:31; the cheapest path to a working command</span></li>
+              <li><strong>Multi-repository scan when cwd is not a repository, with `--depth` defaulting to 4, halting descent at each repository found, deduplicating by main checkout, and resolving bookings per discovered repo root</strong><span class="tier-reason">— Running from ~/Projects is the stated primary use; dedup and per-repo bookings are load-bearing because the supported waybill.baydir=.. layout puts bays in the scan path and overlays are per-repository</span></li>
+              <li><strong>Execute-leg progress made deferrable so the openspec CLI lookup is off the synchronous critical path</strong><span class="tier-reason">— fleet() → resolveLeg() → executeProgress() shells out to openspec once per docket today (src/inference.js:117,156 → src/progress.js:149); without a slow lane the 500ms goal is unreachable</span></li>
+              <li><strong>Repositories with no open dockets hidden, with a scanned-count footer</strong><span class="tier-reason">— At depth 4 most repositories are clean; every visible line must be actionable</span></li>
+              <li><strong>Progress bar — leg index/7 with the execute leg interpolated by task done/total when available</strong><span class="tier-reason">— Answers 'which should I advance next?'; execute is where time is actually spent, so a frozen bar there would defeat the feature</span></li>
+              <li><strong>Age columns: opened (merge-base date) and idle (tip committer date), with `now` injected into the renderer</strong><span class="tier-reason">— The neglect alarm for 'stalled dockets go unnoticed'; injection preserves byte-stable goldens</span></li>
+              <li><strong>Grouping by repository, sorted by staleness within each</strong><span class="tier-reason">— Repos are the unit of thought; most-neglected first serves the primary problem</span></li>
+              <li><strong>Pure one-shot render on a non-TTY stdout, covered by goldens namespaced as tests/golden/fleet-dash-*.txt</strong><span class="tier-reason">— Keeps the src/waybill.js:286 purity contract; the namespacing avoids colliding with status's existing fleet.txt and fleet-empty.txt</span></li>
+              <li><strong>Io seam extended with TTY detection, clock and stdin injection points</strong><span class="tier-reason">— Io is {out, err, signals} today with `out` a bare function (src/cli.js:24-29) — defining the seam in MVP stops the live phase from rewriting the verb's entrypoint</span></li>
+            </ul>
+          </div>
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">Full — target outcome</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×5</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>Stacked-branch detection via git merge-base between open dockets in the same repository, rendered nested</strong><span class="tier-reason">— The 'merge out of order' problem; needs no new state, which is what makes it acceptable in a stateless tool</span></li>
+              <li><strong>tmux pane presence via a single `tmux list-panes -a -F` call matched on exact pane_current_path</strong><span class="tier-reason">— The fleet join needs exact worktree paths, which the picker's name heuristic at src/picker.js:100 structurally cannot supply — this is a second, independent integration, not a replacement of it</span></li>
+              <li><strong>Agent detection by descendant-process walk from pane_pid using one `ps` call; known agents named, other busiest descendants shown by command</strong><span class="tier-reason">— pane_current_command reports `node` for Claude Code, which is why src/picker.js:70-75 already denylists it — the tree walk is the only honest answer</span></li>
+              <li><strong>Live TTY mode: paint layer with frame diffing, ~2s refresh, progressive fill of slow data</strong><span class="tier-reason">— The self-updating dashboard; isolated above the pure renderer so goldens stay valid</span></li>
+              <li><strong>`q` to quit and `r` to force refresh via raw stdin, restoring cooked mode and cursor on every exit path including SIGINT</strong><span class="tier-reason">— Minimal interaction; also lands the machinery that would make the deferred filter mode a small follow-up</span></li>
+            </ul>
+          </div>
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">Stretch — if time permits</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×1</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>Progress indicator on stderr when a scan exceeds 0.5s, keeping stdout golden-clean</strong></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col scope-extras">
+        <div class="scope-panel scope-panel-out">
+          <span class="label label-danger">Out of scope — said no on purpose</span>
+          <ul class="scope-list">
+            <li><span class="scope-out-item">Any change to `waybill status`, including its trunk-side fleet list</span> — Explicitly excluded by the operator; guarded by asserting its suites and goldens are unchanged rather than by forbidding diffs to whole files</li>
+            <li><span class="scope-out-item">The existing fuzzy tmux name matching in src/picker.js and src/signals.js</span> — Left exactly as-is; the fleet view adds its own exact-path join rather than unifying the two, and that duplication is a deliberate choice not an oversight</li>
+            <li><span class="scope-out-item">Persisted preferences or any configuration file</span> — Cut during the interview; every session starts fresh, which also keeps the no-state-file property intact</li>
+            <li><span class="scope-out-item">Project on/off toggles and the interactive filter/tree mode</span> — Cut once cwd-relative auto-detection removed the need to select projects by hand</li>
+            <li><span class="scope-out-item">A selection or cursor model, and acting on a selected docket</span> — Interaction is capped at q and r; a cursor is what would turn this into a command center, and it is recorded as a future consideration instead</li>
+            <li><span class="scope-out-item">HTML output</span> — Waybill prints strings; a generated artifact is stale the moment it is written</li>
+            <li><span class="scope-out-item">`--json` output from `fleet`</span> — Follows the standing rejection at src/cli.js:305 — `next --json` is the machine-readable surface and a second one would be a second shape to keep in step</li>
+            <li><span class="scope-out-item">Any version bump in package.json or .claude-plugin/plugin.json</span> — Release PRs own versioning in this repo; naming a version in a spec is a recorded past mistake (docs/ideation/learnings.md:32)</li>
+            <li><span class="scope-out-item">Windows support for the tmux and ps surfaces</span> — tmux already implies a unix host; those columns degrade to blank elsewhere</li>
+          </ul>
+        </div>
+        <div class="scope-panel">
+          <span class="label">Future — someday, maybe</span>
+          <ul class="scope-list">
+            <li>The filter/toggle mode, reintroduced on top of the q/r raw-stdin machinery once it exists</li>
+            <li>Hybrid refresh — fs.watch on each .git plus a slow interval sweep — if the 2s poll proves too costly across many repositories</li>
+            <li>A selection cursor plus keys that act on the highlighted docket: attach its tmux window, advance a leg, retire a merged docket — the step that would make this a command center rather than a dashboard</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Execution</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">Hybrid</span>
+      </div>
+      <div class="panel pipeline-wrap">
+        <svg class="pipeline" viewBox="0 0 1268 156" role="img" aria-label="Phase pipeline: 01 Fleet model, multi-repo discovery, deferrable progress (wave 1); 02 Age and stacked-branch dependencies (wave 2); 03 tmux and agent signals (wave 2); 04 Pure renderer, bars, and the fleet verb (wave 3); 05 Live paint layer (wave 4); 06 Human gate: run it against your real ~/Projects (wave 5) — 5 waves">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="edge-head" d="M0,0 L10,5 L0,10 z" />
+            </marker>
+          </defs>
+      <path class="edge" d="M 206 38 H 263" marker-end="url(#arrow)" />
+      <path class="edge" d="M 206 38 H 238 V 118 H 263" marker-end="url(#arrow)" />
+      <path class="edge" d="M 470 38 H 527" marker-end="url(#arrow)" />
+      <path class="edge" d="M 734 38 H 791" marker-end="url(#arrow)" />
+      <path class="edge" d="M 998 38 H 1055" marker-end="url(#arrow)" />
+      <g class="node">
+        <rect class="node-box" x="6" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="7" y1="7.5" x2="205" y2="7.5" stroke="var(--caution)" />
+        <text class="node-num" x="18" y="28">01</text>
+        <text class="node-kind" x="194" y="28" text-anchor="end" fill="var(--caution)">med</text>
+        <text class="node-title" x="18" y="47">Fleet model, multi-repo d…</text>
+        <text class="node-kind" x="18" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="270" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="271" y1="7.5" x2="469" y2="7.5" stroke="var(--go)" />
+        <text class="node-num" x="282" y="28">02</text>
+        <text class="node-kind" x="458" y="28" text-anchor="end" fill="var(--go)">low</text>
+        <text class="node-title" x="282" y="47">Age and stacked-branch de…</text>
+        <text class="node-kind" x="282" y="62">phase</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="270" y="86" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="271" y1="87.5" x2="469" y2="87.5" stroke="var(--danger)" />
+        <text class="node-num" x="282" y="108">03</text>
+        <text class="node-kind" x="458" y="108" text-anchor="end" fill="var(--danger)">high</text>
+        <text class="node-title" x="282" y="127">tmux and agent signals</text>
+        <text class="node-kind" x="282" y="142">phase</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="534" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="535" y1="7.5" x2="733" y2="7.5" stroke="var(--caution)" />
+        <text class="node-num" x="546" y="28">04</text>
+        <text class="node-kind" x="722" y="28" text-anchor="end" fill="var(--caution)">med</text>
+        <text class="node-title" x="546" y="47">Pure renderer, bars, and …</text>
+        <text class="node-kind" x="546" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="798" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="799" y1="7.5" x2="997" y2="7.5" stroke="var(--danger)" />
+        <text class="node-num" x="810" y="28">05</text>
+        <text class="node-kind" x="986" y="28" text-anchor="end" fill="var(--danger)">high</text>
+        <text class="node-title" x="810" y="47">Live paint layer</text>
+        <text class="node-kind" x="810" y="62">phase</text>
+      </g>
+      <g class="node node-gate">
+        <rect class="node-box" x="1062" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="1063" y1="7.5" x2="1261" y2="7.5" stroke="var(--go)" />
+        <text class="node-num" x="1074" y="28">06</text>
+        <text class="node-kind" x="1250" y="28" text-anchor="end" fill="var(--go)">low</text>
+        <text class="node-title" x="1074" y="47">Human gate: run it agains…</text>
+        <text class="node-kind" x="1074" y="62">gate · blocking</text>
+      </g>
+        </svg>
+      </div>
+      <div class="panel">
+        <table class="phase-table">
+          <thead>
+            <tr>
+              <th scope="col">##</th>
+              <th scope="col">Phase</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Risk</th>
+              <th scope="col" class="phase-notes-col">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="phase-num">01</td>
+              <td class="phase-title">Fleet model, multi-repo discovery, deferrable progress</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--caution)">med</td>
+              <td class="phase-notes phase-notes-col">Repository discovery beneath a non-repo cwd to configurable depth (default 4, halt at each repo found), deduplicated by main checkout so the supported waybill.baydir=.. sibling-bay layout cannot report a repo once per bay. Bookings resolved per discovered repo root, not once from the scan cwd. Execute-leg openspec progress split off the synchronous path into a deferrable slow lane. Clean repos filtered out, scanned count retained. SIDE EFFECT TO RECORD IN THE SPEC: evaluateBooking may execute a booking's stampCmd subprocess (src/bookings.js:318), so a scan from ~/Projects runs each scanned repo's configured stamp commands — the spec must state whether stampCmd is skipped during a multi-repo scan.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">02</td>
+              <td class="phase-title">Age and stacked-branch dependencies</td>
+              <td class="phase-kind">phase</td>
+              <td class="phase-risk" style="color: var(--go)">low</td>
+              <td class="phase-notes phase-notes-col">Per-docket opened date from merge-base against trunk, idle from tip committer date via a batched for-each-ref, and stacked-parent detection by merge-base between open dockets in the same repo. Pure git, no rendering. Runs in parallel with the signals phase.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">03</td>
+              <td class="phase-title">tmux and agent signals</td>
+              <td class="phase-kind">phase</td>
+              <td class="phase-risk" style="color: var(--danger)">high</td>
+              <td class="phase-notes phase-notes-col">One tmux list-panes -a -F call joined to dockets on exact pane_current_path, plus one ps call walked as a process tree from pane_pid. Highest risk: both are environment-dependent and must degrade to blank rather than assert falsely. Delivers Full-tier items only, so the renderer phase does not hard-depend on it — its columns render blank if this phase is deferred. Leaves src/picker.js and src/signals.js untouched.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">04</td>
+              <td class="phase-title">Pure renderer, bars, and the fleet verb</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--caution)">med</td>
+              <td class="phase-notes phase-notes-col">renderFleetDashboard(model, now) as a pure string function — bars with execute interpolation, grouping by repo, staleness sort, nested stacked branches. Deliberately does NOT share layout with the existing renderFleet (src/waybill.js:496), which belongs to the out-of-scope status surface; note that in the spec so a later reader does not 'fix' the duplication. Soft-consumes the signals phase: renders those columns blank if absent. Also extends the Io typedef with the TTY/clock/stdin injection points the live phase consumes. Required companion edits, each mechanically enforced: COMMANDS and USAGE (src/cli.js:588, :31), commands/fleet.md, DECLARED at tests/commands.test.js:32-43, /waybill:fleet and every new --flag in docs/guide/03-reference.md (tests/guide.test.js:197, :200-202), the help card within MAX_LINES=45 (src/help.js:10), new suites registered in tests/index.js, and an OpenSpec command-surface delta stacked on add-help-card. Greps README and bookings prose for surfaces naming the verb set.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">05</td>
+              <td class="phase-title">Live paint layer</td>
+              <td class="phase-kind">phase</td>
+              <td class="phase-risk" style="color: var(--danger)">high</td>
+              <td class="phase-notes phase-notes-col">Consumes the Io seam defined in Phase 4. TTY fork, frame-diffing repaint above the pure renderer, ~2s injected-clock refresh, progressive fill of the slow lane, raw-stdin q/r with guaranteed cooked-mode and cursor restore on every exit path including SIGINT. The repo's first ANSI and first stdin handling.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">06</td>
+              <td class="phase-title">Human gate: run it against your real ~/Projects</td>
+              <td class="phase-kind">gate · blocking</td>
+              <td class="phase-risk" style="color: var(--go)">low</td>
+              <td class="phase-notes phase-notes-col">Fixtures cannot tell you whether the scan depth, the dedup rule, the staleness sort or the agent detection are right against a real machine with real tmux sessions. Run it from ~/Projects and confirm the repo count, that no repo is double-listed, and that agent detection matches what is actually running before this is called done.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="run-bar">
+        <div>
+          <div class="label label-accent">Run all phases</div>
+          <div class="run-bar-headline">Autopilot.</div>
+          <div class="run-bar-desc">Reads the contract, walks the dependency graph, and dispatches phases automatically.</div>
+        </div>
+        <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-autopilot">/ideation:autopilot</span>
+            <button type="button" class="copy-btn" data-copy="cmd-autopilot">copy</button>
+          </div>
+      </div>
+
+      <details class="disclosure">
+        <summary>Run phases individually (6)</summary>
+        <div class="disclosure-body">
+          <div class="cmd-list">
+            <div class="cmd-row">
+              <span class="cmd-row-num">01</span>
+              <span class="cmd-row-title">Fleet model, multi-repo discovery, deferrable progress</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-1">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-1.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-1">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">02</span>
+              <span class="cmd-row-title">Age and stacked-branch dependencies</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-2">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-2.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-2">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">03</span>
+              <span class="cmd-row-title">tmux and agent signals</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-3">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-3.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-3">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">04</span>
+              <span class="cmd-row-title">Pure renderer, bars, and the fleet verb</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-4">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-4.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-4">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">05</span>
+              <span class="cmd-row-title">Live paint layer</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-5">/ideation:execute-spec docs/ideation/waybill-fleet/spec-phase-5.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-5">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">06</span>
+              <span class="cmd-row-title">Human gate: run it against your real ~/Projects</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-6"># Review: docs/ideation/waybill-fleet/spec-phase-6-gate.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-6">copy</button>
+          </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="disclosure">
+        <summary>Agent Team Prompt (parallel execution)</summary>
+        <div class="disclosure-body">
+          <div class="cmd-field cmd-field-wide">
+            <span class="cmd-field-text" id="agent-team-prompt">Phases 2 (Age and stacked-branch dependencies) and 3 (tmux and agent signals) both depend only on Phase 1 and are independent of each other — run them in parallel, then converge on Phase 4. Phase 1 must land first; Phase 5 must wait for Phase 4. Phase 3 delivers Full-tier items only and is a SOFT prereq for Phase 4: if it stalls, Phase 4 proceeds with its tmux and agent columns rendering blank, which the contract already requires as the degraded behavior. Coordinate on shared files (feat/fleet-dashboard, Phases 2 and 3 modify all three): src/scan.js — each phase appends its own decoration step to the per-repo assembly, so append, never restructure; src/fleet.js — both extend the Docket typedef, which is APPEND-ONLY, and neither may change the fields Phase 1 defined; tests/index.js — each registers its own suites and must not reorder or remove the other's lines. Only one teammate modifies a shared file at a time. Neither Phase 2 nor Phase 3 may edit src/cli.js, src/help.js, src/picker.js, src/signals.js, commands/, README.md, docs/guide/03-reference.md, tests/commands.test.js or openspec/ — those all belong to Phase 4, except src/picker.js and src/signals.js which are out of scope entirely and must stay byte-identical.</span>
+            <button type="button" class="copy-btn" data-copy="agent-team-prompt">copy</button>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="contract-close">
+      <div>
+        <div class="label label-accent">Contract approved</div>
+        <div class="close-headline">This plan is the commitment.</div>
+        <div class="close-desc">6 phases · Hybrid. Scope changes mean a new revision that supersedes this brief — not silent drift.</div>
+      </div>
+      <div class="close-meta">
+        <span class="status-ind status-go"><span class="status-dot" aria-hidden="true"></span>Approved</span>
+        <span class="mono-meta">2026-09-24</span>
+      </div>
+    </section>
+    </main>
+
+    <script>
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        // aria-live so the copied/failed text swap is announced
+        btn.setAttribute('aria-live', 'polite');
+        btn.addEventListener('click', () => {
+          const target = document.getElementById(btn.dataset.copy);
+          if (!target) return;
+          const flash = label => {
+            btn.textContent = label;
+            setTimeout(() => (btn.textContent = 'copy'), 2000);
+          };
+          navigator.clipboard
+            .writeText(target.textContent.trim())
+            .then(() => flash('copied'))
+            // file:// or denied permission — the text is select-all, so
+            // point at the manual path instead of failing silently
+            .catch(() => flash('press ⌘C / Ctrl+C'));
+        });
+      });
+
+      /* === THEME TOGGLE (auto → light → dark) === */
+      const themeBtn = document.getElementById('theme-toggle');
+      if (themeBtn) {
+        const KEY = 'ideation-contract-theme';
+        const root = document.documentElement;
+        const apply = mode => {
+          if (mode === 'auto') delete root.dataset.theme;
+          else root.dataset.theme = mode;
+          themeBtn.textContent = 'theme · ' + mode;
+          try {
+            if (mode === 'auto') localStorage.removeItem(KEY);
+            else localStorage.setItem(KEY, mode);
+          } catch {}
+        };
+        apply(root.dataset.theme || 'auto');
+        themeBtn.addEventListener('click', () => {
+          const order = ['auto', 'light', 'dark'];
+          const current = root.dataset.theme || 'auto';
+          apply(order[(order.indexOf(current) + 1) % order.length]);
+        });
+      }
+    </script>
+  </body>
+</html>
