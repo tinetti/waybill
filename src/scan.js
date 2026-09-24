@@ -5,6 +5,8 @@ import { LEGS } from './legs.js';
 import { BUILTIN_BOOKINGS, loadBookings, resolveBookings } from './bookings.js';
 import { defaultBranch, mainCheckout } from './repo.js';
 import { fleet } from './fleet.js';
+import { branchTips, openedAt } from './age.js';
+import { stackParents } from './stack.js';
 
 /**
  * @typedef {{root:string, name:string, trunk:string,
@@ -187,6 +189,39 @@ function bookingsFor(root, warnings) {
 }
 
 /**
+ * Hang the git-derived facts the fleet view needs off every docket in one repository: how old it is
+ * and which sibling it is stacked on.
+ *
+ * Done here rather than in `fleet`, whose callers — `waybill next`, the picker — ask only where one
+ * docket stands and would pay a merge-base per pair for an answer they never read.
+ *
+ * The tips are one call for the whole repository; the merge-bases cannot be batched. Every field
+ * degrades to `null` rather than throwing, so a repository git will not talk about still lists its
+ * dockets with dashes where the dates would be.
+ *
+ * @param {string} root the main checkout
+ * @param {string} trunk
+ * @param {import('./fleet.js').Docket[]} dockets mutated in place
+ * @param {string[]} warnings collected in place
+ * @returns {void}
+ */
+function decorate(root, trunk, dockets, warnings) {
+  const tips = branchTips(root);
+  const parents = stackParents(
+    root,
+    dockets.map((docket) => docket.branch),
+    trunk,
+    warnings,
+  );
+
+  for (const docket of dockets) {
+    docket.openedAt = openedAt(root, docket.branch, trunk);
+    docket.idleAt = tips.get(docket.branch) ?? null;
+    docket.stackedOn = parents.get(docket.branch) ?? null;
+  }
+}
+
+/**
  * Every repository in play and every effort in flight in each.
  *
  * Multi-repo mode — a cwd outside any repository — differs from single-repo mode in exactly two
@@ -221,7 +256,9 @@ export function scanFleet(cwd, options = {}) {
     // say how much was looked at.
     if (dockets.length === 0) continue;
 
-    repos.push({ root, name: path.basename(root), trunk: defaultBranch(root), bookings, dockets, warnings });
+    const trunk = defaultBranch(root);
+    decorate(root, trunk, dockets, warnings);
+    repos.push({ root, name: path.basename(root), trunk, bookings, dockets, warnings });
   }
 
   return { root: cwd, inRepo, scanned: roots.length, repos };

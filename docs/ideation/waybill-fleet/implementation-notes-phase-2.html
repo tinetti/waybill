@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 2</title>
+    <style>
+      /* === DESIGN TOKENS === */
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas,
+          monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --max-width: 900px;
+        --sidebar-width: 220px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+
+      /* === LAYOUT === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--color-text);
+        background: var(--color-bg);
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4);
+      }
+
+      .doc-header {
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .doc-header h1 {
+        margin: 0 0 var(--space-1) 0;
+        font-size: 28px;
+        line-height: 1.25;
+      }
+
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .doc-content h2 {
+        margin-top: var(--space-6);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 22px;
+      }
+
+      .doc-content h3 {
+        margin-top: var(--space-5);
+        font-size: 18px;
+      }
+
+      .doc-content p,
+      .doc-content li,
+      .doc-content dd {
+        font-size: 15px;
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 0 var(--space-1);
+      }
+
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .note-entry h3 {
+        margin-top: 0;
+      }
+
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-text-muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: var(--space-3);
+      }
+
+      .note-entry dd {
+        margin: var(--space-1) 0 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 2</h1>
+      <p class="doc-meta">Waybill Fleet · 2026-09-24 · Age and stacked-branch dependencies</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Both modules — <code>tryGit</code> exported from <code>src/repo.js</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Modified Files table names only <code>src/scan.js</code>, <code>src/fleet.js</code> and
+            <code>tests/index.js</code>, and points at <code>src/repo.js:71-89</code> as the pattern to follow.
+            <code>src/age.js</code> and <code>src/stack.js</code> both need exactly the contract
+            <code>repo.js</code>'s private <code>tryGit</code> already has: run git, trim stdout, collapse every
+            failure to <code>null</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Export <code>tryGit</code> and import it in both new modules — a one-word change to a file the spec did
+            not list. <code>repo.js</code> is already the read-only git-query module; a third and fourth private copy
+            of the same four lines is the shape that eventually disagrees with itself about what a failed query is.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Give each new module its own local helper, as <code>bay.js:43</code> does. Rejected because
+            <code>bay.js</code> has a documented reason for its copy — a mutation needs git's stderr, which
+            <code>tryGit</code> throws away — and the new modules have no such reason.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3><code>openedAt</code> — two git calls, because the single-call form needs a shell</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Implementation step 3 asks for <code>git merge-base</code> then <code>git show -s --format=%ct</code>,
+            "or the single-call <code>git log -1 --format=%ct $(git merge-base …)</code> equivalent — measure and
+            prefer the single call".
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Two calls. The "single call" in the spec is a shell command substitution, which is two git processes plus
+            a shell; every module here spawns git directly with an argv array and no shell, and git offers no
+            <code>log --merge-base</code> that would collapse the two. Two direct spawns are strictly cheaper than
+            the form the spec preferred, so there was nothing to measure.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Spawn <code>sh -c</code>. Rejected: it adds a shell to a read-only query path for no gain, and every
+            branch name would then need quoting.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3><code>trunkBase</code> — retry the trunk as <code>origin/&lt;trunk&gt;</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec passes the trunk as a branch name. <code>defaultBranch</code> answers with a name derived from
+            <code>origin/HEAD</code>, which in a <code>git clone -b feat/x</code> names a branch that does not exist
+            locally — <code>repo.js:305</code> already calls that "an entirely ordinary clone" and retries there.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Mirror that retry in <code>trunkBase</code>, so both age and stacking answer in a single-branch clone
+            instead of degrading to a dash. Covered by a test that builds exactly that clone.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Leave it: the spec's error table says a missing merge-base yields <code>null</code> and renders a dash,
+            which is honest. Rejected because it would render a dash for a whole class of perfectly healthy
+            repositories, and Phase 6 runs this against a real projects tree.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3><code>stackedOn</code> — two branches at the same commit are unstacked, not a cycle</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's rule is "B is stacked on A when <code>merge-base(B, A)</code> is a strict descendant of
+            <code>merge-base(B, trunk)</code>". It is symmetric: a bay cut from A with no commits of its own has the
+            same tip as A, so the rule makes each stacked on the other — a two-docket cycle, from the most ordinary
+            shape there is. The spec's cycle guard would then fire a warning on a healthy fleet.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Add one condition the spec does not state: a docket is not stacked on a sibling whose merge-base is the
+            docket's own tip. That makes "everything I have is already in you" mean behind-you rather than
+            stacked-on-you, which is also the right answer for a branch that has simply fallen behind its parent. The
+            cost is that a just-cut, still-empty bay reports <code>stackedOn: null</code> — and nothing in git can
+            say which of two identical heads came first, so there is no answer to lose.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Let the cycle guard handle it and accept a warning plus an arbitrarily flattened docket on every
+            freshly-cut stacked bay. Rejected: a guard that fires in normal operation stops being read.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Deps tests — experiment (d) split in two, because the stated expectation is wrong</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's fourth shape is "B cut from A, then A rebased onto a newer trunk, which must still report
+            B → A because reachability, not dates, decides it". Rebasing A rewrites the commits B was cut from, so
+            after it <code>merge-base(B, A)</code> is the old trunk point — B genuinely shares nothing with A's
+            current history, and reporting B → A would be asserting a false dependency.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Two tests instead of one. A rebased and B restacked onto it (<code>rebase --onto</code>, the real
+            stacked-branch workflow) must still report B → A, which is the reachability-over-dates claim the spec
+            wanted. A rebased and B left behind must report <code>null</code>, which is what B now is.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Track branch identity across a rewrite via the reflog or <code>ORIG_HEAD</code>. Rejected: that is
+            persisted state by another name, and the contract's whole argument for this feature is that it needs
+            none.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Open item — the pair-count cap is 25</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec leaves the threshold open: "25 dockets in one repository is the working proposal; confirm
+            against what the operator actually sees before hardcoding it."
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Ship 25, as <code>STACK_PAIR_CAP</code> in <code>src/stack.js</code>. The contract's stated working set
+            is 5–10 dockets, so 25 is already well clear of it, and the cap is a guard against pathology rather than
+            a tuning knob — at 25 the pair count is 600 cheap calls, and a fleet that large is unreadable for other
+            reasons first. Phase 6 is the gate that can confirm it against a real tree.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Make it configurable via <code>waybill.stackcap</code>. Rejected as a setting invented for a limit no
+            operator has hit yet.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fixtures — <code>tests/helpers/repo-fixture.js</code> gained two parameters</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec names the fixture helper as the playground for "committing at controlled dates via
+            <code>GIT_AUTHOR_DATE</code>/<code>GIT_COMMITTER_DATE</code>", but the helper's git environment is a
+            snapshot taken at module import, so setting those on <code>process.env</code> never reaches git. Nothing
+            could build a branch stacked on another branch either: <code>addWorktree</code> always cut from the main
+            checkout's HEAD.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Two additive, optional parameters — a per-call environment overlay on <code>git</code>, and a start rev
+            on <code>addWorktree</code>. Neither changes behaviour for any existing caller; the whole suite is
+            unchanged and green.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A private <code>spawnSync</code> wrapper inside each new test file. Rejected: it would bypass the
+            fixture's <code>GIT_CONFIG_GLOBAL=/dev/null</code> neutralisation, which is the thing that keeps the
+            suite from passing or failing on a developer's machine settings.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

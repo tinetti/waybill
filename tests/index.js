@@ -11,6 +11,8 @@ import './bookings.test.js';
 import './cli.test.js';
 import './commands.test.js';
 import './doctor.test.js';
+import './fleet-dash-age.test.js';
+import './fleet-dash-deps.test.js';
 import './fleet-dash-model.test.js';
 import './fleet-dash-scan.test.js';
 import './fleet.test.js';

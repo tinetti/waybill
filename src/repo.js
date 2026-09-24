@@ -7,11 +7,15 @@ import { spawnSync } from 'node:child_process';
  * Queries never throw: a fresh `git init` with no commits and a directory outside any repository
  * are both expected states for a tool that inspects whatever repo it is pointed at.
  *
+ * Exported for the other read-only git modules — `age.js` and `stack.js` — which want exactly this
+ * contract. `bay.js` deliberately keeps its own (see the note there): a mutation needs git's stderr,
+ * and collapsing every failure to `null` is only right for a query.
+ *
  * @param {string} cwd
  * @param {string[]} args
  * @returns {string|null}
  */
-function tryGit(cwd, args) {
+export function tryGit(cwd, args) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
   if (result.error || result.status !== 0) return null;
   return result.stdout.trim();
