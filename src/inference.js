@@ -4,8 +4,22 @@ import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectR
 import { discoverChangeId, executeProgress } from './progress.js';
 
 /**
+ * @typedef {{done:number,total:number,source:string,changeId:string|null}} Progress
+ */
+
+/**
+ * The execute leg's task count, paid for when the caller asks rather than during the walk.
+ *
+ * Resolves to `null` when there is nothing to count — no change in flight, or a lookup that could
+ * not answer — which is the same "fall back to a whole-leg bar" signal a renderer already needs.
+ * Never rejects: a dashboard row is not the place for a stack trace.
+ *
+ * @typedef {() => Promise<Progress|null>} ProgressPending
+ */
+
+/**
  * @typedef {{leg:string|null, index:number, completed:string[], skipped:string[],
- *            progress?:{done:number,total:number,source:string,changeId:string|null},
+ *            progress?:Progress|null, progressPending?:ProgressPending|null,
  *            booking?:import('./bookings.js').Booking, branch:string|null, docketOpen:boolean,
  *            changeId:string|null, warnings:string[]}} Inference
  */
@@ -15,11 +29,12 @@ import { discoverChangeId, executeProgress } from './progress.js';
  * @param {import('./legs.js').RepoState} state
  * @param {Map<string, import('./bookings.js').Booking>} bookings
  * @param {string[]} warnings collected in place
- * @param {() => ReturnType<typeof executeProgress>} progress the docket's execute progress, on demand
+ * @param {() => Progress} progress the docket's execute progress, on demand
  * @param {boolean} deferred whether some earlier leg is already open
+ * @param {boolean} skipStampCmd
  * @returns {boolean}
  */
-function legIsDone(leg, state, bookings, warnings, progress, deferred) {
+function legIsDone(leg, state, bookings, warnings, progress, deferred, skipStampCmd) {
   // The walk names no leg. A wrapper-owned leg judges itself through the table `src/legs.js`
   // declares; everything else is judged purely by its booking's stamp, so a new leg is a line in
   // `LEGS` and a booking, with nothing to edit here.
@@ -40,7 +55,7 @@ function legIsDone(leg, state, bookings, warnings, progress, deferred) {
   // detection survives — every leg it covers today is one.
   if (deferred && booking.stampCmd) return false;
 
-  const result = evaluateBooking(booking, state.root, state.changed);
+  const result = evaluateBooking(booking, state.root, state.changed, { skipStampCmd });
   warnings.push(...result.warnings);
   if (!result.done || !leg.progress) return result.done;
 
@@ -50,6 +65,35 @@ function legIsDone(leg, state, bookings, warnings, progress, deferred) {
   // finished. With no active change of its own — archived, or never scaffolded — the stamp decides.
   const { done, total, changeId } = progress();
   return changeId === null || (total > 0 && done === total);
+}
+
+/**
+ * Wrap a synchronous progress lookup as a {@link ProgressPending}.
+ *
+ * The promise is created on the first call and handed back on every one after it: a live view that
+ * repaints before the first lookup settles must not spawn a second `openspec` per docket. The work
+ * is scheduled rather than run inline so a batch of thunks started together overlaps instead of
+ * blocking the loop one `spawnSync` at a time.
+ *
+ * @param {() => Progress} lookup
+ * @returns {ProgressPending}
+ */
+function pendingProgress(lookup) {
+  /** @type {Promise<Progress|null>|undefined} */
+  let pending;
+  return () =>
+    (pending ??= new Promise((resolve) => {
+      setImmediate(() => {
+        try {
+          const result = lookup();
+          // No change in flight is nothing to draw a task bar from, and the caller's fallback for
+          // that is the same as its fallback for a lookup that failed: the whole-leg bar.
+          resolve(result.changeId === null ? null : result);
+        } catch {
+          resolve(null);
+        }
+      });
+    }));
 }
 
 /**
@@ -67,9 +111,15 @@ function legIsDone(leg, state, bookings, warnings, progress, deferred) {
  *
  * @param {string} cwd
  * @param {Map<string, import('./bookings.js').Booking>} [bookings] defaults to the built-ins
+ * @param {{deferProgress?:boolean, skipStampCmd?:boolean}} [options]
+ *   `deferProgress` keeps the openspec subprocess off the synchronous path: `progress` comes back
+ *   `null` and {@link Inference.progressPending} is the thunk that fetches it, so a caller with ten
+ *   dockets pays once, concurrently, at a time of its choosing. `skipStampCmd` is passed through to
+ *   {@link evaluateBooking}.
  * @returns {Inference}
  */
-export function resolveLeg(cwd, bookings) {
+export function resolveLeg(cwd, bookings, options = {}) {
+  const { deferProgress = false, skipStampCmd = false } = options;
   /** @type {string[]} */
   const warnings = [];
   bookings ??= loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
@@ -125,11 +175,30 @@ export function resolveLeg(cwd, bookings) {
   /** @type {import('./legs.js').RepoState} */
   const state = { cwd: anchor, root, branch, base, docketOpen, changed };
 
+  // A filesystem walk, no subprocess — cheap enough for the deferred lane to spend during the leg
+  // walk, and memoized because the walk and the result both want it.
+  // `undefined` is the not-yet-asked sentinel rather than `??=`: `null` is the common answer, and
+  // `??=` would re-walk `openspec/changes/` on every call that got it.
+  /** @type {string|null|undefined} */
+  let ownChangeId;
+  const changeId = () => {
+    if (ownChangeId === undefined) ownChangeId = docketOpen ? discoverChangeId(root, changed) : null;
+    return ownChangeId;
+  };
+
   // Asked for at most once, and only when a progress leg's stamp passes or the walk stops on it:
   // with the openspec CLI on PATH it costs a subprocess.
-  /** @type {ReturnType<typeof executeProgress>|undefined} */
+  /** @type {Progress|undefined} */
   let progress;
-  const executeState = () => (progress ??= executeProgress(root, docketOpen ? undefined : null, changed));
+  const executeState = () => (progress ??= executeProgress(root, changeId(), changed));
+
+  // Deferring means the count is not there to decide with, so a progress leg whose stamp passes
+  // reads as not-done until it lands — `legIsDone` takes `total: 0` as unfinished. The one case it
+  // can still settle without the count is the one the synchronous path settles the same way: no
+  // change of the docket's own, where the stamp alone decides.
+  const walkState = deferProgress
+    ? () => ({ done: 0, total: 0, source: 'tasks-md', changeId: changeId() })
+    : executeState;
 
   // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
   //
@@ -139,7 +208,7 @@ export function resolveLeg(cwd, bookings) {
   let deferred = false;
   const done = LEGS.map((leg, i) => {
     if (i === 0) return false;
-    const complete = legIsDone(leg, state, bookings, warnings, executeState, deferred);
+    const complete = legIsDone(leg, state, bookings, warnings, walkState, deferred, skipStampCmd);
     if (!complete) deferred = true;
     return complete;
   });
@@ -173,11 +242,16 @@ export function resolveLeg(cwd, bookings) {
     // A change inherited from the trunk would be interpolated into the waybill as the docket's own —
     // `/spec:propose <shipped id>` — so only a change the branch's diff touches is named, the same
     // scope the path stamps use. No docket, no change in flight.
-    changeId: docketOpen ? discoverChangeId(root, changed) : null,
+    changeId: changeId(),
     warnings,
   };
 
-  if (leg === 'execute') {
+  if (deferProgress) {
+    // Uniform whether or not the walk stopped on `execute`, so a caller never has to tell "not
+    // deferred" from "deferred, nothing to fetch" by the absence of a key.
+    result.progress = null;
+    result.progressPending = leg === 'execute' ? pendingProgress(executeState) : null;
+  } else if (leg === 'execute') {
     result.progress = executeState();
     // The filesystem walk only sees changes that already carry a `tasks.md`; `openspec list --json`
     // names active changes regardless. When only the CLI found one, take its id — phase 3

@@ -25,10 +25,13 @@ import { resolveLeg } from './inference.js';
  *
  * @param {string} cwd anywhere in the repository — the trunk, or another bay
  * @param {Map<string, import('./bookings.js').Booking>} [bookings]
+ * @param {{deferProgress?:boolean, skipStampCmd?:boolean}} [options] forwarded to `resolveLeg`
+ *   unchanged: a fleet of ten dockets is exactly where paying per docket for a subprocess, or for
+ *   somebody's configured shell command, stops being affordable.
  * @returns {Docket[]} in git's order, which sorts by bay directory name rather than creation time —
  *   deterministic for a given set of bays, which is what lets the rendered fleet have a golden file
  */
-export function fleet(cwd, bookings) {
+export function fleet(cwd, bookings, options = {}) {
   const base = defaultBranch(cwd);
   // git lists the main checkout first, and a repository is not a docket in its own fleet.
   const [, ...linked] = listWorktrees(cwd);
@@ -48,7 +51,7 @@ export function fleet(cwd, bookings) {
     dockets.push({
       branch: record.branch,
       path: record.path,
-      state: resolveLeg(record.path, bookings),
+      state: resolveLeg(record.path, bookings, options),
     });
   }
   return dockets;
