@@ -1,0 +1,12 @@
+FLEET  6 dockets · 3 repos · 34 scanned
+
+  DOCKET                  PROGRESS     LEG            OPEN   IDLE  PANE          ACTIVITY
+  emre-team
+    fix/mr-template       ████░░░░░░░  3/7 refine      21d    21d  –             –
+    feat/batch-resolve    ████████░░░  6/7 execute      8d     2h  @3:emre       npm test
+  waybill
+    fix/stamp-scope       ███████████  7/7 cleanup     12d     9d  –             –
+    feat/fleet-dashboard  ███████░░░░  5/7 specs        4d     6h  @1:waybill    claude
+     └ feat/nested-bays   ███░░░░░░░░  2/7 bay          3h     3h  –             –
+  devops-tools
+    feat/tls-renewal      █████████░░  6/7 execute      2d    40m  @2:devops     claude

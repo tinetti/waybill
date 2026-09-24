@@ -12,6 +12,7 @@ What you can type in a Claude Code session once the plugin is in.
 | `/waybill:bay` | Cuts the branch and its bay, then hands off the next leg | `[<branch>]`; leave it off to pick from a list of branches |
 | `/waybill:next` | Where this docket stands, and the waybill for the next leg. Given a leg, it moves the session into that docket's bay and runs the leg | `[<branch>[/<leg>]]`, e.g. `feat/thing/execute` |
 | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk | none |
+| `/waybill:fleet` | Every open docket in every repository at or below the working directory, with progress, age, idle time, stacking, and the tmux pane sitting in each bay | `[--depth <n>]` |
 | `/waybill:doctor` | Every prerequisite the route needs on this machine, each gap with its fix | none |
 | `/waybill:help` | The route, the words and the verbs on one screen | none |
 | `/waybill:review` | Pushes the branch and opens its pull or merge request, then hands it to a reviewer. Needs `gh` or `glab`; neither is mandatory | none |
@@ -39,6 +40,7 @@ repository.
 | `waybill bay --list` | Lists the branches a bay could be cut or reopened for, and changes nothing |
 | `waybill next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | Where this docket stands without the waybill, or the whole fleet on the trunk |
+| `waybill fleet` | Every open docket in every repository at or below the working directory |
 | `waybill doctor` | Reports every prerequisite the route needs on this machine; exits 1 if any check failed |
 | `waybill help` | The route, the words and the verbs on one screen |
 
@@ -48,10 +50,18 @@ repository.
 | `--markdown` | `next`, `bay` | Prints the waybill as markdown, with each handover command in its own fence |
 | `--list` | `bay` | Lists candidate branches instead of cutting a bay |
 | `--bay-dir <path>` | `bay` | Where bays are created; overrides `WAYBILL_BAY_DIR` and `waybill.baydir` |
+| `--depth <n>` | `fleet` | How many directory levels below the working directory to search for repositories; the default is 4 |
 | `--help` | any | Prints the usage |
 
 `--json` and `--markdown` cannot be combined. `waybill next` exits 0 only when it issued exactly
 one waybill. With no docket open, or more than one to choose from, it exits 2.
+
+`waybill fleet` is the one verb besides `help` that answers outside a repository. Inside a checkout
+it reports that repository alone; outside one it walks down to `--depth` levels, halting at every
+repository it finds rather than descending into it, and counts a repository once however many of
+its bays fall inside the walk. A repository with nothing in flight is left out of the listing and
+counted in the `scanned` total on the header line. Where a column is absent altogether rather than
+showing `–`, tmux or `ps` could not be read at all.
 
 ## Booking keys
 
