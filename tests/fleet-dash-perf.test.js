@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 
 import { runLive } from '../src/live.js';
+import { BAR_WIDTH, bar } from '../src/fleet-dash.js';
+import { LEGS } from '../src/legs.js';
 
 /**
  * What the first frame costs is asserted as an *ordering* wherever an ordering will say it: the
@@ -145,18 +147,27 @@ describe('the first frame', () => {
   it('carries whole-leg bars, so nothing waits on a task count that has not arrived', async () => {
     /** @type {string[]} */
     const writes = [];
+    const count = { done: 1, total: 9, source: 'tasks-md', changeId: 'x' };
     const session = start({
-      scan: () => fleetOfTen(() => async () => ({ done: 4, total: 9, source: 'tasks-md', changeId: 'x' })),
+      scan: () => fleetOfTen(() => async () => count),
       out: (text) => writes.push(text),
     });
 
+    // Derived rather than written out as literal bars: the whole-leg and interpolated forms only
+    // differ at some leg counts, and at eight legs `4 of 9` at leg 5 truncates to the same cell as
+    // no count at all. A literal pattern would then match either frame and this would pass on a
+    // first frame that had waited. The guard fails loudly if the fixture stops discriminating.
+    const wholeLeg = bar(5, LEGS.length, null, BAR_WIDTH);
+    const interpolated = bar(5, LEGS.length, count, BAR_WIDTH);
+    assert.notEqual(wholeLeg, interpolated, 'the fixture no longer tells the two bar forms apart');
+
     const first = writes.join('');
-    // The two patterns are mutually exclusive at this bar width, so each one rules the other out.
-    assert.match(first, /█{7}░{4}/, first);
-    assert.doesNotMatch(first, /█{6}░{5}/, 'the first frame waited for a task count');
+    // Mutually exclusive by the guard above, so each one rules the other out.
+    assert.ok(first.includes(wholeLeg), first);
+    assert.equal(first.includes(interpolated), false, 'the first frame waited for a task count');
 
     await settle();
-    assert.match(writes.join(''), /█{6}░{5}/, 'the count never filled in');
+    assert.ok(writes.join('').includes(interpolated), 'the count never filled in');
 
     session.stdin.write('q');
     assert.equal(await session.code, 0);

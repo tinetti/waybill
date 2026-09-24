@@ -8,7 +8,7 @@
 ### Requirement: Five verbs, each naming one thing
 
 The command surface SHALL consist of exactly five verbs that act on or report about dockets, plus
-exactly one reference command:
+commands that report on something other than a docket:
 
 | Verb | Answers |
 | --- | --- |
@@ -18,16 +18,18 @@ exactly one reference command:
 | `status` | where does this docket, or the repository, stand |
 | `fleet [--depth <n>]` | what is in flight everywhere at or below here |
 
-| Reference | Answers |
+| Reports on something else | Answers |
 | --- | --- |
 | `help` | what is the route, what do the words mean, and what are the verbs |
+| `doctor` | can this machine run the route, and what fixes each gap |
 
 Each verb SHALL answer exactly one of those questions. No verb may change which question it answers
 based on the checked-out branch.
 
-The reference command SHALL answer no question about any docket. Its output SHALL NOT vary with the
-branch, the worktree, or which dockets are open. Adding it SHALL NOT change the behavior of any of
-the verbs.
+A command in the second table SHALL answer no question about any docket. Its output SHALL NOT vary
+with the branch, the worktree, or which dockets are open. Adding one SHALL NOT change the behavior
+of any of the verbs. The count of five is a count of docket verbs, so a command that reports on the
+machine or on the surface itself does not raise it.
 
 `status` and `fleet` both report position, and the boundary between them is the repository. `status`
 SHALL answer only for the repository the caller is standing in, and SHALL continue to choose between
@@ -54,7 +56,7 @@ NOT change anything `status` prints.
 
 ### Requirement: The usage lists every command, and grows by one row
 
-`--help` SHALL list every subcommand the tool accepts, `fleet` and `help` included. Adding a
+`--help` SHALL list every subcommand the tool accepts, `fleet`, `doctor` and `help` included. Adding a
 subcommand SHALL add exactly one row to the Commands block of the usage, appended after the rows
 already there. A subcommand's own options SHALL be listed in the Options block, naming the verb they
 apply to. Every pre-existing Commands row SHALL remain byte-identical.

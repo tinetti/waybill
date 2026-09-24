@@ -343,7 +343,7 @@ describe('renderFleetDashboard', () => {
     const fleet = model([
       repo('waybill', [
         docket('feat/a', { index: 5, leg: 'specs', idle: NOW - 3 * DAY }),
-        docket('fix/bb', { index: 7, leg: 'cleanup', idle: NOW - DAY }),
+        docket('fix/bb', { index: LEGS.length, leg: 'cleanup', idle: NOW - DAY }),
       ]),
       repo('other', [docket('feat/ccc', { index: 2, leg: 'bay', idle: NOW - 2 * DAY })]),
     ]);
@@ -407,8 +407,11 @@ describe('renderFleetDashboard', () => {
     const fleet = model(
       [
         repo('waybill', [
+          // `cleanup` is the last leg by definition, so the index is taken from the route rather
+          // than written out — a leg added mid-route would otherwise leave this docket claiming to
+          // be on `cleanup` somewhere in the middle of it, and take the full bar out of the golden.
           docket('fix/stamp-scope', {
-            index: 7,
+            index: LEGS.length,
             leg: 'cleanup',
             opened: NOW - 12 * DAY,
             idle: NOW - 9 * DAY,

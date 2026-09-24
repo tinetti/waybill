@@ -5,6 +5,8 @@ import { PassThrough } from 'node:stream';
 import { diffFrames, enterLive, exitLive, withRawStdin } from '../src/paint.js';
 import { runLive } from '../src/live.js';
 import { run } from '../src/cli.js';
+import { BAR_WIDTH, bar } from '../src/fleet-dash.js';
+import { LEGS } from '../src/legs.js';
 import { cleanupAll, tempRoot } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
@@ -392,12 +394,12 @@ describe('runLive', () => {
     const patch = session.writes.slice(-1).join('');
     assert.equal(patch.includes('feat/two'), false, 'the untouched row was rewritten');
     assert.notEqual(session.frame(), before);
-    assert.match(session.frame(), /6\/7/);
+    assert.match(session.frame(), new RegExp(`6/${LEGS.length}`));
     await finish(session);
   });
 
   it('paints whole-leg bars first, then fills them in when the slow lane lands', async () => {
-    const progress = { done: 4, total: 9, source: 'tasks-md', changeId: 'add-thing' };
+    const progress = { done: 1, total: 9, source: 'tasks-md', changeId: 'add-thing' };
     const session = live({
       scans: [() => model([docket('feat/one', { pending: async () => progress })])],
     });
@@ -406,9 +408,18 @@ describe('runLive', () => {
     await settle();
     const filled = session.frame();
 
-    assert.match(first, /█{7}░{4}/, first);
+    // Both forms are derived rather than written out as literal bars, because the two only differ
+    // at some leg counts: `4 of 9` at leg 5 truncates to the same cell as the whole-leg bar once
+    // the route is eight legs long. Written out, this test would then pass against a first frame
+    // that had in fact waited for the count — the one thing it exists to catch. The guard below
+    // fails loudly instead of going quiet if a future leg makes the fixture stop discriminating.
+    const wholeLeg = bar(5, LEGS.length, null, BAR_WIDTH);
+    const interpolated = bar(5, LEGS.length, progress, BAR_WIDTH);
+    assert.notEqual(wholeLeg, interpolated, 'the fixture no longer tells the two bar forms apart');
+
+    assert.ok(first.includes(wholeLeg), first);
     assert.notEqual(filled, first, 'the slow lane never landed');
-    assert.match(filled, /█{6}░{5}/, filled);
+    assert.ok(filled.includes(interpolated), filled);
     await finish(session);
   });
 
@@ -545,7 +556,7 @@ describe('runLive keys and restoration', () => {
     await settle();
 
     assert.equal(session.scans(), scans + 1);
-    assert.match(session.frame(), /6\/7/);
+    assert.match(session.frame(), new RegExp(`6/${LEGS.length}`));
     await finish(session);
   });
 

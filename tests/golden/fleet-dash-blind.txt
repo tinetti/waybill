@@ -2,4 +2,4 @@ FLEET  1 docket · 1 repo · 3 scanned
 
   DOCKET                  PROGRESS     LEG            OPEN   IDLE
   waybill
-    feat/fleet-dashboard  ███████░░░░  5/7 specs        4d     6h
+    feat/fleet-dashboard  ██████░░░░░  5/8 specs        4d     6h

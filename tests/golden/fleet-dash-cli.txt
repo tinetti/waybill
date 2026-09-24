@@ -2,6 +2,6 @@ FLEET  3 dockets · 1 repo · 1 scanned
 
   DOCKET                  PROGRESS     LEG            OPEN   IDLE
   repo
-    fix/forgotten         ████░░░░░░░  3/7 refine      12d    11d
-    feat/base             ████░░░░░░░  3/7 refine      12d     5d
-     └ feat/stacked       ████░░░░░░░  3/7 refine      12d    40m
+    fix/forgotten         ████░░░░░░░  3/8 refine      12d    11d
+    feat/base             ████░░░░░░░  3/8 refine      12d     5d
+     └ feat/stacked       ████░░░░░░░  3/8 refine      12d    40m
