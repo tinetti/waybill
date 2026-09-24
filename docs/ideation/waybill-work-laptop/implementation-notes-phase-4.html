@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 4</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #1a1a1a;
+        --paper: #fbfaf8;
+        --muted: #5d5d5d;
+        --rule: #d9d5cd;
+        --accent: #7a4b1e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e9e6e1;
+          --paper: #1b1a18;
+          --muted: #a6a29b;
+          --rule: #3a3833;
+          --accent: #d9a05b;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 3rem 1.5rem 5rem;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+      }
+      main { max-width: 46rem; margin: 0 auto; }
+      h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.35rem;
+        letter-spacing: -0.01em;
+      }
+      .lede { color: var(--muted); margin: 0 0 2.5rem; font-size: 0.97rem; }
+      .note-entry {
+        border-top: 1px solid var(--rule);
+        padding-top: 1.4rem;
+        margin-top: 2rem;
+      }
+      .note-entry h3 {
+        font-size: 1.12rem;
+        margin: 0 0 0.9rem;
+        color: var(--accent);
+        letter-spacing: -0.005em;
+      }
+      dl { margin: 0; display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.5rem 1.25rem; }
+      dt {
+        font: 600 0.74rem/1.6 ui-sans-serif, system-ui, sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+        padding-top: 0.22rem;
+      }
+      dd { margin: 0; }
+      code {
+        font: 0.87em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: color-mix(in srgb, var(--ink) 7%, transparent);
+        padding: 0.1em 0.34em;
+        border-radius: 3px;
+      }
+      @media (max-width: 34rem) {
+        dl { grid-template-columns: 1fr; gap: 0.2rem; }
+        dt { padding-top: 0.7rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Implementation Notes — Phase 4</h1>
+      <p class="lede">
+        Decisions taken while de-hardcoding the leg count that the spec did not settle, or settled
+        against a tree that had since moved. Everything not listed here followed the spec as written.
+      </p>
+
+      <section class="note-entry">
+        <h3>tests/index.js — the new suite had to be registered, and one existing suite was not</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's File Changes table does not mention <code>tests/index.js</code>. That file is
+            the entry point <code>node --test tests/</code> resolves to on Node 26, which treats a
+            directory argument as a path rather than expanding it. A <code>*.test.js</code> not
+            imported there simply never runs under the phase's own acceptance command. Checking it
+            surfaced that <code>tests/doctor.test.js</code>, added by phase 3, was never registered
+            either — <code>node --test tests/</code> reported 538 passing tests while silently
+            skipping the whole doctor suite.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Added both imports: <code>./legs.test.js</code> (this phase's, mandatory) and
+            <code>./doctor.test.js</code> (a one-line fix to a pre-existing gap that otherwise makes
+            <em>Acceptance check 2</em> a false green). The full run goes 538 → 576 tests, all
+            passing. Left as a follow-up for a later phase: nothing in the suite asserts that
+            <code>tests/index.js</code> lists every <code>*.test.js</code> on disk, which is why the
+            phase 3 omission went unnoticed.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Registering only <code>legs.test.js</code> and reporting the doctor gap without fixing
+            it would have kept the diff strictly inside the phase, but would also have meant signing
+            off a validation command known to be skipping a suite.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>tests/waybill.test.js — three fall-off-the-end states, not one</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec names a single <code>index: 7</code> site (at <code>:604</code>) as a total
+            wearing an index's clothes. The tree has four: three
+            <code>{ leg: null, index: 7, completed: LEGS.map(…) }</code> states at <code>:267</code>,
+            <code>:454</code> and <code>:601</code>, plus one at <code>:257</code> that is
+            <code>cleanup</code>'s genuine position. The spec's line numbers predate phases 2–3.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Applied the spec's stated rule rather than its line numbers: all three
+            <code>leg: null</code> states became <code>index: LEGS.length</code>, and
+            <code>:257</code> kept its literal <code>7</code> because it is an index, and moving
+            <code>cleanup</code> from 7 to 8 is phase 5's deliberate edit.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Deriving <code>:257</code> too would have hidden the one line phase 5 most needs to
+            notice when it inserts <code>review</code> before <code>cleanup</code>.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>The stamp-only fallthrough test — <code>exit 0</code>/<code>exit 1</code> over <code>true</code>/<code>false</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec asks for a booking-owned leg carrying <code>stampCmd</code> and no
+            <code>stampPath</code>, driven at true and at false. Writing the frontmatter value as
+            the bare words <code>true</code> and <code>false</code> invites a reader to wonder
+            whether the parser is coercing them to booleans before they ever reach a shell.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Used <code>exit 0</code> and <code>exit 1</code>. They are unambiguously commands,
+            they are shell builtins so no <code>PATH</code> lookup can turn the case into the
+            exit-127 warning path phase 2 added, and the intent — <em>the exit code is the whole
+            stamp</em> — is on the page.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            <code>/usr/bin/true</code> and <code>/usr/bin/false</code> would also be unambiguous but
+            pin the test to a filesystem layout the rest of the suite does not assume.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
