@@ -14,7 +14,8 @@ ROUTE
   4  contract  /ideation:ideation    contract.md
   5  specs     /spec:propose         tasks.md
   6  execute   /spec:apply           all tasks ticked
-  7  cleanup   /waybill:cleanup      merged, bay gone
+  7  review    /waybill:review       repo state
+  8  cleanup   /waybill:cleanup      merged, bay gone
 
 WORDS
   trunk    the default branch; efforts begin here, and no docket is open on it

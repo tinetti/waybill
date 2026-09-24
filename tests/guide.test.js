@@ -153,7 +153,9 @@ describe('guide', () => {
       matched.add(id);
     }
     for (const leg of LEGS) assert.ok(matched.has(leg.id), `no waybill sample for \`${leg.id}\``);
-    assert.ok(samples.length >= 7, `${samples.length} waybill samples`);
+    // Against `LEGS.length`, never a literal: a hardcoded floor silently stops enforcing coverage
+    // the moment the route grows, which is precisely when the ride-along is most likely to lag.
+    assert.ok(samples.length >= LEGS.length, `${samples.length} waybill samples`);
 
     const firstLines = [...goldens.values()].map((text) => text.split('\n')[0]);
     for (const { info, body } of blocks.filter((block) => block.info !== 'waybill')) {

@@ -1,7 +1,7 @@
 bay created at /repo/.claude/worktrees/waybill-feat-thing
 
 ```text
-feat/thing · leg 3 of 7 (refine)
+feat/thing · leg 3 of 8 (refine)
   ✓ ideate  ✓ bay
   ▶ refine
 ```

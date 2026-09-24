@@ -19,7 +19,7 @@ import {
   renderWaybillMarkdown,
 } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
-import { assertGolden, cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { assertGolden, cleanupAll, createRepo, forgePath, git, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
@@ -27,6 +27,7 @@ import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
 import { specsFixture } from './fixtures/specs.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
+import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -35,8 +36,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN = path.join(HERE, 'golden');
 const SRC = path.join(HERE, '..', 'src');
 
-/** The golden files are byte-exact, so the real openspec CLI must never influence what is rendered. */
-const resolve = (dir) => withPath(pathWithout('openspec'), () => resolveLeg(dir));
+/**
+ * The golden files are byte-exact, so neither the real openspec CLI nor the developer's own `gh`
+ * or `glab` may influence what is rendered — the review leg's stamp asks a forge, and an
+ * authenticated CLI would otherwise move the resolved leg and add a warning line to the output.
+ * See {@link forgePath}.
+ *
+ * @param {string} dir
+ * @param {'none'|'open'} [answer] whether the stub forge reports a request already open
+ */
+const resolve = (dir, answer) => withPath(forgePath(answer), () => resolveLeg(dir));
 
 /** Nothing ignored, nothing to report — the shape every golden case is rendered against. */
 const CLEAN = { ignored: [], warnings: [] };
@@ -109,9 +118,12 @@ function dockets() {
 }
 
 /** The legs whose fixture is a linked worktree: everything after the bay is cut. */
-const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'cleanup']);
+const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'review', 'cleanup']);
 
 describe('renderWaybill golden output', () => {
+  // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
+  // fixture — identical on disk — so only an open request separates them.
+  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
     ['ideate', ideateFixture],
     ['bay', bayFixture],
@@ -119,19 +131,20 @@ describe('renderWaybill golden output', () => {
     ['contract', contractFixture],
     ['specs', specsFixture],
     ['execute', executeFixture],
-    ['cleanup', cleanupFixture],
+    ['review', reviewFixture],
+    ['cleanup', cleanupFixture, 'open'],
   ];
 
-  for (const [id, build] of cases) {
+  for (const [id, build, answer] of cases) {
     it(`renders the ${id} leg`, () => {
-      assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir), CLEAN));
+      assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir, answer), CLEAN));
     });
 
     it(`renders the ${id} leg in markdown`, () => {
       // Every leg after `bay` is resolved inside a linked worktree, so its session handover is told
       // which bay it belongs to — the same fact the CLI passes from inside one.
       const route = HAS_BAY.has(id) ? { bay: BAY } : {};
-      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir), CLEAN, route), 'md');
+      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir, answer), CLEAN, route), 'md');
     });
   }
 
@@ -155,7 +168,9 @@ describe('renderWaybill golden output', () => {
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
-    const result = resolve(elsewhere);
+    // `'open'`, because "every leg complete" now includes a leg that asks the forge: with nothing
+    // open for the branch the walk would honestly stop at `review` and this case would not exist.
+    const result = resolve(elsewhere, 'open');
     assert.equal(result.leg, null);
     assertGolden(GOLDEN, 'complete', renderWaybill(result, CLEAN));
   });

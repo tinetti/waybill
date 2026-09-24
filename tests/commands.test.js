@@ -36,6 +36,7 @@ const DECLARED = [
   'help.md',
   'new.md',
   'next.md',
+  'review.md',
   'spec/apply.md',
   'spec/archive.md',
   'spec/explore.md',

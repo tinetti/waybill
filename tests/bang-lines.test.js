@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { addWorktree, cleanupAll, createRepo, pathWithout, tempRoot } from './helpers/repo-fixture.js';
+import { addWorktree, cleanupAll, createRepo, forgePath, tempRoot } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
 
@@ -53,8 +53,9 @@ function bangLine(command, { root = ROOT, args = '' } = {}) {
 
 /**
  * Run a command's `!` line through bash, as the harness does. `node` is pinned to the one running
- * this suite, and the real `openspec` is dropped from `PATH` so a developer's install cannot change
- * what the CLI renders.
+ * this suite, and the real `openspec`, `gh` and `glab` are dropped from `PATH` — with a stub `gh`
+ * in their place — so neither a developer's install nor a live forge can change what the CLI
+ * renders. See {@link forgePath}.
  *
  * @param {string} command
  * @param {string} cwd
@@ -62,7 +63,7 @@ function bangLine(command, { root = ROOT, args = '' } = {}) {
  * @returns {{status: number|null, stdout: string, stderr: string}}
  */
 function runBang(command, cwd, options = {}) {
-  const PATH = [path.dirname(process.execPath), pathWithout('openspec')].join(path.delimiter);
+  const PATH = [path.dirname(process.execPath), forgePath()].join(path.delimiter);
   return spawnSync('bash', ['-c', bangLine(command, options)], {
     cwd,
     encoding: 'utf8',

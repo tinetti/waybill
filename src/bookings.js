@@ -35,6 +35,24 @@ const ARGUMENT_SOURCES = ['change-id', 'branch', 'none'];
 const STAMP_TIMEOUT_MS = 10000;
 
 /**
+ * The exit code a `stampCmd` uses to say it could not answer, as distinct from answering "no".
+ *
+ * 125 rather than 1, because 1 is what every ordinary failing command returns and a stamp that
+ * cannot reach its forge is not the same fact as a branch with no request open. Rather than 126 or
+ * 127, which the shell owns, and rather than 128+n, which signals own. GNU `timeout` and `env`
+ * already use 125 for exactly this meaning: the harness failed, not the thing it was asked about.
+ *
+ * A stamp exiting 125 may print one line of reason on stdout; it is quoted back in the warning.
+ *
+ * **A stamp's stdout is user-visible.** Its first line reaches the operator's terminal verbatim,
+ * and from there into transcripts, screenshots and pasted issue reports. Print nothing you would
+ * not show a bystander — never a token, never a URL carrying one, never the raw output of an
+ * auth-status command. Waybill does not redact and cannot: it cannot tell a reason from a
+ * credential.
+ */
+export const STAMP_UNKNOWN = 125;
+
+/**
  * Load, validate, and index the bookings in `dir`.
  *
  * @param {string} dir directory holding `*.md` bookings
@@ -241,25 +259,50 @@ export function stampedByPath(pattern, repoRoot, changed) {
 }
 
 /**
- * Run a `stampCmd`, separating "it ran and said no" from "it could not run at all". Only the
- * second is worth reporting: a stamp that answers `false` forever with no explanation is the hard-
- * stall failure mode.
+ * Run a `stampCmd`, separating "it ran and said no" from the two ways it can fail to answer at
+ * all. Only the failures are worth reporting: a stamp that answers `false` forever with no
+ * explanation is the hard-stall failure mode.
+ *
+ * Three outcomes, not two. `notFound` is the shell's 127 — the binary is not on `PATH`.
+ * `unknown` is {@link STAMP_UNKNOWN} — the binary *is* there and said it could not answer for this
+ * repository, which no exit code the shell owns can express. Both set `ran: false`, because a
+ * stamp that could not answer is not a stamp that said yes; the distinction lives in the warning.
+ *
+ * stdout is piped rather than discarded so the 125 branch can quote the stamp's own reason. Only
+ * its first line is kept, and only on 125 — an ordinary chatty stamp cannot inject text into a
+ * warning. The cost: a stamp that floods stdout past `maxBuffer` now sets `result.error` and reads
+ * as "could not be executed" where it previously read as a plain verdict.
  *
  * @param {string} command
  * @param {string} cwd
- * @returns {{ran:boolean, notFound:boolean, status:number|null}}
+ * @returns {{ran:boolean, notFound:boolean, unknown:boolean, status:number|null, reason:string|null}}
  */
 function runStamp(command, cwd) {
   const result = spawnSync(command, {
     cwd,
     shell: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    encoding: 'utf8',
     timeout: STAMP_TIMEOUT_MS,
     windowsHide: true,
   });
-  if (result.error || result.status === null) return { ran: false, notFound: false, status: null };
-  if (result.status === 127) return { ran: false, notFound: true, status: 127 };
-  return { ran: true, notFound: false, status: result.status };
+  if (result.error || result.status === null) {
+    return { ran: false, notFound: false, unknown: false, status: null, reason: null };
+  }
+  if (result.status === 127) {
+    return { ran: false, notFound: true, unknown: false, status: 127, reason: null };
+  }
+  if (result.status === STAMP_UNKNOWN) {
+    const first = (result.stdout ?? '').split('\n')[0].trim();
+    return {
+      ran: false,
+      notFound: false,
+      unknown: true,
+      status: STAMP_UNKNOWN,
+      reason: first === '' ? null : first,
+    };
+  }
+  return { ran: true, notFound: false, unknown: false, status: result.status, reason: null };
 }
 
 /**
@@ -280,25 +323,35 @@ function binaryOf(command) {
  * the binary name because `shell: true` means 127 can come from any word in a pipeline — naming the
  * first word is a guess, and printing both makes a wrong guess checkable rather than misleading.
  *
+ * Three wordings, deliberately distinct. "missing binary" is 127 and nothing else — a stamp naming
+ * a command this machine does not have. "could not answer" is {@link STAMP_UNKNOWN}, where the
+ * binary ran and reported that it cannot speak for this repository; the stamp's own reason is
+ * quoted, falling back to the command when it printed nothing. "could not be executed" is
+ * everything left: a spawn failure, the timeout, a signal.
+ *
  * @param {string} prefix '' from {@link stampedByCmd}, `${label}: ` from {@link evaluateBooking}
  * @param {string} command
- * @param {{ran:boolean, notFound:boolean, status:number|null}} result
+ * @param {{ran:boolean, notFound:boolean, unknown:boolean, status:number|null, reason:string|null}} result
  * @returns {string}
  */
 function stampWarning(prefix, command, result) {
-  return result.notFound
-    ? `${prefix}stampCmd missing binary \`${binaryOf(command)}\`: ${command}`
-    : `${prefix}stampCmd could not be executed: ${command}`;
+  if (result.notFound) return `${prefix}stampCmd missing binary \`${binaryOf(command)}\`: ${command}`;
+  if (result.unknown) return `${prefix}stampCmd could not answer: ${result.reason ?? command}`;
+  return `${prefix}stampCmd could not be executed: ${command}`;
 }
 
 /**
- * `stampCmd`: judged by exit code only; stdout is ignored. A stamp never throws, because one broken
- * booking must not stop inference.
+ * `stampCmd`: judged by exit code alone. A stamp never throws, because one broken booking must not
+ * stop inference.
  *
- * A stamp that could not run at all — missing binary (exit 127), spawn failure, timeout — is still
- * not-done, but it says so through `warnings` rather than silently: a stamp naming a binary this
- * machine does not have would otherwise stall a leg forever with no explanation. Only an explicit
- * non-zero exit is silent, because that is a stamp that ran and honestly said "not finished yet".
+ * A stamp that could not answer — missing binary (exit 127), {@link STAMP_UNKNOWN}, spawn failure,
+ * timeout — is still not-done, but it says so through `warnings` rather than silently: a stamp
+ * naming a binary this machine does not have, or a forge CLI that cannot speak for this
+ * repository, would otherwise stall a leg forever with no explanation. Only an ordinary non-zero
+ * exit is silent, because that is a stamp that ran and honestly said "not finished yet".
+ *
+ * stdout does not decide the verdict, but it is no longer discarded: see {@link STAMP_UNKNOWN} for
+ * the one line that reaches the operator, and why a stamp author must treat it as public.
  *
  * @param {string} command
  * @param {string} cwd

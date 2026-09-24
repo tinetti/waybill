@@ -13,8 +13,8 @@ import {
   cleanupAll,
   createRepo,
   defaultBayPath,
+  forgePath,
   git,
-  pathWithout,
   tempRoot,
   withEnv,
   withPath,
@@ -53,9 +53,11 @@ function isolated(fn) {
  * Drive `run` exactly the way phase 5's `bin/waybill` will — argv after the program name, both streams
  * injected — so this suite covers the same entry point the wrapper will call rather than a subshell.
  *
- * The real `openspec` binary is removed from `PATH` for the same reason `tests/waybill.test.js`
- * removes it: the golden comparison is byte-exact, and a CLI installed on the developer's machine
- * must not be able to change what is rendered.
+ * The real `openspec`, `gh` and `glab` binaries are removed from `PATH` for the same reason
+ * `tests/waybill.test.js` removes them: the golden comparison is byte-exact, and a CLI installed
+ * on the developer's machine must not be able to change what is rendered. `forgePath` puts a stub
+ * `gh` in their place, so the review leg's stamp gets one stable answer instead of asking a real
+ * forge over the network.
  *
  * The operator's shell is kept out for the same reason: `bay --list` ranks by the tmux window and
  * the shell history it runs under, and a suite run inside tmux, by someone with a history, would
@@ -70,7 +72,7 @@ function cli(argv, cwd, signals = { tmux: null, history: [] }) {
   let out = '';
   let err = '';
   const code = isolated(() =>
-    withPath(pathWithout('openspec'), () =>
+    withPath(forgePath(), () =>
       run(argv, {
         cwd,
         out: (text) => {

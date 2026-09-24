@@ -20,4 +20,5 @@ import './inspection-gitignore.test.js';
 import './legs.test.js';
 import './picker.test.js';
 import './repo.test.js';
+import './review.test.js';
 import './waybill.test.js';

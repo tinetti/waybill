@@ -1,5 +1,5 @@
-feat/thing · all 7 legs complete
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute  ✓ cleanup
+feat/thing · all 8 legs complete
+  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute  ✓ review  ✓ cleanup
 
 NEXT:
   nothing to hand off — every leg is complete

@@ -3,7 +3,7 @@
 Coat off the hook, rookie. You're riding with me today.
 
 One change, start to finish. You've got an idea, call it `feat/thing`. By tonight it will have
-crossed seven legs, a handful of sessions and three different carriers. Nobody will lose it,
+crossed eight legs, a handful of sessions and three different carriers. Nobody will lose it,
 because the paperwork travels with the freight.
 
 Here's the whole job: read what's on the counter, do the one thing it says, leave your stamp. I
@@ -74,7 +74,7 @@ Say you'd jumped the gun and run `git switch -c feat/thing` in the main checkout
 would hand you this for leg 2:
 
 ```waybill
-feat/thing · leg 2 of 7 (bay)
+feat/thing · leg 2 of 8 (bay)
   ✓ ideate
   ▶ bay
 
@@ -114,7 +114,7 @@ waybill next
 ```
 
 ```waybill
-feat/thing · leg 3 of 7 (refine)
+feat/thing · leg 3 of 8 (refine)
   ✓ ideate  ✓ bay
   ▶ refine
 
@@ -140,7 +140,7 @@ have heard a word of it. They'll only have what gets written down.
 Same session, no break. The waybill says so: there's no `/clear` in the NEXT block.
 
 ```waybill
-feat/thing · leg 4 of 7 (contract)
+feat/thing · leg 4 of 8 (contract)
   ✓ ideate  ✓ bay  ✓ refine
   ▶ contract
 
@@ -169,7 +169,7 @@ waybill next
 ```
 
 ```waybill
-feat/thing · leg 5 of 7 (specs)
+feat/thing · leg 5 of 8 (specs)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract
   ▶ specs
 
@@ -200,7 +200,7 @@ Write the tasks as checkboxes. The next leg counts them.
 one to apply. It also shows how far along you are.
 
 ```waybill
-feat/thing · leg 6 of 7 (execute)
+feat/thing · leg 6 of 8 (execute)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs
   ▶ execute (1 of 3 tasks)
 
@@ -221,13 +221,80 @@ The next handler asks the counter, sees how many boxes are ticked, and picks it 
 > **Plainly:** In one or more fresh sessions, `/spec:apply add-thing` implemented the change and
 > ticked the boxes in `tasks.md`. The leg is stamped when every box is ticked.
 
-## Leg 7 · cleanup — Back to the trunk
+## Leg 7 · review — Somebody else's eyes
 
-Every box is ticked, so the counter moves on to the last leg:
+Every box is ticked, so the counter moves on:
 
 ```waybill
-feat/thing · leg 7 of 7 (cleanup)
+feat/thing · leg 7 of 8 (review)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute
+  ▶ review
+
+NEXT:
+/model sonnet
+/effort low
+/waybill:review
+
+  Push the branch and open its pull or merge request, then hand it to a reviewer. Every box in the
+  tasks list is ticked, so the work is done; what is left is getting somebody else's eyes on it before
+  `cleanup` folds it back in.
+
+  This is the one stock leg whose stamp asks something **outside** the repository. Every other stamp
+  reads a file, a branch or a worktree; this one asks the forge whether a request is open for this
+  branch, because that is the only place the fact lives. It needs `gh` **or** `glab`, and neither is
+  mandatory — the stamp tries `gh` first, falls through to `glab` when `gh` cannot answer, and takes
+  whichever one speaks for this repository. That order is "first one that answers", not "first one
+  installed": a machine carrying a working `gh` and a `glab` pointed at some other host still stamps
+  correctly on a GitHub repository.
+
+  There are three verdicts, and they are worth telling apart:
+
+  - **A request is open.** The leg is stamped and the route moves on to `cleanup`.
+  - **A CLI answered, and there is none open.** The leg stays current, silently. That is honest work
+    remaining, not a fault, so nothing is printed beside it.
+  - **No CLI could answer** — none installed, or one installed that is unauthenticated or pointed at
+    the wrong host. The leg stays current *and* says why, under `WARNINGS:`. Without that line a 401
+    would read exactly like "no request yet" and the docket would sit here forever with nothing on
+    screen to explain it.
+
+  A draft request counts as open. A draft *is* an open request, filtering them out would need a
+  second parse, and the operator who opened a draft knows they did.
+
+  `/waybill:review` is the carrier Waybill ships, and it is deliberately the modest one: it reports
+  what git and the forge CLIs can see, pushes the branch, opens the request, and stops. It never
+  reviews, approves or merges — reviewing is a human's or a reviewer's job, and merging is what
+  `cleanup` verifies has already happened.
+
+  If your machine has its own review skill, rebook this leg rather than editing this file: point
+  `waybill.bookingsdir` at a directory of your own and drop a booking for `review` into it. A booking
+  is replaced whole, stamp included, so an overlay is free to ask the forge a different question — or
+  no question at all. See *Swapping a carrier* in the README.
+```
+
+Note the position: `review`, not `cleanup`. The work is finished and the branch still has nobody
+on it. This is the one leg whose stamp isn't on the freight — the counter can't see it by looking at
+the repo, because "has anybody been asked to look at this?" isn't written anywhere in the repo. It
+has to ask the forge, through `gh` or `glab`, whichever one can answer for this remote.
+
+`/waybill:review` reports what git and the forge can see, pushes the branch, and opens the request.
+It stops there. It doesn't review, doesn't approve, and doesn't merge — that's somebody else's
+signature, and merging is the next leg's business.
+
+If neither CLI is installed, or one is installed and can't speak for this host, the counter says so
+under `WARNINGS:` rather than sitting there looking like there's no request yet. Those two are not
+the same fact, and a leg that can't tell them apart stalls forever without saying why. Open the
+request in the browser instead and the leg stamps on the next `waybill next` all the same.
+
+> **Plainly:** `/waybill:review` pushed `feat/thing` and opened a pull request for it. The leg is
+> stamped once a request is open for the branch, whoever opened it and however.
+
+## Leg 8 · cleanup — Back to the trunk
+
+The request is open, so the counter moves on to the last leg:
+
+```waybill
+feat/thing · leg 8 of 8 (cleanup)
+  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute  ✓ review
   ▶ cleanup
 
 NEXT:
@@ -268,8 +335,8 @@ you. It never merges anything itself.
 
 ## End of the line
 
-That's the route, rookie. Seven legs, every one stamped on the repo itself, and not one of us had
-to remember a thing.
+That's the route, rookie. Eight legs, every one stamped — seven on the repo itself and one on the
+forge — and not one of us had to remember a thing.
 
 When a word on a waybill stops you cold, it's on [the clipboard](02-glossary.md). When you need a
 flag, a key or a prerequisite, look in [the reference](03-reference.md).

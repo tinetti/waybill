@@ -36,6 +36,7 @@ export const LEGS = [
   { id: 'contract', owner: 'booking' },
   { id: 'specs', owner: 'booking' },
   { id: 'execute', owner: 'booking', progress: true },
+  { id: 'review', owner: 'booking' },
   { id: 'cleanup', owner: 'wrapper' },
 ];
 

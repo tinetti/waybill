@@ -14,6 +14,7 @@ What you can type in a Claude Code session once the plugin is in.
 | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk | none |
 | `/waybill:doctor` | Every prerequisite the route needs on this machine, each gap with its fix | none |
 | `/waybill:help` | The route, the words and the verbs on one screen | none |
+| `/waybill:review` | Pushes the branch and opens its pull or merge request, then hands it to a reviewer. Needs `gh` or `glab`; neither is mandatory | none |
 | `/waybill:cleanup` | Checks with plain git that the branch is merged, then removes its bay and deletes the branch | `<branch>` |
 | `/waybill:spec:explore` | OpenSpec explore: think an idea through before committing to it | what to explore |
 | `/waybill:spec:propose` | OpenSpec propose: scaffold the proposal, spec deltas, design and `tasks.md` | the change to propose |
@@ -58,14 +59,14 @@ Each booking is a markdown file: YAML frontmatter, then the text the waybill pri
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `leg` | yes | The leg this booking is for: `ideate`, `bay`, `refine`, `contract`, `specs`, `execute` or `cleanup` |
+| `leg` | yes | The leg this booking is for: `ideate`, `bay`, `refine`, `contract`, `specs`, `execute`, `review` or `cleanup` |
 | `command` | yes | The carrier command the waybill tells the next session to run |
 | `model` | yes | The model for that session, printed as `/model <model>` |
 | `effort` | no | The effort level, printed as `/effort <effort>` |
 | `handover` | no | `transfer` puts `/clear` first; `through` adds nothing; any other value is printed as it is |
 | `argument` | no | What is appended to `command`: `change-id` (the default), `branch` or `none` |
 | `stampPath` | no | A path glob; the leg is stamped when a matching file is part of this branch's changes |
-| `stampCmd` | no | A shell command; the leg is stamped when it exits 0 |
+| `stampCmd` | no | A shell command; the leg is stamped when it exits 0. Exit `125` means *could not answer* — see below |
 
 A booking needs at least one of `stampPath` and `stampCmd`. This is the shipped
 `bookings/ideation-refine.md`:
@@ -83,6 +84,31 @@ Run the ideation interview. Push on scope, sequencing, and the decisions worth r
 rejected, and keep going until the shape of the work is settled rather than merely described.
 The interview and the contract are one session's work; carry straight on into the contract leg.
 ```
+
+### What a `stampCmd` exit code means
+
+A stamp is judged by its exit code alone. Four of them are spoken for:
+
+| Exit | Meaning | What the operator sees |
+| --- | --- | --- |
+| `0` | Stamped. The leg is done | the leg is ticked |
+| `125` | **Could not answer** — the stamp ran and reported that it cannot decide | not done, plus a named warning |
+| `127` | The binary the stamp names is not on `PATH` | not done, plus a named warning |
+| anything else | Not done, honestly. There is work left | not done, and nothing printed |
+
+`125` is the one to know about when writing your own stamp. It is what a stamp says when the
+question was unanswerable rather than answered "no" — a forge CLI that is unauthenticated, pointed
+at the wrong host, or offline. `bookings/waybill-review.md` uses it: without it, a 401 would be
+indistinguishable from "no request open yet", and the leg would stall forever with nothing on screen
+to explain it. The choice of `125` follows GNU `timeout` and `env`, which already use it to mean
+*the harness failed, not the thing it was asked about*.
+
+A stamp exiting `125` may print **one line of reason on stdout**, and that line is quoted verbatim
+in the warning. Treat a stamp's stdout as user-visible: it reaches the terminal, and from there
+transcripts, screenshots and pasted issue reports. Never print a token, a URL carrying one, or the
+raw output of an auth-status command. Waybill does not redact and cannot — it cannot tell a reason
+from a credential. Only the first line is used, only on `125`, and a stamp that floods stdout is
+killed and reported as "could not be executed", so redirect chatty commands to `/dev/null`.
 
 ## Environment and git config
 
@@ -119,7 +145,8 @@ end, so check this table before you ride.
 | --- | --- | --- | --- |
 | `ideation` | 1 ideate, 3 refine, 4 contract | the `ideation` plugin | `/plugin install ideation@tinetti` |
 | `spec` | 5 specs, 6 execute | the `openspec` CLI, a per-project `openspec init`, and the bare `/spec:*` commands | `npm i -g @fission-ai/openspec`; `openspec init` writes the `opsx:*` commands into `<project>/.claude/commands/opsx/`; the symlink step above supplies `/spec:*` |
-| `waybill` | 2 bay, 7 cleanup | nothing beyond the waybill plugin | `/waybill:bay` and `/waybill:cleanup` ship with it; cleanup uses plain git, so no `gh`, `glab` or auth |
+| `waybill` | 2 bay, 8 cleanup | nothing beyond the waybill plugin | `/waybill:bay` and `/waybill:cleanup` ship with it; cleanup uses plain git, so no `gh`, `glab` or auth |
+| `waybill` | 7 review | `gh` **or** `glab`, and neither is mandatory | `brew install gh` / `brew install glab`, then `gh auth login` or `glab auth login --hostname <host>`. With neither usable the leg still runs — `/waybill:review` offers the browser — but it cannot be stamped until a request is open, and the counter says which of the two causes it is |
 
 Every one of these can be rebooked. See [Prerequisites](../../README.md#prerequisites) in the
 README.

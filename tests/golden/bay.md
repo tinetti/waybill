@@ -1,5 +1,5 @@
 ```text
-feat/thing · leg 2 of 7 (bay)
+feat/thing · leg 2 of 8 (bay)
   ✓ ideate
   ▶ bay
 ```

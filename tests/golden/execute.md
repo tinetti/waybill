@@ -1,5 +1,5 @@
 ```text
-feat/thing · leg 6 of 7 (execute)
+feat/thing · leg 6 of 8 (execute)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs
   ▶ execute (1 of 3 tasks)
 ```

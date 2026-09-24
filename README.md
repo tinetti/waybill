@@ -1,6 +1,6 @@
 # Waybill
 
-A single change moves through seven legs, three tool ecosystems, and at least four sessions. No tool
+A single change moves through eight legs, three tool ecosystems, and at least four sessions. No tool
 models the route, so every session boundary costs a manual re-orientation: which leg is this, which
 command comes next, which model does it want, and does the work live in the main checkout or a bay.
 
@@ -9,7 +9,7 @@ next, names the carrier that runs it, and hands over the paperwork. One command 
 questions:
 
 ```
-feat/session-handover · leg 5 of 7 (specs)
+feat/session-handover · leg 5 of 8 (specs)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract
   ▶ specs
 
@@ -50,11 +50,17 @@ reference.
 | 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
 | 5 | `specs` | `openspec/changes/**/tasks.md` — active or archived | `bookings/openspec-specs.md` |
 | 6 | `execute` | as row 5, **and** every checkbox in this branch's active change ticked | `bookings/openspec-execute.md` |
-| 7 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
+| 7 | `review` | an open pull or merge request for this branch, read through `gh` or `glab` | `bookings/waybill-review.md` |
+| 8 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
 
-Legs 2 and 7 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
+Legs 2 and 8 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
 anchor and the terminus have to be relied on while everything they hand to is swappable. They still
 take their command, model, and prose from a booking like every other leg.
+
+Row 7 is the one stock leg whose stamp asks something **outside** the repository — "has anybody been
+asked to look at this yet?" is not written anywhere in the repository, so it has to ask the forge. It
+needs `gh` **or** `glab` and neither is mandatory; with neither able to answer, the leg stays current
+and says why under `WARNINGS:` rather than reading as "no request yet". See *Prerequisites*.
 
 Every path glob above — rows 3 to 6 — is scoped to the docket. A file only stamps its leg when
 it is also part of what this branch changed against the default branch: committed on the branch,
@@ -82,11 +88,11 @@ The two surfaces install separately, and neither one brings the other.
 /plugin install waybill@tinetti
 ```
 
-That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:help`,
-and the four routing commands as **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces
-every plugin command under the plugin name, and a `commands/` subdirectory becomes one more segment
-— measured against a scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an
-unknown command.
+That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:review`,
+`/waybill:cleanup`, `/waybill:doctor`, `/waybill:help`, and the four routing commands as
+**`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces every plugin command
+under the plugin name, and a `commands/` subdirectory becomes one more segment — measured against a
+scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown command.
 
 The waybills for legs 5 and 6 name the **bare** `/spec:propose` and `/spec:apply`. Those names come
 from `~/.claude/commands/spec/`, not from the plugin — the symlink step under *The vendored
@@ -118,6 +124,7 @@ step.
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
+| — | `/waybill:review` | Push the branch and open its pull or merge request, then hand it to a reviewer. A slash command only: there is no `waybill review` verb, because the leg is a conversation rather than a computation |
 | `waybill doctor` | `/waybill:doctor` | Can this machine run the route: every prerequisite, with its fix |
 | `waybill help` | `/waybill:help` | The route, the words, and the verbs on one screen |
 
@@ -135,7 +142,7 @@ declares them and the test suite pins them against the booking.
 
 Standing on the default branch, no docket is open — so both commands answer for the repository
 instead of for the branch you are on. A **docket in flight is a bay on disk**: that is already the
-tool's own definition, since the bay is cut at leg 2 and removed at leg 7, and it is the definition
+tool's own definition, since the bay is cut at leg 2 and removed at leg 8, and it is the definition
 that gives every docket a directory, so each one's position is read from its own working tree.
 Ideating comes before the docket exists — the papers it produces travel as the branch's first diff
 once `waybill bay <branch>` cuts the bay.
@@ -146,8 +153,8 @@ once `waybill bay <branch>` cuts the bay.
 main · 2 dockets open
 
 DOCKETS:
-  feat/session-handover · leg 5 of 7 (specs)
-  fix/stamp-scoping     · leg 6 of 7 (execute, 4 of 9 tasks)
+  feat/session-handover · leg 5 of 8 (specs)
+  fix/stamp-scoping     · leg 6 of 8 (execute, 4 of 9 tasks)
 ```
 
 **`waybill next` exits 0 if and only if it issued exactly one waybill.** With one bay open it
@@ -249,7 +256,8 @@ see *Swapping a carrier* — but a waybill pointing at a command you do not have
 | 1, 3, 4 | the `ideation` plugin | `/plugin install ideation@tinetti` |
 | 5, 6 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
 | 5, 6 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
-| 7 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
+| 7 | `gh` **or** `glab` — neither mandatory | `/waybill:review` ships with Waybill and runs with neither installed; it offers the browser instead. But the *stamp* asks the forge, so with neither able to answer the leg stays current with a warning naming which of the two it is: nothing on `PATH`, or something on `PATH` that cannot speak for this host. `gh auth login`; `glab auth login --hostname <host>` |
+| 8 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
 
 ### `waybill doctor`
 
@@ -280,7 +288,7 @@ Every `FAIL` and every `WARN` carries the command that closes it; `ok` and `info
 exits 1 if and only if some check is `FAIL`, so a script has one condition to test. `info` rows are
 not problems — an absent bookings overlay is the steady state on a personal machine.
 
-Leg 7 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
+Leg 8 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
 retires a branch someone else already merged. If your habit is to merge from the terminal, rebook
 that leg; the overlay below is how, and `examples/mar-cleanup.md` is a worked one.
 

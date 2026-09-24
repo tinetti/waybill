@@ -3,7 +3,7 @@ ENTER BAY: /repo/.claude/worktrees/waybill-feat-thing
 NEXT LEG: specs
 
 ```text
-feat/thing · leg 5 of 7 (specs)
+feat/thing · leg 5 of 8 (specs)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract
   ▶ specs
 ```

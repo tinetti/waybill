@@ -8,7 +8,7 @@ import { LEGS } from '../src/legs.js';
 import { renderWaybill } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { loadBookings } from '../src/bookings.js';
-import { cleanupAll, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { cleanupAll, forgePath, git, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -51,7 +51,11 @@ function committedCopy() {
 }
 
 const load = (dir) => loadBookings(dir, { knownLegs: KNOWN_LEGS });
-const resolve = (dir, bookings) => withPath(pathWithout('openspec'), () => resolveLeg(dir, bookings));
+// `forgePath('open')` rather than a bare `pathWithout('openspec')`: the review leg's stamp asks a
+// forge, and this suite's fixture is a docket with every task ticked — so without a stub reporting
+// a request open the walk stops at `review` and the swap under test is never reached. See
+// {@link forgePath}.
+const resolve = (dir, bookings) => withPath(forgePath('open'), () => resolveLeg(dir, bookings));
 
 describe('swapping one booking', () => {
   it('costs exactly one file edit, and that file is a booking', () => {

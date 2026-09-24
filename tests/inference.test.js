@@ -15,6 +15,7 @@ import {
   cleanupAll,
   commitPapers,
   createRepo,
+  forgePath,
   git,
   pathWithout,
   stubBin,
@@ -28,6 +29,7 @@ import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
 import { specsFixture } from './fixtures/specs.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
+import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -35,14 +37,23 @@ after(cleanupAll);
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const KNOWN_LEGS = LEGS.map((leg) => leg.id);
 
-/** A `PATH` with the real openspec CLI removed, so inference is judged on repository state alone. */
-const absent = () => pathWithout('openspec');
+/**
+ * A `PATH` with the real openspec CLI and both forge CLIs removed, so inference is judged on
+ * repository state alone — plus a stub `gh` answering for the review leg, whose stamp asks the
+ * forge rather than the repository. Without the stub, whether a leg resolves would depend on
+ * whether the developer has `gh` installed. See {@link forgePath}.
+ *
+ * @param {'none'|'open'} [answer]
+ * @returns {string}
+ */
+const absent = (answer) => forgePath(answer);
 
 /**
  * @param {string} dir
  * @param {Map<string, import('../src/bookings.js').Booking>} [bookings]
+ * @param {'none'|'open'} [answer] whether the stub forge reports a request already open
  */
-const resolve = (dir, bookings) => withPath(absent(), () => resolveLeg(dir, bookings));
+const resolve = (dir, bookings, answer) => withPath(absent(answer), () => resolveLeg(dir, bookings));
 
 /**
  * @param {Record<string,string>} files basename → contents
@@ -64,6 +75,7 @@ describe('LEGS', () => {
       'contract',
       'specs',
       'execute',
+      'review',
       'cleanup',
     ]);
   });
@@ -112,6 +124,9 @@ describe('the shipped bookings', () => {
 });
 
 describe('resolveLeg', () => {
+  // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
+  // fixture — they are identical on disk — so it is the forge, not a file, that separates them.
+  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
     ['ideate', ideateFixture],
     ['bay', bayFixture],
@@ -119,13 +134,14 @@ describe('resolveLeg', () => {
     ['contract', contractFixture],
     ['specs', specsFixture],
     ['execute', executeFixture],
-    ['cleanup', cleanupFixture],
+    ['review', reviewFixture],
+    ['cleanup', cleanupFixture, 'open'],
   ];
 
-  for (const [id, build] of cases) {
+  for (const [id, build, answer] of cases) {
     it(`resolves the ${id} fixture to the ${id} leg`, () => {
       const fixture = build();
-      const result = resolve(fixture.dir);
+      const result = resolve(fixture.dir, undefined, answer);
 
       assert.equal(result.leg, id);
       assert.equal(result.index, KNOWN_LEGS.indexOf(id) + 1);
@@ -149,9 +165,32 @@ describe('resolveLeg', () => {
   });
 
   it('carries the booking for the terminal leg too, so the loop closes on a waybill', () => {
-    const result = resolve(cleanupFixture().dir);
+    const result = resolve(cleanupFixture().dir, undefined, 'open');
     assert.equal(result.leg, 'cleanup');
     assert.match(result.booking.path, /waybill-cleanup\.md$/);
+  });
+
+  it('carries the booking for the review leg, whose stamp is the booking\'s own', () => {
+    // `review` is booking-owned for its *stamp* as well as its waybill — the one stock leg that
+    // is, which is what lets an overlay replace the forge probe along with the carrier.
+    const result = resolve(reviewFixture().dir);
+    assert.equal(result.leg, 'review');
+    assert.match(result.booking.path, /waybill-review\.md$/);
+  });
+
+  it('stops at review, not cleanup, when the forge has no request open for the branch', () => {
+    // The whole point of the leg: the work is finished and nobody has seen it yet.
+    assert.equal(resolve(reviewFixture().dir).leg, 'review');
+    assert.equal(resolve(reviewFixture().dir, undefined, 'open').leg, 'cleanup');
+  });
+
+  it('says why when no forge CLI can answer, rather than stalling at review in silence', () => {
+    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(reviewFixture().dir));
+
+    assert.equal(result.leg, 'review');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0], /waybill-review\.md: /);
+    assert.match(result.warnings[0], /no forge CLI/);
   });
 
   it('leaves booking undefined for a leg no booking is bound to', () => {
@@ -239,7 +278,7 @@ describe('resolveLeg', () => {
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
-    const result = resolve(elsewhere);
+    const result = resolve(elsewhere, undefined, 'open');
     assert.equal(result.leg, null);
     assert.equal(result.index, LEGS.length);
     assert.deepEqual(result.completed, KNOWN_LEGS);
@@ -249,7 +288,7 @@ describe('resolveLeg', () => {
     assert.deepEqual(result.warnings, []);
 
     // `index` alone cannot tell this state from a current `cleanup` leg; `leg` is the discriminator.
-    assert.equal(resolve(cleanupFixture().dir).index, result.index);
+    assert.equal(resolve(cleanupFixture().dir, undefined, 'open').index, result.index);
   });
 
   it('resolves against the superproject when called from inside a submodule', () => {
@@ -524,14 +563,15 @@ describe('the change id is scoped to the branch', () => {
 
     const state = resolve(bay);
     assert.deepEqual(state.completed, ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute']);
-    assert.equal(state.leg, 'cleanup');
+    // `review` rather than `cleanup`: the work is finished and the stub forge reports nothing open.
+    assert.equal(state.leg, 'review');
   });
 
   it('stamps execute on the docket\'s own finished change despite an unfinished inherited one', () => {
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
     writeFile(path.join(bay, 'openspec', 'changes', 'mine', 'tasks.md'), '- [x] a\n');
 
-    assert.equal(resolve(bay).leg, 'cleanup');
+    assert.equal(resolve(bay).leg, 'review');
   });
 
   it('does not stamp execute on a docket\'s own change with no tasks in it', () => {
