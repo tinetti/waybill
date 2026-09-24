@@ -1,12 +1,57 @@
 # Context Map: waybill-work-laptop
 
-**Phase**: 2
+**Phase**: 3
 **Gates**: 5/5 ready
 **Verdict**: GO
 
 ---
 
-## Phase 2 (current)
+## Phase 3 (current)
+
+Explored inline rather than by the `ideation:scout` subagent: this phase executed inside a subagent,
+where no `Agent` tool is available. The skill's "scout unregistered" fallback was followed — the
+spec's pattern paths and every Modified File were read, analogues read for the new files, and the
+blast radius of each modified file grepped.
+
+### Gates
+
+| Gate                 | Status | Evidence                                                                                                                                                                                                 |
+| -------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | ready  | Three new files and nine modified, each with a concrete edit. Every line citation in the spec was checked against the tree; all were accurate except `src/cli.js:588` (the `COMMANDS` map, correct) and the omission noted under Risks. |
+| Pattern familiarity  | ready  | Read `src/help.js` whole (the padded-column construction at `:89-96` is what the renderer copies), `src/cli.js:352-360` (`help`, the handler shape doctor follows because it calls no `repoRoot`), `commands/status.md` (byte-for-byte the guard and wrapper shape), `src/openspec.js:12-19` (the `spawnSync` options and timeout), `src/signals.js:124-141` (`HOME` from `env`, never `os.homedir()`). |
+| Dependency awareness | ready  | Three pinned lists gate a new command, not the two the spec names — see Risks. `configuredBookingsDir` gains `src/doctor.js` as its second consumer beside `resolveBookings`. `src/cli.js` gains one import; nothing imports `src/doctor.js` but the CLI. |
+| Edge case coverage   | ready  | `spec-phase-3.md:703-737` enumerates nine error scenarios and sixteen failure modes; all are covered by the 31 cases in `tests/doctor.test.js`, plus one invariant case the spec does not list (every `fail`/`warn` carries a `fix`; `ok`/`info` carry none). |
+| Test strategy        | ready  | `package.json:15` declares one script (`node --test tests/`); no justfile, no ESLint config, no tsconfig — tests are the whole gate, as the spec states at `:743`. Inner loop `node --test tests/doctor.test.js` (~18s); forced surfaces `tests/commands.test.js tests/bang-lines.test.js tests/help.test.js tests/guide.test.js`. |
+
+### Key Patterns (Phase 3)
+
+- `src/help.js:89-96` — `width`/`pad` over `[...text].length`, computed from the rows. `renderDoctor` copies this exactly; the details carry em dashes, so the code-point count matters.
+- `src/help.js:115-120` — the `renderHelp` precedent for catching a malformed overlay and reporting `error.message.split('\n')[0]` rather than aborting. Check 6 does the same.
+- `src/cli.js:352-360` (`help`) — the handler shape for a verb that calls no `repoRoot`: reject every argument with exit 2 and the usage banner on stderr, then print. `status` at `:314-338` is the wrong model here, because it resolves a repository first.
+- `src/openspec.js:12-17` — `{ cwd, encoding: 'utf8', timeout, windowsHide: true }`, the spawn options every doctor probe reuses. `:18` is where ENOENT and a non-zero exit are collapsed into one `false` — the conflation check 5 exists to avoid, and the reason doctor does not import `openspecAvailable`.
+- `tests/helpers/repo-fixture.js` — `tempRoot()` :53, `stubBin(name, script)` :149, `withPath` :166, `withEnv` :185 (an `undefined` value unsets), `pathWithout(name)` :210, `writeFile` :224. `withEnv`/`withPath` mutate the live `process.env`, so a probe reading `process.env` at call time sees the override — which is why `runChecks(cwd, env = process.env)` must not snapshot at module load.
+- `tests/commands.test.js:32-43` (`DECLARED`) and `:112` — `assert.deepEqual(shipped(COMMANDS), DECLARED)` fails in both directions, so neither half of shipping a command can be forgotten.
+- `tests/commands.test.js:20-31` — the measured reason `.claude-plugin/plugin.json` must not gain a `commands` key: with a file-path array, nested commands stop resolving and all four `commands/spec/*.md` silently unregister. Confirmed unchanged by this phase.
+
+### Dependencies (Phase 3)
+
+- `src/bookings.js:116` (`configuredBookingsDir`) — was module-private; now exported. Consumed by → `resolveBookings` :145 and `src/doctor.js` (check 6).
+- `src/doctor.js` — consumed by → `src/cli.js` only (`runChecks`, `renderDoctor`).
+- `src/cli.js` `USAGE` — consumed by → `tests/help.test.js:119-126` and `tests/guide.test.js:82` (both parse the Commands block), and `tests/guide.test.js:200` (every `--flag` in Options must appear in the reference page). Doctor adds no flag, so only the Commands rows moved.
+- `src/help.js` `OUTRO` COMMANDS block — consumed by → `tests/help.test.js:203-211`, which asserts every USAGE token has a row. Adding the USAGE row without the COMMANDS row fails.
+- `commands/doctor.md` — consumed by → `tests/commands.test.js` (`DECLARED`, the description assertion, the `${CLAUDE_PLUGIN_ROOT}` spelling sweep, the no-`model:`/`effort:` inversion), `tests/bang-lines.test.js` (the pinned `invoking` list and the wrapper sweep), and `tests/guide.test.js:191` (`/waybill:doctor` must appear in `docs/guide/03-reference.md`).
+
+### Risks (Phase 3)
+
+- **A third pinned list the spec does not name.** `tests/help.test.js:256-283` pins the usage banner by row *count* (`before.length + 1`), not only by content. The spec names `DECLARED` and `invoking` as the two forced edits; this is a third, and it fails before any doctor test runs. Handled — see `implementation-notes-phase-3.html`.
+- **The spec's last manual check expects the wrong exit code.** `CLAUDE_CONFIG_DIR=/tmp/nope node bin/waybill doctor` exits 1, not 0, because check 4 reads the four `/spec:*` commands out of the *same* config directory. The code is right and the expectation overlooked the shared input; recorded in the notes rather than softened.
+- **`node bin/waybill doctor` on this laptop is not `all clear`.** It reports one `WARN`: the `waybill` on PATH resolves inside the plugin cache rather than the working tree (`npm link` not in force here). Exit 0, so the acceptance check passes, and the row is doctor correctly reporting the gap phase 1 left open.
+- **Phase 5 lands second and re-blesses `tests/golden/help.txt` against this phase's page.** The golden now carries the `waybill doctor` COMMANDS row and `the verbs` in `INTRO[0]`. Phase 5's golden diff will show both already present — expected, not a regression. `MAX_LINES = 45` still has room: the page is 42 lines.
+- **Checks 3 and 4 assume the stock route**, as the spec states at `:328-335`. Phase 7's work overlay rebooks legs 5 and 6 onto `/ideation:*`, and a machine running only that overlay needs neither `openspec` nor `~/.claude/commands/spec/`. This laptop keeps both, so both pass honestly here. If doctor ever grows overlay awareness, these two checks are the first it should govern.
+
+---
+
+## Phase 2 (retained from the prior map)
 
 ### Gates
 
