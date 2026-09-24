@@ -19,7 +19,7 @@ const WRAPPER_STAMPS = { bay: 'bay exists', cleanup: 'merged, bay gone' };
 const NONE = '—';
 
 const INTRO = [
-  'waybill — the route, the words, and the four verbs',
+  'waybill — the route, the words, and the verbs',
   '',
   'FROM ZERO',
   '  1. On the trunk:        waybill new         leg 1\'s waybill; run what it names',
@@ -48,6 +48,7 @@ const OUTRO = [
   '  waybill bay <branch>     create the branch and its bay, then hand off',
   '  waybill next [<branch>]  where this docket stands, and the next leg\'s waybill',
   '  waybill status           where it stands, or the whole fleet on the trunk',
+  '  waybill doctor           can this machine run the route, and what to fix',
   '',
   'Why: nothing is tracked — every leg is judged by its stamp, read off the repo.',
   '     One waybill per session: the map is yours, the waybill is the handler\'s.',

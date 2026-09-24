@@ -275,9 +275,13 @@ describe('waybill help', () => {
       '',
     ].join('\n');
 
+    // The four docket verbs, then the two that report on something else: `doctor` on the machine,
+    // `help` on the command surface. Both are pinned by position, so a row added anywhere has to
+    // be accounted for here rather than quietly widening the banner.
     const { commands, options: actual } = usage();
-    assert.deepEqual(commands.slice(0, -1), before);
-    assert.equal(commands.length, before.length + 1);
+    assert.deepEqual(commands.slice(0, -2), before);
+    assert.equal(commands.length, before.length + 2);
+    assert.ok(commands.at(-2).startsWith('  doctor '), `the fifth row is not \`doctor\`: ${commands.at(-2)}`);
     assert.ok(commands.at(-1).startsWith('  help '), `the last row is not \`help\`: ${commands.at(-1)}`);
     assert.equal(actual, options);
   });

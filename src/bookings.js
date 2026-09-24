@@ -110,10 +110,13 @@ export function loadBookings(dir, options = {}) {
  * Both tiers expand a leading `~`, by the route each one has: {@link expandTilde} for the
  * environment, git's own `--type=path` for the config.
  *
+ * Exported for `waybill doctor`, which reports which overlay is in force: a second reading of
+ * `WAYBILL_BOOKINGS_DIR` / `waybill.bookingsdir` over there would be free to drift from this one.
+ *
  * @param {string} cwd
  * @returns {string|null}
  */
-function configuredBookingsDir(cwd) {
+export function configuredBookingsDir(cwd) {
   const tiers = [expandTilde(process.env.WAYBILL_BOOKINGS_DIR), configPath(cwd, 'waybill.bookingsdir')];
   return tiers.find((value) => value !== undefined && value !== null && value.trim() !== '')?.trim() ?? null;
 }

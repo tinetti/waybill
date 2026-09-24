@@ -18,6 +18,7 @@ import { resolveBookings } from './bookings.js';
 import { checkoutRoot, defaultBranch, inBay, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
 import { renderHelp } from './help.js';
+import { renderDoctor, runChecks } from './doctor.js';
 import { bayCandidates, rankBranches } from './picker.js';
 import { gatherSignals } from './signals.js';
 
@@ -38,7 +39,8 @@ const USAGE = [
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
-  '  help            This page: the route, the words, and the four verbs',
+  '  doctor          Can this machine run the route: every prerequisite, with its fix',
+  '  help            This page: the route, the words, and the verbs',
   '',
   'Options:',
   '  --json            Print the raw resolved state instead of the waybill (`next` only)',
@@ -360,6 +362,38 @@ function help(cwd, args, io) {
 }
 
 /**
+ * `waybill doctor` — can this machine run the route at all.
+ *
+ * Calls no {@link repoRoot}, for {@link help}'s reason: it reports the machine, never a position,
+ * so it has an answer outside any repository — which is the machine most likely to need one.
+ *
+ * Takes no options at all, `--json` included, for the reason `status` gives: `next --json` is the
+ * one machine-readable surface, and a second would be another shape to keep in step.
+ *
+ * **Exit 1, not 2, when a check failed.** Exit 2 is this CLI's "you asked wrongly" code throughout;
+ * a failed check is a correct answer to a correct question, so it needs a code of its own.
+ *
+ * @param {string} cwd used only to resolve the bookings overlay in force
+ * @param {string[]} args
+ * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @returns {number} 0, or 1 when some check failed
+ */
+function doctor(cwd, args, io) {
+  // `--help` is answered by `run` before dispatch, so no argument reaching here is one we know.
+  if (args.length > 0) {
+    io.err(`waybill: unknown option \`${args[0]}\` for \`doctor\`\n${USAGE}\n`);
+    return 2;
+  }
+
+  // Everything on stdout, failures included, for the reason `noWaybill` records: an answer about
+  // the machine belongs in the stream a terminal caller reads, and the `!` invocation in the
+  // command file is the only surface a session sees.
+  const { version, checks } = runChecks(cwd);
+  io.out(renderDoctor(checks, version));
+  return checks.some((check) => check.verdict === 'fail') ? 1 : 0;
+}
+
+/**
  * Leg 1's state, whichever tree the question was asked from.
  *
  * On the trunk `resolveLeg` already answers leg 1 — nothing stamps from history alone there — so its
@@ -590,6 +624,7 @@ const COMMANDS = new Map([
   ['bay', bay],
   ['next', next],
   ['status', status],
+  ['doctor', doctor],
   ['help', help],
 ]);
 

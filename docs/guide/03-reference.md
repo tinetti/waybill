@@ -12,7 +12,8 @@ What you can type in a Claude Code session once the plugin is in.
 | `/waybill:bay` | Cuts the branch and its bay, then hands off the next leg | `[<branch>]`; leave it off to pick from a list of branches |
 | `/waybill:next` | Where this docket stands, and the waybill for the next leg. Given a leg, it moves the session into that docket's bay and runs the leg | `[<branch>[/<leg>]]`, e.g. `feat/thing/execute` |
 | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk | none |
-| `/waybill:help` | The route, the words and the four verbs on one screen | none |
+| `/waybill:doctor` | Every prerequisite the route needs on this machine, each gap with its fix | none |
+| `/waybill:help` | The route, the words and the verbs on one screen | none |
 | `/waybill:cleanup` | Checks with plain git that the branch is merged, then removes its bay and deletes the branch | `<branch>` |
 | `/waybill:spec:explore` | OpenSpec explore: think an idea through before committing to it | what to explore |
 | `/waybill:spec:propose` | OpenSpec propose: scaffold the proposal, spec deltas, design and `tasks.md` | the change to propose |
@@ -37,7 +38,8 @@ repository.
 | `waybill bay --list` | Lists the branches a bay could be cut or reopened for, and changes nothing |
 | `waybill next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | Where this docket stands without the waybill, or the whole fleet on the trunk |
-| `waybill help` | The route, the words and the four verbs on one screen |
+| `waybill doctor` | Reports every prerequisite the route needs on this machine; exits 1 if any check failed |
+| `waybill help` | The route, the words and the verbs on one screen |
 
 | Flag | Applies to | What it does |
 | --- | --- | --- |

@@ -32,6 +32,7 @@ const BOOKINGS = path.join(ROOT, 'bookings');
 const DECLARED = [
   'bay.md',
   'cleanup.md',
+  'doctor.md',
   'help.md',
   'new.md',
   'next.md',

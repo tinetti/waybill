@@ -118,7 +118,8 @@ step.
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
-| `waybill help` | `/waybill:help` | The route, the words, and the four verbs on one screen |
+| `waybill doctor` | `/waybill:doctor` | Can this machine run the route: every prerequisite, with its fix |
+| `waybill help` | `/waybill:help` | The route, the words, and the verbs on one screen |
 
 The **docket** is the branch. It is open whenever a branch other than the default one is checked
 out, and there is no state file to keep in step: git already tracks what is in flight. The
@@ -249,6 +250,35 @@ see *Swapping a carrier* — but a waybill pointing at a command you do not have
 | 5, 6 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
 | 5, 6 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
 | 7 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
+
+### `waybill doctor`
+
+`waybill doctor` reads that table off the machine rather than off the page. It is a report, never a
+repair: it writes nothing, creates no directory, and runs no mutating subprocess — every subprocess
+it spawns is a version or status query, and the forge CLIs are judged by exit code alone, so no
+token can reach the terminal.
+
+```
+$ waybill doctor
+waybill doctor — 0.8.0
+
+  ok    node           v26.7.0 (engines: >=22.0.0)
+  ok    git            git version 2.51.0
+  FAIL  openspec       not on PATH — legs 5 and 6 fall back to parsing tasks.md, silently
+        fix: npm install -g @fission-ai/openspec
+  ok    spec commands  4 of 4 present in /Users/you/.claude/commands/spec/
+  ok    gh             authenticated
+  WARN  glab           present, but `glab auth status` exited 1 — the review leg cannot open an MR
+        fix: glab auth login --hostname <your-self-hosted-host>
+  ok    plugin cache   0.8.0 at /Users/you/.claude/plugins/cache/tinetti/waybill/0.8.0
+  info  bookings       no overlay in force — the stock route applies
+
+1 failed, 1 warned — fix the FAIL rows above, then re-run `waybill doctor`
+```
+
+Every `FAIL` and every `WARN` carries the command that closes it; `ok` and `info` carry none. It
+exits 1 if and only if some check is `FAIL`, so a script has one condition to test. `info` rows are
+not problems — an absent bookings overlay is the steady state on a personal machine.
 
 Leg 7 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
 retires a branch someone else already merged. If your habit is to merge from the terminal, rebook
