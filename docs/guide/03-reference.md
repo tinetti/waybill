@@ -63,6 +63,12 @@ its bays fall inside the walk. A repository with nothing in flight is left out o
 counted in the `scanned` total on the header line. Where a column is absent altogether rather than
 showing `–`, tmux or `ps` could not be read at all.
 
+In a terminal `waybill fleet` stays up and refreshes itself every couple of seconds: `q` leaves it,
+`r` refreshes it now, and Ctrl-C leaves it too. Only the rows that changed are rewritten, so the
+last frame is still on screen — and still in your scrollback — after you quit. Piped or redirected
+it prints one frame and exits instead, with no escape characters, so `waybill fleet | grep` reads
+exactly what a terminal shows.
+
 ## Booking keys
 
 Each booking is a markdown file: YAML frontmatter, then the text the waybill prints for that leg.

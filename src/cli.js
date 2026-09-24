@@ -15,6 +15,7 @@ import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { scanFleet } from './scan.js';
 import { renderFleetDashboard } from './fleet-dash.js';
+import { runLive } from './live.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
 import { checkoutRoot, defaultBranch, inBay, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
@@ -361,19 +362,22 @@ function status(cwd, args, io) {
  * the question is most worth asking. Inside a checkout the scan resolves that one repository and
  * reports it alone, because an operator standing in a project is asking about that project.
  *
- * Complete data rather than a fast first frame. The scan is run *without* `deferProgress`, so the
- * execute leg's task count is resolved on the synchronous path along with everything else. That is
- * the accuracy-over-speed trade the contract asks of the one-shot path, and it is stronger than
- * awaiting the deferred lane would be: deferring makes the leg walk treat execute as unfinished
- * (`src/inference.js:180-186`), so a docket whose tasks are all ticked would render at leg 6 with a
- * count beside it rather than at leg 7, and filling the count in afterwards cannot move the leg.
- * Phase 5's live mode is where the deferred lane pays for itself, because there a later frame can
- * correct the first one.
+ * Complete data rather than a fast first frame, on the one-shot path. The scan is run *without*
+ * `deferProgress`, so the execute leg's task count is resolved on the synchronous path along with
+ * everything else. That is the accuracy-over-speed trade the contract asks of a single frame, and it
+ * is stronger than awaiting the deferred lane would be: deferring makes the leg walk treat execute
+ * as unfinished (`src/inference.js:180-186`), so a docket whose tasks are all ticked would render at
+ * leg 6 with a count beside it rather than at leg 7, and filling the count in afterwards cannot move
+ * the leg. Live mode takes the opposite trade, and can: there a later frame corrects the first one.
+ *
+ * The `io.isTTY` fork is the only thing live mode adds to this file. A pipe, a redirect and
+ * `node --test` all take the path below unchanged — one frame, exit 0, not one escape byte — which
+ * is what keeps `fleet | grep` working and every golden file valid.
  *
  * @param {string} cwd
  * @param {string[]} args
  * @param {Io} io
- * @returns {number} exit code
+ * @returns {number|Promise<number>} exit code, awaited only on the live path
  */
 function fleetDashboard(cwd, args, io) {
   /** @type {number|undefined} */
@@ -400,6 +404,8 @@ function fleetDashboard(cwd, args, io) {
     io.err(`waybill: \`fleet\` takes no arguments\n${USAGE}\n`);
     return 2;
   }
+
+  if (io.isTTY) return runLive(cwd, depth === undefined ? {} : { depth }, io);
 
   const model = scanFleet(cwd, depth === undefined ? {} : { depth });
   io.out(renderFleetDashboard(model, io.now()));
@@ -709,7 +715,8 @@ const COMMANDS = new Map([
  * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void,
  *          signals?:()=>import('./signals.js').Signals, isTTY?:boolean, now?:()=>number,
  *          stdin?:NodeJS.ReadStream}} [options]
- * @returns {number} exit code
+ * @returns {number|Promise<number>} exit code — a promise only from `fleet` on a TTY, whose live
+ *   loop runs until the operator leaves it. Every other verb answers synchronously, as before.
  */
 export function run(argv = [], options = {}) {
   const out = options.out ?? ((text) => process.stdout.write(text));
@@ -742,5 +749,9 @@ export function run(argv = [], options = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exitCode = run(process.argv.slice(2));
+  // `Promise.resolve` rather than `await`: `fleet` on a TTY is the one command whose exit code is
+  // not known until the operator leaves it, and every other verb still settles in the same tick.
+  Promise.resolve(run(process.argv.slice(2))).then((code) => {
+    process.exitCode = code;
+  });
 }
