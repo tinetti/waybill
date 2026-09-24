@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { run } from '../src/cli.js';
+import { LEGS } from '../src/legs.js';
 import { cdLines } from '../src/waybill.js';
 import {
   addWorktree,
@@ -102,7 +103,7 @@ describe('waybill next', () => {
 
     const result = cli(['next'], sub);
     assert.equal(result.code, 0);
-    assert.match(result.out, /leg 5 of 7 \(specs\)/);
+    assert.match(result.out, new RegExp(`leg 5 of ${LEGS.length} \\(specs\\)`));
   });
 
   it('reports ignored papers from a subdirectory — the inspection runs at the repository root', () => {
@@ -205,7 +206,7 @@ describe('waybill next on the trunk', () => {
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
     // Resolved from the trunk instead, this would read `main · no docket open`.
-    assert.match(result.out, /^feat\/one · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/one · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.match(result.out, /^IN BAY:$/m);
     assert.equal(result.out.split('\n').includes(cdLines(bays[0])[0]), true);
     // The move comes before the handover: a `/clear` acted on from the trunk answers for nothing.
@@ -222,7 +223,7 @@ describe('waybill next on the trunk', () => {
     assert.match(result.out, /^main · 3 dockets open$/m);
     assert.match(result.out, /^SELECT A DOCKET:$/m);
     for (const branch of ['feat/one', 'feat/two', 'fix/three']) {
-      assert.match(result.out, new RegExp(`^ {2}${branch.replace('/', '\\/')} +· leg 3 of 7`, 'm'));
+      assert.match(result.out, new RegExp(`^ {2}${branch.replace('/', '\\/')} +· leg 3 of ${LEGS.length}`, 'm'));
     }
     assert.match(result.out, /^ {2}waybill next <branch>$/m);
     assert.equal(result.out.includes('NEXT:'), false, 'a waybill was handed off from an ambiguous trunk');
@@ -234,7 +235,7 @@ describe('waybill next on the trunk', () => {
     const result = cli(['next'], bays[0]);
 
     assert.equal(result.code, 0);
-    assert.match(result.out, /^feat\/one · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/one · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(result.out.includes('SELECT A DOCKET:'), false);
     assert.equal(/^IN BAY:$/m.test(result.out), false, 'told the operator to cd where they already are');
   });
@@ -300,7 +301,7 @@ describe('waybill next <branch>', () => {
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
-    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/two · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(result.out.split('\n').includes(cdLines(bays[1])[0]), true);
   });
 
@@ -310,7 +311,7 @@ describe('waybill next <branch>', () => {
     const result = cli(['next', 'feat/two'], bays[0]);
 
     assert.equal(result.code, 0);
-    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/two · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(result.out.split('\n').includes(cdLines(bays[1])[0]), true);
   });
 
@@ -375,7 +376,7 @@ describe('waybill next <branch>/<leg>', () => {
 
     assert.equal(result.code, 0);
     assert.ok(result.out.startsWith(`ENTER BAY: ${bays[1]}\n\nRUN: /ideation:ideation`), result.out);
-    assert.match(result.out, /^feat\/two · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/two · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
   });
 
   it('names the actual next leg and runs nothing when the named one is stale', () => {
@@ -447,7 +448,7 @@ describe('waybill next <branch>/<leg>', () => {
     const result = cli(['next', '--markdown', 'fix/specs'], repo);
 
     assert.equal(result.code, 0);
-    assert.match(result.out, /^fix\/specs · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^fix\\/specs · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
   });
 
@@ -512,10 +513,14 @@ describe('waybill new', () => {
     assert.match(result.out, /^WARNINGS:$/m);
     assert.match(result.out, /new efforts begin on the trunk/);
     // The header names the trunk this waybill is for. `feat/one · no docket open` would be a false
-    // claim about a branch that does carry one, and `feat/one · leg 1 of 7 (ideate)` a false claim
+    // claim about a branch that does carry one, and `feat/one · leg 1 (ideate)` a false claim
     // about where that docket stands.
     assert.match(result.out, /^main · no docket open$/m);
-    assert.equal(result.out.includes('leg 3 of 7'), false, "the bay's own leg was reported instead");
+    assert.equal(
+      result.out.includes(`leg 3 of ${LEGS.length}`),
+      false,
+      "the bay's own leg was reported instead",
+    );
   });
 
   it('still hands off the ideate leg from inside a bay rather than blocking on the warning', () => {
@@ -609,8 +614,8 @@ describe('waybill status on the trunk', () => {
     assert.equal(result.err, '');
     assert.match(result.out, /^main · 2 dockets open$/m);
     assert.match(result.out, /^DOCKETS:$/m);
-    assert.match(result.out, /^ {2}feat\/one +· leg 3 of 7 \(refine\)$/m);
-    assert.match(result.out, /^ {2}fix\/three · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^ {2}feat\\/one +· leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
+    assert.match(result.out, new RegExp(`^ {2}fix\\/three · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(result.out.includes('NEXT:'), false, 'the fleet view hands off nothing');
   });
 
@@ -664,7 +669,7 @@ describe('waybill bay', () => {
     assert.match(result.out, new RegExp(`^ {2}cd ${target}$`, 'm'));
     // The waybill must be resolved from the *new* tree: from the operator's cwd the bay leg
     // still reads as outstanding, and the command would hand back the leg it has just done.
-    assert.match(result.out, /^feat\/demo · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.out, new RegExp(`^feat\\/demo · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.match(result.out, /✓ bay/);
   });
 
@@ -813,7 +818,7 @@ describe('waybill next --markdown', () => {
     const result = cli(['next', '--markdown'], repo);
 
     assert.equal(result.code, 0);
-    assert.ok(result.out.startsWith('```text\nfeat/one · leg 3 of 7 (refine)\n'));
+    assert.ok(result.out.startsWith(`\`\`\`text\nfeat/one · leg 3 of ${LEGS.length} (refine)\n`));
     assert.match(result.out, /^```\n\/waybill:next feat\/one\/refine\n```$/m);
     assert.equal(result.out.includes(bays[0]), false, 'neither a cd nor ENTER BAY: nobody asked to move');
   });

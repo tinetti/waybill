@@ -1,4 +1,4 @@
-import { LEGS, cleanupIsDone, ideateIsDone, bayIsDone } from './legs.js';
+import { LEGS, WRAPPER_STAMPS, ideateIsDone } from './legs.js';
 import { BUILTIN_BOOKINGS, evaluateBooking, loadBookings } from './bookings.js';
 import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
 import { discoverChangeId, executeProgress } from './progress.js';
@@ -19,8 +19,11 @@ import { discoverChangeId, executeProgress } from './progress.js';
  * @returns {boolean}
  */
 function legIsDone(leg, state, bookings, warnings, progress) {
-  if (leg.id === 'bay') return bayIsDone(state);
-  if (leg.id === 'cleanup') return cleanupIsDone(state);
+  // The walk names no leg. A wrapper-owned leg judges itself through the table `src/legs.js`
+  // declares; everything else is judged purely by its booking's stamp, so a new leg is a line in
+  // `LEGS` and a booking, with nothing to edit here.
+  const wrapper = WRAPPER_STAMPS.get(leg.id);
+  if (wrapper) return wrapper(state);
 
   const booking = bookings.get(leg.id);
   if (!booking) return false;

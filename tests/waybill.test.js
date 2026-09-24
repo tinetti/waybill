@@ -143,7 +143,7 @@ describe('renderWaybill golden output', () => {
     assertGolden(GOLDEN, 'status', renderPosition(resolve(specsFixture().dir), CLEAN));
   });
 
-  it('renders a repository whose seven legs are all complete', () => {
+  it('renders a repository whose legs are all complete', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const elsewhere = path.join(tempRoot(), 'off-convention');
@@ -264,7 +264,7 @@ describe('renderWaybillMarkdown keyed lines', () => {
   });
 
   it('prints no keyed line for a token on a docket with every leg complete', () => {
-    const done = state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined });
+    const done = state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined });
     const output = renderWaybillMarkdown(done, CLEAN, { bay: BAY, token: 'execute' });
     assert.equal(/^(RUN|NEXT LEG):/m.test(output), false);
   });
@@ -296,7 +296,7 @@ describe('renderFleet', () => {
   it('carries execute progress inline, where the leg strip gives it a line of its own', () => {
     assert.match(
       renderFleet('main', dockets(), CLEAN),
-      /^ {2}fix\/stamp-scoping {5}· leg 6 of 7 \(execute, 4 of 9 tasks\)$/m,
+      new RegExp(`^ {2}fix\\/stamp-scoping {5}· leg 6 of ${LEGS.length} \\(execute, 4 of 9 tasks\\)$`, 'm'),
     );
   });
 
@@ -395,7 +395,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('keeps the position in a text fence in markdown, so the strip keeps its line breaks', () => {
     const output = markdown();
-    assert.ok(output.startsWith('```text\nfeat/thing · leg 5 of 7 (specs)\n  ✓ ideate'));
+    assert.ok(output.startsWith(`\`\`\`text\nfeat/thing · leg 5 of ${LEGS.length} (specs)\n  ✓ ideate`));
   });
 
   it('has no /effort fence in markdown when the booking declares no effort', () => {
@@ -451,7 +451,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('says there is nothing to hand off in markdown, with no fence', () => {
     const output = renderWaybillMarkdown(
-      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined }),
       CLEAN,
     );
     assert.match(output, /^\*\*NEXT\*\* — nothing to hand off — every leg is complete$/m);
@@ -598,7 +598,7 @@ describe('renderWaybill header and leg strip', () => {
 
   it('says every leg is complete when the walk fell off the end', () => {
     const output = renderWaybill(
-      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined }),
       CLEAN,
     );
     assert.equal(output.split('\n')[0], `feat/thing · all ${LEGS.length} legs complete`);
@@ -768,7 +768,7 @@ describe('renderPosition', () => {
 
   it('still answers when the walk fell off the end, with no waybill to fall back on', () => {
     const output = renderPosition(state({ leg: null, booking: undefined }), CLEAN);
-    assert.match(output, /all 7 legs complete/);
+    assert.match(output, new RegExp(`all ${LEGS.length} legs complete`));
     assert.equal(output.includes('NEXT:'), false);
   });
 

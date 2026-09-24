@@ -56,7 +56,7 @@ function bookingMap(files) {
 }
 
 describe('LEGS', () => {
-  it('is the fixed seven-leg model, in order', () => {
+  it('is the fixed leg model, in order', () => {
     assert.deepEqual(KNOWN_LEGS, [
       'ideate',
       'bay',
@@ -70,7 +70,7 @@ describe('LEGS', () => {
 
   it('has one fixture per leg, plus no-docket for the trunk, and no strays', () => {
     // Criterion 1 counts this directory; no-docket.js is the one deliberate exception, since the
-    // state it covers — standing on the base branch — is not one of the seven legs.
+    // state it covers — standing on the base branch — is not one of the legs.
     assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 1);
   });
 });
@@ -81,7 +81,7 @@ describe('the shipped bookings', () => {
     { knownLegs: KNOWN_LEGS },
   );
 
-  it('binds a waybill to all seven legs — the loop is closed', () => {
+  it('binds a waybill to every leg — the loop is closed', () => {
     // `bay` and `cleanup` are wrapper-owned for *stamping* and booking-bound for their
     // waybills: `owner` in LEGS says who supplies the stamp, not who supplies the command and
     // the prose.
@@ -221,12 +221,12 @@ describe('resolveLeg', () => {
     assert.deepEqual(result.skipped, ['refine']);
   });
 
-  it('falls off the end of the walk when all seven legs pass', () => {
+  it('falls off the end of the walk when every leg passes', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     // Registered off the `gwt` path on purpose: `bayIsDone` sees a linked worktree while
     // `cleanupIsDone` sees nothing at the convention path, which is the one arrangement in which
-    // all seven legs can be complete at once (both stamps are convention-keyed by design).
+    // every leg can be complete at once (both stamps are convention-keyed by design).
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
 
@@ -286,6 +286,31 @@ describe('resolveLeg', () => {
     assert.match(result.warnings[0], /broken-specs\.md/);
     assert.match(result.warnings[0], /waybill-no-such-binary-xyz/);
     assert.equal(result.completed.includes('specs'), false);
+  });
+
+  it('judges a booking-owned leg by its stamp alone, with nothing in the walk keyed to its id', () => {
+    // No `stampPath` and no leg named in `legIsDone`, so the only thing that can be deciding is the
+    // generic fallthrough. Only `refine` is booked; every leg after it is not done for want of one.
+    const booked = (stampCmd) =>
+      bookingMap({
+        'refine.md': [
+          '---',
+          'leg: refine',
+          'command: /spec:explore',
+          'model: placeholder',
+          `stampCmd: ${stampCmd}`,
+          '---',
+          '',
+        ].join('\n'),
+      });
+
+    const open = resolve(refineFixture().dir, booked('exit 1'));
+    assert.equal(open.leg, 'refine');
+    assert.deepEqual(open.completed, ['ideate', 'bay']);
+
+    const stamped = resolve(refineFixture().dir, booked('exit 0'));
+    assert.equal(stamped.leg, 'contract');
+    assert.deepEqual(stamped.completed, ['ideate', 'bay', 'refine']);
   });
 
   it('never throws outside a git repository', () => {

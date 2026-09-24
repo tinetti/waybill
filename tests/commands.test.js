@@ -374,7 +374,7 @@ describe('`/waybill:next` with and without an argument', () => {
     const result = runBang('next.md', '', repo);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /^```text\nfeat\/thing · leg 3 of 7 \(refine\)$/m);
+    assert.match(result.stdout, new RegExp(`^\`\`\`text\\nfeat\\/thing · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
     assert.equal(result.stdout.includes(ENTER_BAY), false);
   });
 
