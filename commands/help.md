@@ -1,5 +1,5 @@
 ---
-description: "Waybill — the route, the words, and the four verbs"
+description: "Waybill — the route, the words, and the verbs"
 allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)
 ---
 

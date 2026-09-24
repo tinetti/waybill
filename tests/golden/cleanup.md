@@ -1,6 +1,6 @@
 ```text
-feat/thing · leg 7 of 7 (cleanup)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute
+feat/thing · leg 8 of 8 (cleanup)
+  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute  ✓ review
   ▶ cleanup
 ```
 

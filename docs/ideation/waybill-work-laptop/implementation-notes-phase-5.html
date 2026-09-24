@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 5</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #14171a;
+        --paper: #fbfaf8;
+        --muted: #5b6168;
+        --rule: #d9d5cd;
+        --accent: #7a4b1e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e8e6e1;
+          --paper: #16181a;
+          --muted: #9aa0a6;
+          --rule: #32373b;
+          --accent: #d8a061;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+      }
+      main { max-width: 46rem; margin: 0 auto; }
+      h1 {
+        font-size: 1.75rem;
+        line-height: 1.2;
+        margin: 0 0 0.25rem;
+        letter-spacing: -0.01em;
+      }
+      .lede { color: var(--muted); margin: 0 0 2.5rem; font-size: 0.95rem; }
+      .note-entry {
+        border-top: 1px solid var(--rule);
+        padding-top: 1.5rem;
+        margin-top: 2rem;
+      }
+      .note-entry h3 {
+        font-size: 1.1rem;
+        margin: 0 0 0.75rem;
+        color: var(--accent);
+      }
+      dl { margin: 0; }
+      dt {
+        font: 600 0.72rem/1.4 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 1rem;
+      }
+      dd { margin: 0.25rem 0 0; }
+      code {
+        font: 0.87em ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: color-mix(in srgb, var(--ink) 7%, transparent);
+        padding: 0.1em 0.35em;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Implementation Notes — Phase 5</h1>
+      <p class="lede">
+        Stock <code>review</code> leg and <code>/waybill:review</code>. Decisions the spec did not
+        settle, and the places the codebase had moved under it.
+      </p>
+
+      <section class="note-entry">
+        <h3>The three-state stamp contract — the detached-HEAD guard moved into the stamp</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's <em>Implementation Details</em> printed the stamp one-liner without the guard,
+            then added it separately in the <em>Error Handling</em> table: "if <code>$b</code> is
+            empty or <code>HEAD</code>, <code>exit 1</code> before probing". Two versions of one
+            line, and the printed one is the one an implementer copies.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The shipped stamp carries the guard as its second statement:
+            <code>case "$b" in ''|HEAD) exit 1;; esac</code>. Exit 1 rather than 125, as the error
+            table specifies — a detached HEAD is a repository state, not a forge that could not
+            answer, and warning about it here would double up on the detached-HEAD warning
+            <code>resolveLeg</code> already emits. Covered by a test that checks out
+            <code>--detach</code> with an <em>open</em>-reporting <code>gh</code> stub on
+            <code>PATH</code> and asserts not-done: the assertion only means something because the
+            stub would otherwise say yes.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Shipping the printed one-liner verbatim and letting an empty <code>$b</code> reach
+            <code>gh pr list --head ""</code>, which lists every open request on the repository and
+            would stamp the leg from somebody else's work.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Deterministic goldens — <code>forgePath</code> reached further than the spec listed</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec named <code>tests/waybill.test.js</code> and <code>tests/inference.test.js</code>
+            as the two suites needing <code>forgePath</code>. Measured, six do: a real
+            <code>gh</code> on the developer's <code>PATH</code> also reached
+            <code>tests/cli.test.js</code> (golden comparisons, plus
+            <code>"raises no warnings of its own for a fleet that resolved cleanly"</code>, which
+            failed outright on this machine), <code>tests/bang-lines.test.js</code>,
+            <code>tests/booking-swap.test.js</code> and <code>tests/bookings-overlay.test.js</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Every suite that resolves a leg against a real repository now builds its
+            <code>PATH</code> with <code>forgePath</code>. The two whose fixture must reach
+            <code>cleanup</code> — the booking swap and the overlay CLI case — pass
+            <code>'open'</code>; the rest take the default <code>'none'</code>.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Patching only the two suites the spec named, which passes on a machine with no
+            <code>gh</code> and fails on one that has it — exactly the developer-dependent-goldens
+            failure mode <code>forgePath</code> exists to close.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fixtures — two inference tests now assert <code>review</code>, not <code>cleanup</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Four tests asserted that a docket with every box ticked resolves to <code>cleanup</code>.
+            Two of them are about the terminal leg; two — the archived-change and
+            inherited-change cases under <code>the change id is scoped to the branch</code> — are
+            about <code>execute</code> being stamped, and only name <code>cleanup</code> as "the
+            next one along".
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The two terminal-leg tests keep their subject and gain <code>'open'</code>. The two
+            execute tests keep their bare <code>PATH</code> and now assert <code>review</code> —
+            which is the honest answer for that repository and keeps the test about the thing it
+            was written for.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Giving all four <code>'open'</code>. That would have left two tests silently asserting
+            a forge state they do not care about, and hidden the one behaviour change users will
+            notice most: a finished docket now stops one leg earlier.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Prose sweep — three surfaces the spec's line list did not name</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's <em>Modified Files</em> tables were written against line numbers that phases
+            3 and 4 had already moved, and its acceptance grep
+            (<code>of 7|7/7|7[- ]legs|seven[- ]legs?</code>) cannot see a bare "leg 7" in prose.
+            Re-grepping for <code>leg 7</code> and <code>row 7</code> found three more:
+            <code>src/fleet.js</code> (twice, in the doc comment explaining what a docket in flight
+            is), <code>README.md</code>'s "the bay is cut at leg 2 and removed at leg 7", and
+            <code>README.md</code>'s "Leg 7 is the one most likely to be wrong for you anyway".
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            All three renumbered to 8. The install paragraph's list of slash commands was also
+            stale before this phase — it omitted <code>/waybill:cleanup</code> and
+            <code>/waybill:doctor</code> — and since the sentence was being edited to add
+            <code>/waybill:review</code> anyway, all three were added rather than leaving a
+            sentence that contradicts the tool in a line this phase touched.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Editing only the enumerated lines. The acceptance grep would still have passed, and the
+            documentation would still have told the reader the route has seven legs.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Open items — all three resolved, two of them by doing nothing</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec closed with three unresolved items: <code>help.js</code>'s <code>stampOf</code>
+            labelling the review row <code>repo state</code>; which state the ride-along's new
+            section should show; and whether <code>tests/legs.test.js</code> pins the full leg id
+            list.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <strong>The label stays <code>repo state</code></strong>, as the spec recommends — a
+            per-leg literal in <code>help.js</code> would be a second place stating a fact the
+            booking owns. It is mildly wrong (review reads forge state) and is worth a generic
+            <code>stampCmd</code>-aware label in a later pass.
+            <strong>The ride-along shows the no-request state</strong>, because
+            <code>tests/golden/review.txt</code> is that render and the fence is compared byte for
+            byte; the prose around it is written as "the work is finished and nobody is on it yet".
+            <strong><code>tests/legs.test.js</code> needed no edit</strong> — phase 4 left it
+            count-free and id-list-free, asserting only the anchor, the terminus, and that every
+            leg is judged by something.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Adding a <code>forge state</code> literal to <code>help.js</code> keyed on the leg id,
+            which is the drift <code>tests/commands.test.js</code>'s model/effort sweep exists to
+            prevent.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Cost measured, not estimated — the suite is ~45&nbsp;s slower</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec named the per-inference cost of the review stamp ("one subprocess on every
+            <code>waybill next</code>") but gave no figure for the suite, which it put at ~173&nbsp;s.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Recorded rather than optimised: <code>node --test tests/</code> now runs in ~250&nbsp;s
+            for 605 tests. The increase is one <code>/bin/sh</code> per <code>resolveLeg</code>
+            plus one stub directory per <code>forgePath</code> call. With <code>gh</code> and
+            <code>glab</code> off <code>PATH</code> the stamp short-circuits on
+            <code>command -v</code> and never touches the network, so none of it is I/O wait.
+            Memoising the stub directory was rejected: <code>cleanupAll</code> runs per test file,
+            and a module-level cache would hand a later file a path that had already been deleted.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A module-level stub cache, which is faster and wrong in a single-process run.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

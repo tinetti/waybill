@@ -10,7 +10,7 @@ paperwork and tell you which truck to get in. By the end of the first chapter, s
 
 | Chapter | What's in it |
 | --- | --- |
-| [The ride-along](01-ride-along.md) | One change, `feat/thing`, from the trunk through all seven legs to cleanup |
+| [The ride-along](01-ride-along.md) | One change, `feat/thing`, from the trunk through all eight legs to cleanup |
 | [The clipboard](02-glossary.md) | Every word on a waybill, each with a literal git translation |
 | [The reference](03-reference.md) | Slash commands, the CLI and its flags, booking keys, settings and prerequisites |
 

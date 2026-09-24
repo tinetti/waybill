@@ -12,7 +12,7 @@ import { resolveLeg } from './inference.js';
  * Every effort in flight, seen from anywhere in the repository.
  *
  * A docket, from outside it, is a bay on disk. That is already the tool's own definition of
- * in-flight — leg 2 makes the bay mandatory, and leg 7 is stamped only once the bay is gone — and
+ * in-flight — leg 2 makes the bay mandatory, and leg 8 is stamped only once the bay is gone — and
  * it is the definition that gives every docket a *directory*, so each one is resolved from its own
  * working tree and unstaged and untracked papers count exactly as they do for the operator standing
  * in it. Any looser definition (every local branch, every unmerged branch) admits dockets with no
@@ -20,7 +20,7 @@ import { resolveLeg } from './inference.js';
  * uncommitted papers would report an earlier leg than it is.
  *
  * The counterpart property, which nothing here arranges: a merged branch whose bay still stands
- * shows up at leg 7, so this doubles as the list of what has not been tidied up, and a docket drops
+ * shows up at leg 8, so this doubles as the list of what has not been tidied up, and a docket drops
  * off the moment its bay is removed — because that is exactly when it is genuinely complete.
  *
  * @param {string} cwd anywhere in the repository — the trunk, or another bay

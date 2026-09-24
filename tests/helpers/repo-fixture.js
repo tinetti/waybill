@@ -201,17 +201,41 @@ export function withEnv(vars, fn) {
 }
 
 /**
- * A copy of the current `PATH` with every directory containing `name` removed, so a real binary
- * installed on the developer's machine cannot turn an absent-CLI test into a false positive.
+ * A copy of the current `PATH` with every directory containing any of `names` removed, so a real
+ * binary installed on the developer's machine cannot turn an absent-CLI test into a false
+ * positive.
  *
- * @param {string} name
+ * Variadic by rest parameter rather than by an array argument, so every single-name call site
+ * written before the review leg needed `pathWithout('gh', 'glab')` reads and behaves identically.
+ *
+ * @param {...string} names
  * @returns {string}
  */
-export function pathWithout(name) {
+export function pathWithout(...names) {
   return (process.env.PATH ?? '')
     .split(path.delimiter)
-    .filter((entry) => entry !== '' && !fs.existsSync(path.join(entry, name)))
+    .filter((entry) => entry !== '' && !names.some((name) => fs.existsSync(path.join(entry, name))))
     .join(path.delimiter);
+}
+
+/**
+ * A `PATH` the goldens can be rendered against: the real `openspec`, `gh` and `glab` removed, and
+ * a stub `gh` answering `answer` put in their place.
+ *
+ * Hermetic on purpose. The review leg's stamp asks a forge CLI whether this branch has a request
+ * open, and `legIsDone` runs it on every `resolveLeg` — so without this a golden would be a
+ * function of whether the developer happens to have `gh` installed and authenticated, and the
+ * suite would pass on one machine and fail on the next.
+ *
+ * `gh` rather than `glab` is arbitrary, and stated rather than left to be inferred: the four-way
+ * forge matrix is `tests/review.test.js`'s job, and the goldens only need one stable answer.
+ *
+ * @param {'none'|'open'} [answer] whether the stub reports a request already open
+ * @returns {string}
+ */
+export function forgePath(answer = 'none') {
+  const stub = stubBin('gh', answer === 'open' ? 'echo \'[{"number":7}]\'' : "echo '[]'");
+  return [stub, pathWithout('openspec', 'gh', 'glab')].join(path.delimiter);
 }
 
 /**

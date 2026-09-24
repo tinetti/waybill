@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { addWorktree, cleanupAll, createRepo, pathWithout, tempRoot } from './helpers/repo-fixture.js';
+import { addWorktree, cleanupAll, createRepo, forgePath, tempRoot } from './helpers/repo-fixture.js';
 
 after(cleanupAll);
 
@@ -13,6 +13,8 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMMANDS = path.join(ROOT, 'commands');
 const WRAPPER = '2>&1 || echo "waybill: exited $?"';
 const MARKER = /^waybill: exited 2$/m;
+/** `doctor`'s own non-zero exit: a correct answer to a correct question, not a refusal. */
+const DIAGNOSED = /^waybill: exited 1$/m;
 
 /**
  * The first `` !` `` line of a command file outside HTML comments, backticks stripped, or `null`.
@@ -51,20 +53,21 @@ function bangLine(command, { root = ROOT, args = '' } = {}) {
 
 /**
  * Run a command's `!` line through bash, as the harness does. `node` is pinned to the one running
- * this suite, and the real `openspec` is dropped from `PATH` so a developer's install cannot change
- * what the CLI renders.
+ * this suite, and the real `openspec`, `gh` and `glab` are dropped from `PATH` — with a stub `gh`
+ * in their place — so neither a developer's install nor a live forge can change what the CLI
+ * renders. See {@link forgePath}.
  *
  * @param {string} command
  * @param {string} cwd
- * @param {{root?: string, args?: string}} [options]
+ * @param {{root?: string, args?: string, env?: Record<string,string>}} [options]
  * @returns {{status: number|null, stdout: string, stderr: string}}
  */
-function runBang(command, cwd, options) {
-  const PATH = [path.dirname(process.execPath), pathWithout('openspec')].join(path.delimiter);
+function runBang(command, cwd, options = {}) {
+  const PATH = [path.dirname(process.execPath), forgePath()].join(path.delimiter);
   return spawnSync('bash', ['-c', bangLine(command, options)], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, PATH },
+    env: { ...process.env, PATH, ...options.env },
   });
 }
 
@@ -142,6 +145,19 @@ describe('the `!` lines that shell out to the CLI', () => {
     assert.doesNotMatch(result.stdout, /waybill: exited/);
   });
 
+  it('shows `doctor` reporting a failed check, and still exits 0', () => {
+    // A config directory with no `commands/spec/` is the forced failure, chosen because it is the
+    // one gap this suite can plant hermetically. Doctor then exits 1 — precisely the case the
+    // wrapper exists for: without it Claude Code discards the file, and the one report that could
+    // explain the machine is silent exactly when it has something to say.
+    const result = runBang('doctor', trunkWith(), { env: { CLAUDE_CONFIG_DIR: tempRoot() } });
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /^ {2}FAIL {2}spec commands /m);
+    assert.match(result.stdout, DIAGNOSED);
+  });
+
   it('still names an unresolved plugin root rather than failing', () => {
     const result = runBang('next', trunkWith(), { root: path.join(tempRoot(), 'missing') });
 
@@ -161,8 +177,8 @@ describe('the `!` lines that shell out to the CLI', () => {
       .sort();
 
     // Pinned rather than `length > 0`, so an extraction that silently finds nothing cannot pass —
-    // a sixth command that shells out to the CLI is added here alongside its wrapper.
-    assert.deepEqual(invoking, ['bay.md', 'help.md', 'new.md', 'next.md', 'status.md']);
+    // a seventh command that shells out to the CLI is added here alongside its wrapper.
+    assert.deepEqual(invoking, ['bay.md', 'doctor.md', 'help.md', 'new.md', 'next.md', 'status.md']);
     // Every `node` call is wrapped, not just the first: `bay` has one per branch of its `if`.
     assert.deepEqual(
       invoking.filter((rel) => {

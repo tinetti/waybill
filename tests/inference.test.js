@@ -15,6 +15,7 @@ import {
   cleanupAll,
   commitPapers,
   createRepo,
+  forgePath,
   git,
   pathWithout,
   stubBin,
@@ -28,6 +29,7 @@ import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
 import { specsFixture } from './fixtures/specs.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
+import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -35,14 +37,23 @@ after(cleanupAll);
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const KNOWN_LEGS = LEGS.map((leg) => leg.id);
 
-/** A `PATH` with the real openspec CLI removed, so inference is judged on repository state alone. */
-const absent = () => pathWithout('openspec');
+/**
+ * A `PATH` with the real openspec CLI and both forge CLIs removed, so inference is judged on
+ * repository state alone — plus a stub `gh` answering for the review leg, whose stamp asks the
+ * forge rather than the repository. Without the stub, whether a leg resolves would depend on
+ * whether the developer has `gh` installed. See {@link forgePath}.
+ *
+ * @param {'none'|'open'} [answer]
+ * @returns {string}
+ */
+const absent = (answer) => forgePath(answer);
 
 /**
  * @param {string} dir
  * @param {Map<string, import('../src/bookings.js').Booking>} [bookings]
+ * @param {'none'|'open'} [answer] whether the stub forge reports a request already open
  */
-const resolve = (dir, bookings) => withPath(absent(), () => resolveLeg(dir, bookings));
+const resolve = (dir, bookings, answer) => withPath(absent(answer), () => resolveLeg(dir, bookings));
 
 /**
  * @param {Record<string,string>} files basename → contents
@@ -55,8 +66,22 @@ function bookingMap(files) {
   return loadBookings(dir, { knownLegs: KNOWN_LEGS });
 }
 
+/**
+ * The shipped bookings with some of them replaced — the arrangement an overlay produces, and the
+ * one a `stampCmd` test needs: the walk defers a costly stamp behind an open leg, so a leg left
+ * unbooked ahead of the one under test would keep its stamp from ever running.
+ *
+ * @param {Record<string,string>} files basename → contents
+ * @returns {Map<string, import('../src/bookings.js').Booking>}
+ */
+function bookingsWith(files) {
+  const base = loadBookings(BUILTIN_BOOKINGS, { knownLegs: KNOWN_LEGS });
+  for (const [leg, booking] of bookingMap(files)) base.set(leg, booking);
+  return base;
+}
+
 describe('LEGS', () => {
-  it('is the fixed seven-leg model, in order', () => {
+  it('is the fixed leg model, in order', () => {
     assert.deepEqual(KNOWN_LEGS, [
       'ideate',
       'bay',
@@ -64,13 +89,14 @@ describe('LEGS', () => {
       'contract',
       'specs',
       'execute',
+      'review',
       'cleanup',
     ]);
   });
 
   it('has one fixture per leg, plus no-docket for the trunk, and no strays', () => {
     // Criterion 1 counts this directory; no-docket.js is the one deliberate exception, since the
-    // state it covers — standing on the base branch — is not one of the seven legs.
+    // state it covers — standing on the base branch — is not one of the legs.
     assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 1);
   });
 });
@@ -81,7 +107,7 @@ describe('the shipped bookings', () => {
     { knownLegs: KNOWN_LEGS },
   );
 
-  it('binds a waybill to all seven legs — the loop is closed', () => {
+  it('binds a waybill to every leg — the loop is closed', () => {
     // `bay` and `cleanup` are wrapper-owned for *stamping* and booking-bound for their
     // waybills: `owner` in LEGS says who supplies the stamp, not who supplies the command and
     // the prose.
@@ -112,6 +138,9 @@ describe('the shipped bookings', () => {
 });
 
 describe('resolveLeg', () => {
+  // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
+  // fixture — they are identical on disk — so it is the forge, not a file, that separates them.
+  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
     ['ideate', ideateFixture],
     ['bay', bayFixture],
@@ -119,13 +148,14 @@ describe('resolveLeg', () => {
     ['contract', contractFixture],
     ['specs', specsFixture],
     ['execute', executeFixture],
-    ['cleanup', cleanupFixture],
+    ['review', reviewFixture],
+    ['cleanup', cleanupFixture, 'open'],
   ];
 
-  for (const [id, build] of cases) {
+  for (const [id, build, answer] of cases) {
     it(`resolves the ${id} fixture to the ${id} leg`, () => {
       const fixture = build();
-      const result = resolve(fixture.dir);
+      const result = resolve(fixture.dir, undefined, answer);
 
       assert.equal(result.leg, id);
       assert.equal(result.index, KNOWN_LEGS.indexOf(id) + 1);
@@ -149,9 +179,43 @@ describe('resolveLeg', () => {
   });
 
   it('carries the booking for the terminal leg too, so the loop closes on a waybill', () => {
-    const result = resolve(cleanupFixture().dir);
+    const result = resolve(cleanupFixture().dir, undefined, 'open');
     assert.equal(result.leg, 'cleanup');
     assert.match(result.booking.path, /waybill-cleanup\.md$/);
+  });
+
+  it('carries the booking for the review leg, whose stamp is the booking\'s own', () => {
+    // `review` is booking-owned for its *stamp* as well as its waybill — the one stock leg that
+    // is, which is what lets an overlay replace the forge probe along with the carrier.
+    const result = resolve(reviewFixture().dir);
+    assert.equal(result.leg, 'review');
+    assert.match(result.booking.path, /waybill-review\.md$/);
+  });
+
+  it('stops at review, not cleanup, when the forge has no request open for the branch', () => {
+    // The whole point of the leg: the work is finished and nobody has seen it yet.
+    assert.equal(resolve(reviewFixture().dir).leg, 'review');
+    assert.equal(resolve(reviewFixture().dir, undefined, 'open').leg, 'cleanup');
+  });
+
+  it('says why when no forge CLI can answer, rather than stalling at review in silence', () => {
+    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(reviewFixture().dir));
+
+    assert.equal(result.leg, 'review');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0], /waybill-review\.md: /);
+    assert.match(result.warnings[0], /no forge CLI/);
+  });
+
+  it('leaves the forge alone while an earlier leg is still open', () => {
+    // The counterpart to the test above, and the reason the walk defers `stampCmd` legs. The
+    // review stamp is the route's only subprocess, and the walk runs every leg to find the holes
+    // behind the current one — so without deferral a machine carrying neither CLI prints that
+    // same warning under every command at every leg, where it is not yet actionable.
+    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(refineFixture().dir));
+
+    assert.equal(result.leg, 'refine');
+    assert.deepEqual(result.warnings, []);
   });
 
   it('leaves booking undefined for a leg no booking is bound to', () => {
@@ -221,12 +285,12 @@ describe('resolveLeg', () => {
     assert.deepEqual(result.skipped, ['refine']);
   });
 
-  it('falls off the end of the walk when all seven legs pass', () => {
+  it('falls off the end of the walk when every leg passes', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     // Registered off the `gwt` path on purpose: `bayIsDone` sees a linked worktree while
     // `cleanupIsDone` sees nothing at the convention path, which is the one arrangement in which
-    // all seven legs can be complete at once (both stamps are convention-keyed by design).
+    // every leg can be complete at once (both stamps are convention-keyed by design).
     const elsewhere = path.join(tempRoot(), 'off-convention');
     git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
 
@@ -239,7 +303,7 @@ describe('resolveLeg', () => {
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
-    const result = resolve(elsewhere);
+    const result = resolve(elsewhere, undefined, 'open');
     assert.equal(result.leg, null);
     assert.equal(result.index, LEGS.length);
     assert.deepEqual(result.completed, KNOWN_LEGS);
@@ -249,7 +313,7 @@ describe('resolveLeg', () => {
     assert.deepEqual(result.warnings, []);
 
     // `index` alone cannot tell this state from a current `cleanup` leg; `leg` is the discriminator.
-    assert.equal(resolve(cleanupFixture().dir).index, result.index);
+    assert.equal(resolve(cleanupFixture().dir, undefined, 'open').index, result.index);
   });
 
   it('resolves against the superproject when called from inside a submodule', () => {
@@ -269,7 +333,9 @@ describe('resolveLeg', () => {
   });
 
   it('degrades a stamp that cannot run to a warning rather than a throw', () => {
-    const bookings = bookingMap({
+    // Overlaid on the shipped set rather than standing alone: `specs` has to be the leg in hand for
+    // its stamp to be run at all, and an unbooked leg ahead of it would defer the stamp instead.
+    const bookings = bookingsWith({
       'broken-specs.md': [
         '---',
         'leg: specs',
@@ -286,6 +352,31 @@ describe('resolveLeg', () => {
     assert.match(result.warnings[0], /broken-specs\.md/);
     assert.match(result.warnings[0], /waybill-no-such-binary-xyz/);
     assert.equal(result.completed.includes('specs'), false);
+  });
+
+  it('judges a booking-owned leg by its stamp alone, with nothing in the walk keyed to its id', () => {
+    // No `stampPath` and no leg named in `legIsDone`, so the only thing that can be deciding is the
+    // generic fallthrough. Only `refine` is booked; every leg after it is not done for want of one.
+    const booked = (stampCmd) =>
+      bookingMap({
+        'refine.md': [
+          '---',
+          'leg: refine',
+          'command: /spec:explore',
+          'model: placeholder',
+          `stampCmd: ${stampCmd}`,
+          '---',
+          '',
+        ].join('\n'),
+      });
+
+    const open = resolve(refineFixture().dir, booked('exit 1'));
+    assert.equal(open.leg, 'refine');
+    assert.deepEqual(open.completed, ['ideate', 'bay']);
+
+    const stamped = resolve(refineFixture().dir, booked('exit 0'));
+    assert.equal(stamped.leg, 'contract');
+    assert.deepEqual(stamped.completed, ['ideate', 'bay', 'refine']);
   });
 
   it('never throws outside a git repository', () => {
@@ -499,14 +590,15 @@ describe('the change id is scoped to the branch', () => {
 
     const state = resolve(bay);
     assert.deepEqual(state.completed, ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute']);
-    assert.equal(state.leg, 'cleanup');
+    // `review` rather than `cleanup`: the work is finished and the stub forge reports nothing open.
+    assert.equal(state.leg, 'review');
   });
 
   it('stamps execute on the docket\'s own finished change despite an unfinished inherited one', () => {
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
     writeFile(path.join(bay, 'openspec', 'changes', 'mine', 'tasks.md'), '- [x] a\n');
 
-    assert.equal(resolve(bay).leg, 'cleanup');
+    assert.equal(resolve(bay).leg, 'review');
   });
 
   it('does not stamp execute on a docket\'s own change with no tasks in it', () => {

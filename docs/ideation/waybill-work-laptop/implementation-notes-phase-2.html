@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 2</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf8;
+        --fg: #1c1b19;
+        --muted: #6b6862;
+        --rule: #e0ddd6;
+        --accent: #7a5c2e;
+        --card: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171614;
+          --fg: #eceae6;
+          --muted: #9a958c;
+          --rule: #33302b;
+          --accent: #d4ac6a;
+          --card: #1f1e1b;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+      }
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.25rem;
+        letter-spacing: -0.01em;
+      }
+      .subtitle {
+        color: var(--muted);
+        margin: 0 0 2.5rem;
+        font-size: 0.95rem;
+      }
+      .note-entry {
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin: 0 0 1.25rem;
+      }
+      .note-entry h3 {
+        margin: 0 0 0.85rem;
+        font-size: 1.05rem;
+        color: var(--accent);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: -0.005em;
+      }
+      dl {
+        margin: 0;
+      }
+      dt {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0.9rem 0 0.25rem;
+      }
+      dt:first-child {
+        margin-top: 0;
+      }
+      dd {
+        margin: 0;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.86em;
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Implementation Notes — Phase 2</h1>
+      <p class="subtitle">
+        Portability fixes: exit-127 warnings and tilde expansion. Decisions the spec did not settle.
+      </p>
+
+      <section class="note-entry">
+        <h3>Fix A — Open Item 1 resolved: <code>status === null</code> is cheap to provoke</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Open Items asked whether a spawn-failure outcome (<code>status === null</code>)
+            could be provoked cheaply, noting that the obvious route — exceeding
+            <code>STAMP_TIMEOUT_MS</code> — costs 10s of suite time, and offering "leave it covered by
+            inspection" as the fallback.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            It can. A stamp of <code>kill -9 $$</code> is killed by signal, and
+            <code>spawnSync</code> reports <code>status: null, signal: 'SIGKILL'</code> — the same
+            branch a spawn failure and a timeout reach. Verified directly before writing the test; the
+            resulting case runs in ~35ms. <code>tests/bookings.test.js</code> now asserts the
+            <code>could not be executed</code> wording stays distinct from <code>missing binary</code>,
+            so the two failure modes cannot be collapsed by a later edit.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A timeout-driven test (correct but 10s), or the spec's fallback of leaving the branch
+            uncovered and saying so in the PR. Both rejected once a 35ms route existed.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fix B — <code>expandTilde</code> trims before it looks for the <code>~</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec specifies <code>expandTilde</code> as a no-op on <code>''</code>,
+            <code>'  '</code> and <code>undefined</code>, so the existing blank-tier guards keep their
+            meaning. It says nothing about a value that is padded but not blank. Both consuming tiers
+            (<code>src/repo.js</code> <code>configuredBayDir</code>, <code>src/bookings.js</code>
+            <code>configuredBookingsDir</code>) <code>.trim()</code> the <em>selected</em> tier, so a
+            literal-first-character check would leave <code>WAYBILL_BAY_DIR=' ~/bays'</code>
+            unexpanded and then trim it back to a literal <code>~/bays</code> — reproducing, for one
+            input, the exact bug this phase exists to fix.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <code>expandTilde</code> tests the trimmed value for a leading <code>~</code>. Blank and
+            whitespace-only values still trim to <code>''</code>, match no tilde, and are returned
+            untouched, so the spec's stated invariant holds exactly. A regression test covers the
+            padded case in <code>tests/repo.test.js</code>.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Check <code>value[0] === '~'</code> literally, as the spec's snippet implies. Simpler by a
+            line, but it makes whitespace meaningful at a tier that has already decided whitespace is
+            not.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fix B — the <code>src/signals.js</code> precedent cited by the spec does not exist</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's <code>expandTilde</code> JSDoc block instructs: "<code>process.env.HOME</code>
+            first, <code>os.homedir()</code> second: the same order <code>src/signals.js:130</code>
+            uses, and the reason is the same." <code>src/signals.js</code> reads
+            <code>env.HOME</code> and explicitly <em>refuses</em> <code>os.homedir()</code>, returning
+            an empty result when <code>HOME</code> is unset. There is no such precedent. The spec's own
+            Error Handling table, however, does want the fallback ("<code>HOME</code> unset and
+            <code>os.homedir()</code> unusable → returns the value untouched").
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Implement the fallback the Error Handling row specifies, but write the rationale honestly:
+            the JSDoc says <code>HOME</code> is read first, and read at every call rather than cached,
+            <em>because a test handing in a home of its own is the only way to assert this at all</em>.
+            No citation of <code>signals.js</code>. The <code>os.homedir()</code> call is wrapped in a
+            private <code>homeDirectory()</code> that returns <code>null</code> rather than throwing,
+            matching the module's existing "a query never throws, <code>null</code> means it could not
+            answer" convention.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Drop the <code>os.homedir()</code> fallback to genuinely match <code>signals.js</code> —
+            rejected because the spec's error table asks for it and an unset <code>HOME</code> under a
+            daemon or a hook is exactly the portability case this phase is about. Or cite
+            <code>signals.js</code> anyway — rejected: a comment that is checkably false is worse than
+            no comment.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fix A — <code>binaryOf</code> ships without the spec's <code>?? command</code> fallback</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's code sketch is
+            <code>command.trim().split(/\s+/)[0] ?? command</code>. <code>String.prototype.split</code>
+            always returns at least one element, so index <code>0</code> is never
+            <code>undefined</code> — for <code>''</code> it is <code>''</code>, which is falsy but not
+            nullish, so the <code>??</code> branch is unreachable on every possible input.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Dropped the operator. The repo has no typechecker that would want the narrowing, and the
+            house rule is no handling for scenarios that cannot occur.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Keep it for literal spec fidelity. Rejected: it reads as a guard against a case a reader
+            would then go looking for.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Fix A — three renderer fixtures in <code>tests/waybill.test.js</code> were re-worded</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>tests/waybill.test.js:305</code>, <code>:309</code> and <code>:806</code> hand the
+            renderer the literal string <code>stampCmd command not found: nope</code>. They are
+            renderer <em>inputs</em>, not assertions about production wording, so they pass unchanged —
+            the suite gives no signal either way. But they would have left the repository holding a
+            spelling of this warning that nothing emits any more.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Re-worded all three to <code>stampCmd missing binary `nope`: nope</code>. The change is
+            three string literals inside tests whose subject is this exact message, so it traces to the
+            phase rather than being adjacent cleanup.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Leave them and note the drift in the PR, per the strict surgical-change reading. Rejected:
+            the next person to grep for the warning text finds two answers and no way to tell which is
+            live.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Scope — Open Item 2: one PR, not two</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec leaves open whether the two fixes ship together, defaulting to one PR titled for
+            both.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            One commit, one PR. The combined diff is ~150 lines across two source files and three test
+            files, both halves are "portability on a second machine", and both are prerequisites of the
+            same downstream phases (3 and 4). Splitting would double the review and rebase cost for no
+            reviewer benefit.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Two PRs, since the fixes share no code. Defensible, and would have been the choice if
+            either half had grown past a screen of diff.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

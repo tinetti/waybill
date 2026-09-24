@@ -1,4 +1,4 @@
-waybill — the route, the words, and the four verbs
+waybill — the route, the words, and the verbs
 
 FROM ZERO
   1. On the trunk:        waybill new         leg 1's waybill; run what it names
@@ -14,7 +14,8 @@ ROUTE
   4  contract  /ideation:ideation    contract.md
   5  specs     /spec:propose         tasks.md
   6  execute   /spec:apply           all tasks ticked
-  7  cleanup   /waybill:cleanup      merged, bay gone
+  7  review    /waybill:review       request open
+  8  cleanup   /waybill:cleanup      merged, bay gone
 
 WORDS
   trunk    the default branch; efforts begin here, and no docket is open on it
@@ -31,6 +32,7 @@ COMMANDS
   waybill bay <branch>     create the branch and its bay, then hand off
   waybill next [<branch>]  where this docket stands, and the next leg's waybill
   waybill status           where it stands, or the whole fleet on the trunk
+  waybill doctor           can this machine run the route, and what to fix
 
 Why: nothing is tracked — every leg is judged by its stamp, read off the repo.
      One waybill per session: the map is yours, the waybill is the handler's.

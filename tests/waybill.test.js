@@ -19,7 +19,7 @@ import {
   renderWaybillMarkdown,
 } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
-import { assertGolden, cleanupAll, createRepo, git, pathWithout, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { assertGolden, cleanupAll, createRepo, forgePath, git, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
 import { ideateFixture } from './fixtures/ideate.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
@@ -27,6 +27,7 @@ import { refineFixture } from './fixtures/refine.js';
 import { contractFixture } from './fixtures/contract.js';
 import { specsFixture } from './fixtures/specs.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
+import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -35,8 +36,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN = path.join(HERE, 'golden');
 const SRC = path.join(HERE, '..', 'src');
 
-/** The golden files are byte-exact, so the real openspec CLI must never influence what is rendered. */
-const resolve = (dir) => withPath(pathWithout('openspec'), () => resolveLeg(dir));
+/**
+ * The golden files are byte-exact, so neither the real openspec CLI nor the developer's own `gh`
+ * or `glab` may influence what is rendered — the review leg's stamp asks a forge, and an
+ * authenticated CLI would otherwise move the resolved leg and add a warning line to the output.
+ * See {@link forgePath}.
+ *
+ * @param {string} dir
+ * @param {'none'|'open'} [answer] whether the stub forge reports a request already open
+ */
+const resolve = (dir, answer) => withPath(forgePath(answer), () => resolveLeg(dir));
 
 /** Nothing ignored, nothing to report — the shape every golden case is rendered against. */
 const CLEAN = { ignored: [], warnings: [] };
@@ -109,9 +118,12 @@ function dockets() {
 }
 
 /** The legs whose fixture is a linked worktree: everything after the bay is cut. */
-const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'cleanup']);
+const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'review', 'cleanup']);
 
 describe('renderWaybill golden output', () => {
+  // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
+  // fixture — identical on disk — so only an open request separates them.
+  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
     ['ideate', ideateFixture],
     ['bay', bayFixture],
@@ -119,19 +131,20 @@ describe('renderWaybill golden output', () => {
     ['contract', contractFixture],
     ['specs', specsFixture],
     ['execute', executeFixture],
-    ['cleanup', cleanupFixture],
+    ['review', reviewFixture],
+    ['cleanup', cleanupFixture, 'open'],
   ];
 
-  for (const [id, build] of cases) {
+  for (const [id, build, answer] of cases) {
     it(`renders the ${id} leg`, () => {
-      assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir), CLEAN));
+      assertGolden(GOLDEN, id, renderWaybill(resolve(build().dir, answer), CLEAN));
     });
 
     it(`renders the ${id} leg in markdown`, () => {
       // Every leg after `bay` is resolved inside a linked worktree, so its session handover is told
       // which bay it belongs to — the same fact the CLI passes from inside one.
       const route = HAS_BAY.has(id) ? { bay: BAY } : {};
-      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir), CLEAN, route), 'md');
+      assertGolden(GOLDEN, id, renderWaybillMarkdown(resolve(build().dir, answer), CLEAN, route), 'md');
     });
   }
 
@@ -143,7 +156,7 @@ describe('renderWaybill golden output', () => {
     assertGolden(GOLDEN, 'status', renderPosition(resolve(specsFixture().dir), CLEAN));
   });
 
-  it('renders a repository whose seven legs are all complete', () => {
+  it('renders a repository whose legs are all complete', () => {
     const repo = createRepo({ remote: true, originHead: true });
 
     const elsewhere = path.join(tempRoot(), 'off-convention');
@@ -155,7 +168,9 @@ describe('renderWaybill golden output', () => {
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
-    const result = resolve(elsewhere);
+    // `'open'`, because "every leg complete" now includes a leg that asks the forge: with nothing
+    // open for the branch the walk would honestly stop at `review` and this case would not exist.
+    const result = resolve(elsewhere, 'open');
     assert.equal(result.leg, null);
     assertGolden(GOLDEN, 'complete', renderWaybill(result, CLEAN));
   });
@@ -264,7 +279,7 @@ describe('renderWaybillMarkdown keyed lines', () => {
   });
 
   it('prints no keyed line for a token on a docket with every leg complete', () => {
-    const done = state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined });
+    const done = state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined });
     const output = renderWaybillMarkdown(done, CLEAN, { bay: BAY, token: 'execute' });
     assert.equal(/^(RUN|NEXT LEG):/m.test(output), false);
   });
@@ -296,17 +311,17 @@ describe('renderFleet', () => {
   it('carries execute progress inline, where the leg strip gives it a line of its own', () => {
     assert.match(
       renderFleet('main', dockets(), CLEAN),
-      /^ {2}fix\/stamp-scoping {5}· leg 6 of 7 \(execute, 4 of 9 tasks\)$/m,
+      new RegExp(`^ {2}fix\\/stamp-scoping {5}· leg 6 of ${LEGS.length} \\(execute, 4 of 9 tasks\\)$`, 'm'),
     );
   });
 
   it('names the branch a warning came from, rather than blaming the repository at large', () => {
     const fleet = dockets();
-    fleet[1].state.warnings = ['stampCmd command not found: nope'];
+    fleet[1].state.warnings = ['stampCmd missing binary `nope`: nope'];
 
     const output = renderFleet('main', fleet, CLEAN);
     assert.match(output, /^WARNINGS:$/m);
-    assert.match(output, /^ {2}⚠ fix\/stamp-scoping: stampCmd command not found: nope$/m);
+    assert.match(output, /^ {2}⚠ fix\/stamp-scoping: stampCmd missing binary `nope`: nope$/m);
   });
 
   it('reports an inspection finding alongside the dockets, as every other surface does', () => {
@@ -395,7 +410,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('keeps the position in a text fence in markdown, so the strip keeps its line breaks', () => {
     const output = markdown();
-    assert.ok(output.startsWith('```text\nfeat/thing · leg 5 of 7 (specs)\n  ✓ ideate'));
+    assert.ok(output.startsWith(`\`\`\`text\nfeat/thing · leg 5 of ${LEGS.length} (specs)\n  ✓ ideate`));
   });
 
   it('has no /effort fence in markdown when the booking declares no effort', () => {
@@ -451,7 +466,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('says there is nothing to hand off in markdown, with no fence', () => {
     const output = renderWaybillMarkdown(
-      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined }),
       CLEAN,
     );
     assert.match(output, /^\*\*NEXT\*\* — nothing to hand off — every leg is complete$/m);
@@ -598,7 +613,7 @@ describe('renderWaybill header and leg strip', () => {
 
   it('says every leg is complete when the walk fell off the end', () => {
     const output = renderWaybill(
-      state({ leg: null, index: 7, completed: LEGS.map((leg) => leg.id), booking: undefined }),
+      state({ leg: null, index: LEGS.length, completed: LEGS.map((leg) => leg.id), booking: undefined }),
       CLEAN,
     );
     assert.equal(output.split('\n')[0], `feat/thing · all ${LEGS.length} legs complete`);
@@ -768,7 +783,7 @@ describe('renderPosition', () => {
 
   it('still answers when the walk fell off the end, with no waybill to fall back on', () => {
     const output = renderPosition(state({ leg: null, booking: undefined }), CLEAN);
-    assert.match(output, /all 7 legs complete/);
+    assert.match(output, new RegExp(`all ${LEGS.length} legs complete`));
     assert.equal(output.includes('NEXT:'), false);
   });
 
@@ -803,7 +818,7 @@ describe('renderWaybill reports what it could not do', () => {
 
   it('names the offending booking when a stamp could not run', () => {
     const output = renderWaybill(
-      state({ warnings: ['/bookings/openspec-specs.md: stampCmd command not found: nope'] }),
+      state({ warnings: ['/bookings/openspec-specs.md: stampCmd missing binary `nope`: nope'] }),
       CLEAN,
     );
     assert.match(output, /^WARNINGS:$/m);

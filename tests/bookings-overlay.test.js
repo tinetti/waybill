@@ -10,8 +10,8 @@ import { resolveBookings } from '../src/bookings.js';
 import {
   cleanupAll,
   createRepo,
+  forgePath,
   git,
-  pathWithout,
   tempRoot,
   withEnv,
   withPath,
@@ -210,7 +210,9 @@ describe('the CLI', () => {
 
     let output = '';
     const code = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () =>
-      withPath(pathWithout('openspec'), () =>
+      // `'open'` so the walk reaches `cleanup`: the review leg's stamp asks the forge, and this
+      // fixture's request would otherwise be reported as not yet opened.
+      withPath(forgePath('open'), () =>
         run(['next'], {
           cwd: fixture.dir,
           out: (text) => (output += text),

@@ -14,8 +14,13 @@ import { inBay, isMerged, resolveBayPath } from './repo.js';
  */
 
 /**
- * The leg model. Fixed and exported rather than configurable: "7/7 legs" is a standing invariant
- * the success criteria are stated against, and the fixture directory is counted against this list.
+ * The leg model. Fixed and exported rather than configurable: this ordered list *is* the route.
+ * No other code carries its length — every total the CLI renders and every total the suite asserts
+ * derives from `LEGS.length`, and the fixture directory is counted against this list.
+ *
+ * What is invariant is the shape, not the count: `bay` anchors the route as the first leg that
+ * leaves papers behind, `cleanup` terminates it, and booking-owned work runs between them.
+ * `tests/legs.test.js` holds that line, and holds it without naming a number.
  *
  * `owner` says who supplies the *stamp*, not who supplies the waybill — the two wrapper-owned
  * legs still take their command and model from a booking, because the anchor and the terminus
@@ -31,6 +36,7 @@ export const LEGS = [
   { id: 'contract', owner: 'booking' },
   { id: 'specs', owner: 'booking' },
   { id: 'execute', owner: 'booking', progress: true },
+  { id: 'review', owner: 'booking' },
   { id: 'cleanup', owner: 'wrapper' },
 ];
 
@@ -89,6 +95,29 @@ export function cleanupIsDone(state) {
   const target = bayPath(state);
   return target !== null && !fs.existsSync(target);
 }
+
+/**
+ * The legs that judge themselves rather than through a booking — the route's anchor and its
+ * terminus. Every other leg is judged purely by its booking's stamp, so adding a leg to {@link LEGS}
+ * needs no edit to the inference walk.
+ *
+ * Keyed by id and cross-checked against `owner` in `tests/legs.test.js`, rather than derived from
+ * `owner === 'wrapper'` here: a derived lookup would fail silently for a future wrapper leg with no
+ * entry — the leg would read as never done and the route would stall there forever — where the test
+ * turns the same mistake into a named failure at development time.
+ *
+ * Declared below both functions, not above: `const` bindings are not hoisted, so a table placed
+ * before them throws on import and takes every `waybill` invocation with it.
+ *
+ * A Map rather than an object literal, for the reason `ARGUMENT_SOURCES` in `src/waybill.js` is one:
+ * a lookup table should not answer for keys it was never given.
+ *
+ * @type {Map<string, (state: RepoState) => boolean>}
+ */
+export const WRAPPER_STAMPS = new Map([
+  ['bay', bayIsDone],
+  ['cleanup', cleanupIsDone],
+]);
 
 /**
  * The `ideate` leg leaves no papers by design — a rough-ideation conversation writes nothing —

@@ -1,5 +1,5 @@
 ```text
-feat/thing · leg 4 of 7 (contract)
+feat/thing · leg 4 of 8 (contract)
   ✓ ideate  ✓ bay  ✓ refine
   ▶ contract
 ```

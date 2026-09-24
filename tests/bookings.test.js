@@ -3,8 +3,25 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { bookingIsDone, loadBookings, stampedByCmd, stampedByPath } from '../src/bookings.js';
-import { cleanupAll, tempRoot, writeFile } from './helpers/repo-fixture.js';
+import { LEGS } from '../src/legs.js';
+import {
+  bookingIsDone,
+  evaluateBooking,
+  loadBookings,
+  resolveBookings,
+  stampedByCmd,
+  stampedByPath,
+} from '../src/bookings.js';
+import {
+  cleanupAll,
+  createRepo,
+  pathWithout,
+  stubBin,
+  tempRoot,
+  withEnv,
+  withPath,
+  writeFile,
+} from './helpers/repo-fixture.js';
 
 after(cleanupAll);
 
@@ -183,6 +200,12 @@ describe('stampedByPath', () => {
   });
 });
 
+/** A binary name no machine has, so "absent" is a property of the test rather than of the laptop. */
+const PROBE = 'waybill-stamp-probe';
+
+/** A `PATH` that holds `dir`'s stub and nothing else answering to {@link PROBE}. */
+const probeOn = (dir) => `${dir}${path.delimiter}${pathWithout(PROBE)}`;
+
 describe('stampedByCmd', () => {
   it('is true when the command exits 0', () => {
     assert.equal(stampedByCmd('exit 0', tempRoot()), true);
@@ -192,14 +215,73 @@ describe('stampedByCmd', () => {
     assert.equal(stampedByCmd('exit 1', tempRoot()), false);
   });
 
-  it('is false — never thrown — when the command does not exist (exit 127)', () => {
-    assert.equal(stampedByCmd('waybill-no-such-binary-xyz', tempRoot()), false);
+  it('warns, naming the missing binary, when the command does not exist (exit 127)', () => {
+    /** @type {string[]} */
+    const warnings = [];
+    // A probe of this name installed on the developer's machine would make the absent case
+    // vacuously green, so it runs under a PATH with every directory holding one removed.
+    const done = withPath(pathWithout(PROBE), () => stampedByCmd(`${PROBE} --check`, tempRoot(), warnings));
+    assert.equal(done, false);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /missing binary/);
+    assert.match(warnings[0], new RegExp(PROBE));
+  });
+
+  it('is silent when the binary is present and answers, whether it says yes or no', () => {
+    const yes = stubBin(PROBE, 'exit 0');
+    const no = stubBin(PROBE, 'exit 1');
+    /** @type {string[]} */
+    const warnings = [];
+    assert.equal(withPath(probeOn(yes), () => stampedByCmd(PROBE, tempRoot(), warnings)), true);
+    // The over-warning guard: an honest "not finished yet" must not put a ⚠ beside the leg.
+    assert.equal(withPath(probeOn(no), () => stampedByCmd(PROBE, tempRoot(), warnings)), false);
+    assert.deepEqual(warnings, []);
+  });
+
+  it('keeps could-not-be-executed distinct from a missing binary', () => {
+    /** @type {string[]} */
+    const warnings = [];
+    // Death by signal is the cheap stand-in for the whole `status === null` family: a spawn
+    // failure and the 10s timeout reach the same branch, and neither is worth a slow test.
+    assert.equal(stampedByCmd('kill -9 $$', tempRoot(), warnings), false);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /could not be executed/);
+    assert.doesNotMatch(warnings[0], /missing binary/);
   });
 
   it('runs in the given cwd and ignores stdout', () => {
     const root = tempRoot();
     writeFile(path.join(root, 'marker'), '');
     assert.equal(stampedByCmd('cat marker && echo loud', root), true);
+  });
+});
+
+describe('evaluateBooking', () => {
+  it('names both the booking and the missing binary when a stampCmd cannot be found', () => {
+    const booking = { leg: 'contract', path: 'bookings/probe.md', stampCmd: PROBE };
+    const result = withPath(pathWithout(PROBE), () => evaluateBooking(booking, tempRoot(), null));
+    assert.equal(result.done, false);
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0], /^bookings\/probe\.md: /);
+    assert.match(result.warnings[0], /missing binary/);
+    assert.match(result.warnings[0], new RegExp(PROBE));
+  });
+
+  it('reads a stamp that floods stdout as done, with no warning', () => {
+    // stdout is piped so the 125 branch can quote the stamp's own reason, and `spawnSync`'s
+    // default 1 MB buffer would turn that into a trap: past it `result.error` is set, an exit-0
+    // "done" becomes not-done, and the leg grows a "could not be executed" warning it has not
+    // earned. Volume was irrelevant before stdout was piped; it has to stay irrelevant.
+    const loud = "yes 'a chatty stamp says a great deal on its way to exit 0' | head -n 100000";
+    const booking = { leg: 'contract', path: 'bookings/loud.md', stampCmd: loud };
+    assert.deepEqual(evaluateBooking(booking, tempRoot(), null), { done: true, warnings: [] });
+  });
+
+  it('is silent when a stampCmd runs and simply says not-done', () => {
+    const booking = { leg: 'contract', path: 'bookings/probe.md', stampCmd: 'exit 1' };
+    const result = evaluateBooking(booking, tempRoot(), null);
+    assert.equal(result.done, false);
+    assert.deepEqual(result.warnings, []);
   });
 });
 
@@ -231,5 +313,37 @@ describe('bookingIsDone', () => {
 
   it('is false for a path stamp when the changed set is unknown, even though both stamps would otherwise pass', () => {
     assert.equal(bookingIsDone({ stampPath: 'docs/ideation/*/contract-data.json', stampCmd: 'exit 0' }, root, null), false);
+  });
+});
+
+describe('resolveBookings reads WAYBILL_BOOKINGS_DIR as a path', () => {
+  const OVERLAID_CLEANUP = [
+    '---',
+    'leg: cleanup',
+    'command: /mar',
+    'model: overlay-model',
+    'stampPath: docs/SHIPPED.md',
+    '---',
+    '',
+  ].join('\n');
+
+  it('expands a leading tilde, rather than overlaying a directory literally named `~`', () => {
+    const repo = createRepo();
+    const home = tempRoot();
+    writeFile(path.join(home, 'overlay', 'cleanup.md'), OVERLAID_CLEANUP);
+
+    // The fixture neutralises WAYBILL_BAY_DIR but not this one, so the case declares every tier it
+    // depends on — an operator's own overlay must not be what decides the result.
+    const bookings = withEnv(
+      {
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_SYSTEM: '/dev/null',
+        HOME: home,
+        WAYBILL_BOOKINGS_DIR: '~/overlay',
+      },
+      () => resolveBookings(repo, { knownLegs: LEGS.map((leg) => leg.id) }),
+    );
+
+    assert.equal(bookings.get('cleanup').model, 'overlay-model');
   });
 });

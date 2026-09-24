@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 3</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #1a1a1a;
+        --paper: #fbfaf8;
+        --muted: #5d5d5d;
+        --rule: #d9d5cd;
+        --accent: #7a4b1e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e9e6e1;
+          --paper: #1b1a18;
+          --muted: #a6a29b;
+          --rule: #3a3833;
+          --accent: #d9a05b;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 3rem 1.5rem 5rem;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+      }
+      main { max-width: 46rem; margin: 0 auto; }
+      h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.35rem;
+        letter-spacing: -0.01em;
+      }
+      .lede { color: var(--muted); margin: 0 0 2.5rem; font-size: 0.97rem; }
+      .note-entry {
+        border-top: 1px solid var(--rule);
+        padding-top: 1.4rem;
+        margin-top: 2rem;
+      }
+      .note-entry h3 {
+        font-size: 1.12rem;
+        margin: 0 0 0.9rem;
+        color: var(--accent);
+        letter-spacing: -0.005em;
+      }
+      dl { margin: 0; display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.5rem 1.25rem; }
+      dt {
+        font: 600 0.74rem/1.6 ui-sans-serif, system-ui, sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+        padding-top: 0.22rem;
+      }
+      dd { margin: 0; }
+      code {
+        font: 0.87em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: color-mix(in srgb, var(--ink) 7%, transparent);
+        padding: 0.1em 0.34em;
+        border-radius: 3px;
+      }
+      @media (max-width: 34rem) {
+        dl { grid-template-columns: 1fr; gap: 0.2rem; }
+        dt { padding-top: 0.7rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Implementation Notes — Phase 3</h1>
+      <p class="lede">
+        Decisions taken while building <code>waybill doctor</code> that the spec did not settle, or
+        settled differently. Everything not listed here followed the spec as written.
+      </p>
+
+      <section class="note-entry">
+        <h3>tests/help.test.js — a forced edit the spec does not name</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Modified Files table lists <code>tests/golden/help.txt</code> but not
+            <code>tests/help.test.js</code>. The <em>--help stays terse</em> case at
+            <code>tests/help.test.js:256-283</code> pins the banner by <em>count</em>:
+            <code>commands.length === before.length + 1</code>, with the last row asserted to be
+            <code>help</code>. Adding the <code>doctor</code> row makes that six rows, not five, so
+            the suite fails before any doctor test is even reached.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Widened the pin to <code>before.length + 2</code> and asserted both trailing rows by
+            position — <code>doctor</code> at <code>-2</code>, <code>help</code> at <code>-1</code>.
+            The literal four-verb <code>before</code> array is left exactly as it was, so the
+            guard's real job (noticing a reworded verb row) is untouched. This is a third pinned
+            list of the same kind as <code>DECLARED</code> and <code>invoking</code>; the spec found
+            two of the three.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Appending <code>doctor</code> after <code>help</code> in <code>USAGE</code> would have
+            kept <code>commands.at(-1)</code> pointing at a different row and still broken the
+            count — and the spec explicitly places the row before <code>help</code>.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Check 7 — one plugin-cache row, not a separate skew row</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's implementation steps say to "compose the cache row, the skew row, and the
+            PATH row" — three rows. Both worked examples in its own Output Format section show two:
+            a single <code>plugin cache</code> row, and the <code>waybill</code> PATH row.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Followed the examples. <code>plugin cache</code> is one row with three states:
+            <code>warn</code> carrying <em>cannot locate plugin cache</em>, <code>warn</code> naming
+            both versions on skew, or <code>ok</code> naming the version and its install path. A
+            separate skew row would have had nothing to say in the case that matters most — when the
+            cache cannot be located, there is no version to compare against, so the row would either
+            be blank or repeat the first one's complaint.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Three rows, with the skew row suppressed when the cache is unlocatable. That is the same
+            information in more lines, and doctor's whole value is a report that fits on one screen.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>The renderer wraps no details</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's example output shows one long detail wrapped onto a continuation line
+            indented to the detail column, and its Failure Modes table names "column drift on wide
+            details". But the four numbered implementation steps describe only the row, the
+            <code>fix:</code> continuation and the footer — no wrap — and test 26 asserts alignment
+            and fix placement, not wrapping.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            No wrapping. A long detail runs long. Wrapping needs a terminal width, and there is no
+            honest source for one here: <code>process.stdout.columns</code> is <code>undefined</code>
+            under the <code>!</code> invocation that is doctor's main surface, so any wrap point
+            would be an invented constant. Alignment is preserved where it is actually load-bearing
+            — the status and label columns — and <code>fix:</code> lines still get their own line.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Wrap at a hardcoded 100 columns. Rejected: it would reflow paths and hostnames mid-token
+            in a report whose entire purpose is that a remediation can be copy-pasted intact.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Check 6 counts rebooked legs off <code>resolveBookings</code>, by path</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec asks for "<code>overlay in force: &lt;path&gt; (&lt;n&gt; legs rebooked)</code>,
+            the count from <code>resolveBookings</code>" — but <code>resolveBookings</code> returns
+            the <em>merged</em> map of all seven legs, which is not the count wanted.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Called <code>resolveBookings</code> exactly as the spec says, then counted the entries
+            whose <code>booking.path</code> lies under the overlay directory. Every
+            <code>Booking</code> already records the file it came from
+            (<code>src/bookings.js:88</code>), so the count falls straight out of the one resolution
+            the rest of the CLI also performs — and the malformed-overlay <code>warn</code> then
+            fires on exactly the errors a real <code>/waybill:*</code> command would hit.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Calling <code>loadBookings(dir)</code> directly for the overlay alone. That gives the
+            count with no filtering, but it means re-deriving the anchor and the resolution
+            <code>resolveBookings</code> already owns — the exact drift the spec's
+            "export <code>configuredBookingsDir</code>" instruction exists to prevent.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Two probe functions, so the no-secret rule is structural</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The Security Constraint requires that doctor never relay stdout or stderr from
+            <code>gh auth status</code> or <code>glab auth status</code>, and is enforced by one
+            test planting a token. A single general-purpose probe helper returning
+            <code>{status, stdout}</code> would satisfy that test while leaving the output one
+            careless interpolation away from a rendered line.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Split the helper in two. <code>probeStatus</code> returns an exit code and <em>no
+            streams at all</em>; <code>probeOutput</code> returns stdout and is used only for
+            <code>git --version</code>, <code>openspec --version</code> and
+            <code>glab config get host</code>. The auth probes can only call the former, so a future
+            edit cannot leak a token without first changing which function it calls — which is
+            visible in review.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            One helper plus a comment. The test would still pass today; the constraint would rest on
+            whoever edits it next having read the comment.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>The review cycle ran as a self-review, not the Reviewer agent</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>execute-spec</code> calls for a Verify-Review-Fix loop driven by the
+            <code>ideation:reviewer</code> subagent. This phase executed inside a subagent, where no
+            <code>Agent</code>/<code>Task</code> tool is available, so no reviewer could be
+            dispatched — the same situation the skill's "reviewer unavailable" fallback describes.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Fell back to validation-only mode as the skill directs, and added a self-review pass
+            over <code>git diff HEAD</code> against the spec's three load-bearing constraints. That
+            pass produced four fixes: a string concatenation and a pointless template literal in
+            <code>src/doctor.js</code>, a substring assertion in the missing-spec-commands test that
+            would have passed against a check listing nothing, and a new structural case asserting
+            that every <code>fail</code> and <code>warn</code> carries a <code>fix</code> while
+            <code>ok</code> and <code>info</code> carry none.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Reporting the phase as failed for want of a reviewer. The skill explicitly prefers the
+            fallback, and all 538 tests pass; a human review of the diff is still worth having.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>A manual-test expectation in the spec is wrong, and the code is right</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's last manual check reads:
+            <code>CLAUDE_CONFIG_DIR=/tmp/nope node bin/waybill doctor</code> — "says cannot locate,
+            still exits 0". Run against this implementation it says cannot locate and exits
+            <strong>1</strong>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Left the behaviour as it is and recorded the discrepancy here. Check 4 reads the four
+            <code>/spec:*</code> commands out of the <em>same</em> config directory, so relocating
+            it to an empty path genuinely breaks them — the <code>FAIL</code> row is honest, and the
+            exit code follows the one rule the spec insists on. The expectation overlooked that
+            checks 4 and 7 share an input. Check 7's own rule is upheld: the plugin-cache row is a
+            <code>warn</code>, never a <code>fail</code>.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Making check 4 degrade to <code>warn</code> when the config directory looks synthetic.
+            That would need doctor to guess which config directories are "real", and would soften
+            the one check that catches this laptop's actual documented gap.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

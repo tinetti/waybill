@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -29,6 +30,48 @@ function tryGit(cwd, args) {
  */
 export function configPath(cwd, key) {
   return tryGit(cwd, ['config', '--type=path', '--get', key]);
+}
+
+/**
+ * `os.homedir()` where it can answer, `null` where it cannot. Like every other query here, it never
+ * throws: a home directory the OS will not name is a state to fall back from, not a crash.
+ *
+ * @returns {string|null}
+ */
+function homeDirectory() {
+  try {
+    return os.homedir() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A leading `~` replaced with the home directory. Anything else is returned untouched — a `~` that
+ * is not the first segment is a legal directory name, and a home directory nobody can name is not a
+ * reason to root a path at `''`.
+ *
+ * This exists only for the tiers git does not read. {@link configPath} already gets the expansion
+ * from `--type=path`, and that tier keeps it: git also resolves `~user`, which needs a passwd
+ * lookup this deliberately does not do. The asymmetry is the price of not owning a second, worse
+ * opinion about what a home directory is.
+ *
+ * `process.env.HOME` is read ahead of `os.homedir()`, and at every call rather than once into a
+ * constant, because a test that hands in a home of its own is the only way to assert this at all.
+ *
+ * Whitespace around the value is not meaningful — every tier that consumes this trims its answer —
+ * so a padded ` ~/bays` expands rather than becoming a directory named `~`.
+ *
+ * @template {string|null|undefined} T
+ * @param {T} value
+ * @returns {T|string}
+ */
+export function expandTilde(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed !== '~' && !trimmed.startsWith('~/')) return value;
+  const home = process.env.HOME || homeDirectory();
+  return home ? path.join(home, trimmed.slice(1)) : value;
 }
 
 /**
@@ -126,12 +169,16 @@ const DEFAULT_BAY_DIR = '.claude/worktrees';
  * for one invocation, and the config is answering for the machine. Blank is not an answer at
  * either tier — `WAYBILL_BAY_DIR=` would otherwise resolve every bay onto the checkout root itself.
  *
+ * Both configured tiers expand a leading `~`, by the route each one has: git's own `--type=path`
+ * for the config, {@link expandTilde} for the environment. `override` is left literal, because it
+ * arrives as an argument a shell has already expanded.
+ *
  * @param {string} cwd
  * @param {string} [override] a value from the caller, ahead of both tiers
  * @returns {string}
  */
 function configuredBayDir(cwd, override) {
-  const tiers = [override, process.env.WAYBILL_BAY_DIR, tryGit(cwd, ['config', '--get', 'waybill.baydir'])];
+  const tiers = [override, expandTilde(process.env.WAYBILL_BAY_DIR), configPath(cwd, 'waybill.baydir')];
   return tiers.find((value) => value !== undefined && value !== null && value.trim() !== '')?.trim() ?? DEFAULT_BAY_DIR;
 }
 

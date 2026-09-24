@@ -3,7 +3,7 @@ ENTER BAY: /repo/.claude/worktrees/waybill-feat-thing
 RUN: /spec:apply add-thing
 
 ```text
-feat/thing · leg 6 of 7 (execute)
+feat/thing · leg 6 of 8 (execute)
   ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs
   ▶ execute
 ```

@@ -2,7 +2,7 @@ import { commitPapers, createRepo } from '../helpers/repo-fixture.js';
 
 /**
  * A repository standing on its base branch with ideation papers already shipped — the state that
- * used to report `leg 2 of 7 (bay)` from history alone.
+ * used to report `leg 2 (bay)` from history alone.
  *
  * `no-docket.txt` is leg 1's waybill, and since the exit contract landed it is what `waybill new`
  * prints rather than what `next` answers with from the trunk: `next` there reports the fleet and
