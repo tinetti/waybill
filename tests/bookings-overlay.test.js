@@ -62,6 +62,99 @@ const OVERLAID_CLEANUP = [
 ].join('\n');
 
 /**
+ * The work overlay: the five bookings this machine lays over the shipped route. Written inline
+ * rather than read from `~/.waybill/bookings`, so the case asserts on a fixture every machine has
+ * rather than on one laptop's state. The cost is that this copy can drift from the real overlay.
+ *
+ * Both stamps below are shell and are reproduced verbatim from the real bookings — `String.raw`
+ * keeps `\[ \]` a literal backslash-bracket rather than a JS escape, which is the difference
+ * between a stamp that matches an unticked box and one that silently never matches.
+ */
+const WORK_REVIEW_STAMP = String.raw`command -v glab >/dev/null 2>&1 || exit 127; iid=$(glab mr view -F json --jq .iid 2>/dev/null) || exit 1; [ -n "$iid" ] && glab api "projects/:id/merge_requests/$iid/approvals" --jq '.approved_by|length' 2>/dev/null | grep -qE '^[1-9]'`;
+
+const WORK_EXECUTE_STAMP = String.raw`ls docs/ideation/*/spec-phase-*.md >/dev/null 2>&1 || exit 1; ! grep -qE '^[[:space:]]*- \[ \]' docs/ideation/*/spec-phase-*.md`;
+
+const WORK_REVIEW = [
+  '---',
+  'leg: review',
+  'command: /mr-review',
+  'model: opus',
+  'effort: high',
+  'handover: transfer',
+  `stampCmd: ${WORK_REVIEW_STAMP}`,
+  '---',
+  'Push the branch, open the merge request, and get it reviewed before anything is merged.',
+  '',
+].join('\n');
+
+const WORK_BAY = [
+  '---',
+  'leg: bay',
+  'command: /waybill:bay',
+  'model: haiku',
+  'effort: low',
+  'handover: through',
+  'stampCmd: false',
+  '---',
+  'Cut the feature branch and its isolated bay, then move into it. Pass the branch name as the',
+  'argument, named for the ticket: `JIRA-123/short-name`, the Jira key exactly as Jira spells it,',
+  'uppercase, then a slash, then a few words of slug.',
+  '',
+].join('\n');
+
+const WORK_CLEANUP = [
+  '---',
+  'leg: cleanup',
+  'command: /mar',
+  'model: sonnet',
+  'effort: low',
+  'handover: through',
+  'argument: branch',
+  'stampCmd: false',
+  '---',
+  'Merge the request, then retire the branch and its bay together.',
+  '',
+].join('\n');
+
+const WORK_SPECS = [
+  '---',
+  'leg: specs',
+  'command: /ideation:ideation',
+  'model: opus',
+  'effort: high',
+  'handover: transfer',
+  'stampPath: docs/ideation/*/spec-phase-*.md',
+  '---',
+  'Turn the contract into implementation-ready phase specs, one per phase. Write every acceptance',
+  'item and manual check as a `- [ ]` checkbox: the execute leg is stamped by those boxes being',
+  'ticked.',
+  '',
+].join('\n');
+
+const WORK_EXECUTE = [
+  '---',
+  'leg: execute',
+  'command: /ideation:execute-spec',
+  'model: opus',
+  'effort: high',
+  'handover: transfer',
+  'argument: none',
+  'stampPath: docs/ideation/*/spec-phase-*.md',
+  `stampCmd: ${WORK_EXECUTE_STAMP}`,
+  '---',
+  'Work the phase specs in order, test first, ticking each `- [ ]` box as it lands.',
+  '',
+].join('\n');
+
+const WORK_OVERLAY = {
+  'waybill-review.md': WORK_REVIEW,
+  'waybill-bay.md': WORK_BAY,
+  'waybill-cleanup.md': WORK_CLEANUP,
+  'ideation-specs.md': WORK_SPECS,
+  'ideation-execute.md': WORK_EXECUTE,
+};
+
+/**
  * Write an overlay directory holding `files`, outside any repository under test.
  *
  * @param {Record<string,string>} files basename -> contents
@@ -225,6 +318,58 @@ describe('the CLI', () => {
     assert.match(output, /^\/mar feat\/thing$/m);
     assert.match(output, /overlay-model/);
     assert.equal(output.includes('/waybill:cleanup'), false);
+  });
+});
+
+describe('the work overlay', () => {
+  it('resolves the stock carriers when no overlay is configured at any tier', () => {
+    const repo = createRepo();
+
+    // `GIT_CONFIG_GLOBAL=/dev/null` is not belt-and-braces here: the machine this route was built
+    // for carries a real global `waybill.bookingsdir`, and without neutralising it this case would
+    // silently assert against the work overlay instead of the shipped bookings.
+    const bookings = isolated(
+      { WAYBILL_BOOKINGS_DIR: undefined, GIT_CONFIG_GLOBAL: '/dev/null' },
+      () => resolve(repo),
+    );
+
+    assert.equal(bookings.get('review').command, '/waybill:review');
+    assert.equal(bookings.get('cleanup').command, '/waybill:cleanup');
+    assert.equal(bookings.get('specs').command, '/spec:propose');
+    assert.equal(bookings.get('execute').command, '/spec:apply');
+  });
+
+  it('rebooks five legs onto the work carriers and leaves none unbound', () => {
+    const repo = createRepo();
+    const dir = overlayDir(WORK_OVERLAY);
+
+    const bookings = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () => resolve(repo));
+
+    assert.equal(bookings.get('review').command, '/mr-review');
+    assert.equal(bookings.get('cleanup').command, '/mar');
+    assert.equal(bookings.get('specs').command, '/ideation:ideation');
+    assert.equal(bookings.get('execute').command, '/ideation:execute-spec');
+    // The bay leg keeps the stock carrier; the only thing the overlay changes is how it tells the
+    // operator to name the branch, so the body is the only place the rebooking is visible.
+    assert.match(bookings.get('bay').body, /JIRA-123\//);
+    assert.equal(bookings.size, fs.readdirSync(new URL('../bookings/', import.meta.url)).length,
+      'the overlay left a leg unbound, or bound one the shipped route does not have');
+  });
+
+  it('gives execute a completion stamp that specs does not have, so the two cannot stamp together', () => {
+    // Under an ideation booking there is no `openspec/changes/<id>/` path, so the progress gate
+    // short-circuits and the stamp alone decides. Sharing a `stampPath` with `specs` and nothing
+    // else would complete both legs in the same instant and step the route over `execute`.
+    const repo = createRepo();
+    const dir = overlayDir(WORK_OVERLAY);
+
+    const bookings = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () => resolve(repo));
+    const specs = bookings.get('specs');
+    const execute = bookings.get('execute');
+
+    assert.equal(specs.stampPath, execute.stampPath, 'the premise: the two legs share a path');
+    assert.equal(specs.stampCmd, undefined);
+    assert.equal(execute.stampCmd, WORK_EXECUTE_STAMP);
   });
 });
 
