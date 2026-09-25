@@ -4,7 +4,7 @@ import path from 'node:path';
 import { LEGS } from './legs.js';
 import { BUILTIN_BOOKINGS, loadBookings, resolveBookings } from './bookings.js';
 import { defaultBranch, mainCheckout } from './repo.js';
-import { fleet } from './fleet.js';
+import { fleet, hasOpenDocket } from './fleet.js';
 import { branchTips, openedAt } from './age.js';
 import { stackParents } from './stack.js';
 import { listPanes, paneFor, panesByPath } from './panes.js';
@@ -21,6 +21,10 @@ import { activityFor, childIndex, snapshot } from './procs.js';
 /**
  * @typedef {{root:string, inRepo:boolean, scanned:number, repos:RepoFleet[],
  *            tmuxAvailable:boolean, psAvailable:boolean}} FleetModel
+ *   `inRepo` is true only when the scan resolved to the single repository holding the cwd — the
+ *   operator standing in a project of their own. Standing in a checkout that merely contains the
+ *   real projects is a multi-repository scan, and reads false.
+ *
  *   `scanned` counts every repository found, *before* the ones with nothing in flight are dropped:
  *   an empty `repos` beside `scanned: 0` is "there is nothing here", and beside `scanned: 12` it is
  *   "everything is clean", and a dashboard that cannot tell those apart reads a failed scan as
@@ -116,13 +120,21 @@ function containingRepo(cwd) {
 /**
  * Every repository at or beneath `cwd`, as main-checkout paths, sorted and deduplicated.
  *
- * Inside a repository the answer is that one repository: the operator standing in a checkout is
- * asking about it, not about whatever else happens to share its parent directory. This is the first
- * Waybill code path that also has to answer *outside* one, so failing there is not an option.
+ * Inside a repository with a docket open the answer is that one repository: the operator standing
+ * in a checkout that has work in flight is asking about it, not about whatever else happens to
+ * share its parent directory. This is the first Waybill code path that also has to answer *outside*
+ * one, so failing there is not an option.
  *
- * The walk halts at every repository it finds rather than descending into it. A checkout vendored
- * inside another is that project's business, and a submodule already resolves to its superproject
- * everywhere else in the tool.
+ * The walk halts at every repository that has a docket open rather than descending into it. A
+ * checkout vendored inside a project that is being worked on is that project's business, and a
+ * submodule already resolves to its superproject everywhere else in the tool.
+ *
+ * A checkout with nothing in flight is not treated as a project at all, and the walk goes straight
+ * through it — including the one holding the cwd. A projects directory kept under version control
+ * is an ordinary arrangement, and halting at it hid every real repository underneath: on a machine
+ * whose `~/Projects` is itself a checkout, the scan the whole view exists for found nothing. The
+ * cost is that a dormant project vendoring a checkout now reports the vendored one, which is the
+ * lesser of the two wrongs — it over-reports where the old rule silently under-reported everything.
  *
  * @param {string} cwd
  * @param {{depth?:number}} [options] `depth` counts directory levels below `cwd`, so `1` is the
@@ -131,9 +143,6 @@ function containingRepo(cwd) {
  *   always produces the same fleet in the same order
  */
 export function discoverRepos(cwd, options = {}) {
-  const here = containingRepo(cwd);
-  if (here !== null) return [here];
-
   const depth = options.depth ?? DEFAULT_DEPTH;
   /** @type {Set<string>} */
   const found = new Set();
@@ -168,10 +177,20 @@ export function discoverRepos(cwd, options = {}) {
       const repo = repoAt(child);
       if (repo !== null) {
         found.add(repo);
-        continue;
+        // Recorded either way; the docket is only what decides whether to look inside it.
+        if (hasOpenDocket(repo)) continue;
       }
       descend(child, level + 1);
     }
+  }
+
+  // The repository holding the cwd is always part of the answer, and when it has work of its own
+  // it is the whole of it. With nothing in flight it is a container rather than a project, so it is
+  // counted and then walked through like any other.
+  const here = containingRepo(cwd);
+  if (here !== null) {
+    found.add(here);
+    if (hasOpenDocket(here)) return [here];
   }
 
   descend(cwd, 0);
@@ -271,11 +290,17 @@ function decorateSignals(dockets, byPath, children) {
 export function scanFleet(cwd, options = {}) {
   const { depth = DEFAULT_DEPTH, deferProgress = false } = options;
 
+  // Discovery owns the question of which repositories a cwd means, including what standing inside
+  // one implies. Asking `containingRepo` here as well once gave this function a second, simpler
+  // copy of that rule, and the copy went on short-circuiting after the real one had learned to
+  // walk through a checkout with nothing in flight.
+  const roots = discoverRepos(cwd, { depth });
   const here = containingRepo(cwd);
-  const inRepo = here !== null;
-  const roots = inRepo ? [here] : discoverRepos(cwd, { depth });
   // Single-repo mode keeps today's behaviour exactly: the operator is standing in the one
-  // repository whose commands these are.
+  // repository whose commands these are, so running its configured stamp commands is running their
+  // own. That holds only when the scan came back as that one repository — standing in a container
+  // whose children are the real projects is a multi-repository scan like any other.
+  const inRepo = here !== null && roots.length === 1 && roots[0] === here;
   const skipStampCmd = !inRepo;
 
   // One tmux call and one ps snapshot for the entire scan. Both describe the machine rather than

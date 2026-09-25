@@ -91,12 +91,45 @@ describe('discoverRepos', () => {
     assert.deepEqual(discoverRepos(root, { depth: 1 }), []);
   });
 
-  it('halts at a repository rather than descending into one vendored inside it', () => {
+  it('halts at a repository with a docket of its own rather than descending into one vendored inside it', () => {
     const root = tempRoot();
     const outer = createRepo({ root, name: 'outer' });
+    addWorktree(outer, 'feat/one');
     createRepo({ root, name: path.join('outer', 'vendored') });
 
     assert.deepEqual(discoverRepos(root), [outer]);
+  });
+
+  // The rule that makes a projects directory under version control transparent. A checkout with
+  // nothing in flight is a container rather than a project — a dotfiles-style repo tracking the
+  // tree itself — and halting at it hid every real repository underneath, which on a machine whose
+  // `~/Projects` is a checkout meant the scan found nothing at all.
+  it('descends into a repository with nothing in flight, and still reports it as scanned', () => {
+    const root = tempRoot();
+    const container = createRepo({ root, name: 'container' });
+    const inner = createRepo({ root, name: path.join('container', 'inner') });
+    addWorktree(inner, 'feat/one');
+
+    assert.deepEqual(discoverRepos(root), [container, inner]);
+  });
+
+  it('walks beneath the containing repository when it has nothing in flight', () => {
+    const root = tempRoot();
+    const container = createRepo({ root, name: 'container' });
+    const inner = createRepo({ root, name: path.join('container', 'inner') });
+    addWorktree(inner, 'feat/one');
+
+    // The cwd is inside `container`, which is exactly where the short circuit used to stop.
+    assert.deepEqual(discoverRepos(container), [container, inner]);
+  });
+
+  it('reports only the containing repository when that one does have a docket', () => {
+    const root = tempRoot();
+    const container = createRepo({ root, name: 'container' });
+    addWorktree(container, 'feat/outer');
+    createRepo({ root, name: path.join('container', 'inner') });
+
+    assert.deepEqual(discoverRepos(container), [container]);
   });
 
   it('never visits a repository inside node_modules', () => {
@@ -158,6 +191,21 @@ describe('scanFleet', () => {
     const model = scan(root, { depth: 1 });
 
     assert.deepEqual(model.repos.map((repo) => repo.name), ['busy']);
+    assert.equal(model.scanned, 2);
+  });
+
+  // End to end for the container rule: standing in a projects directory that is itself a checkout
+  // reports what is in flight beneath it, and the container is counted rather than listed.
+  it('reports the dockets beneath a containing repository that has none of its own', () => {
+    const root = tempRoot();
+    const container = createRepo({ root, name: 'container' });
+    const inner = createRepo({ root, name: path.join('container', 'inner') });
+    addWorktree(inner, 'feat/one');
+
+    const model = scan(container);
+
+    assert.deepEqual(model.repos.map((repo) => repo.name), ['inner']);
+    assert.deepEqual(model.repos[0].dockets.map((docket) => docket.branch), ['feat/one']);
     assert.equal(model.scanned, 2);
   });
 

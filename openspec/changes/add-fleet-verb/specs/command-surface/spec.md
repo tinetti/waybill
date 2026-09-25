@@ -50,9 +50,15 @@ NOT change anything `status` prints.
 - **THEN** it searches the directories below it, reports every repository with an open docket, and
   exits 0 rather than refusing the way `new`, `bay`, `next` and `status` do
 
-#### Scenario: `fleet` narrows to one repository from inside one
-- **WHEN** `fleet` is run from anywhere inside a checkout
+#### Scenario: `fleet` narrows to one repository from inside one that has work in flight
+- **WHEN** `fleet` is run from anywhere inside a checkout that has a docket open
 - **THEN** it reports that repository's open dockets and no others
+
+#### Scenario: `fleet` walks through a checkout that has nothing in flight
+- **WHEN** `fleet` is run from inside, or above, a checkout with no docket open — a projects
+  directory kept under version control
+- **THEN** it counts that checkout as scanned and goes on to report the repositories beneath it,
+  rather than stopping there and reporting nothing
 
 ### Requirement: The usage lists every command, and grows by one row
 

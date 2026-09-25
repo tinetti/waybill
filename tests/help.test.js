@@ -276,7 +276,7 @@ describe('waybill help', () => {
       '                    `git config waybill.baydir`. Relative paths resolve against the main',
       '                    checkout; the default is .claude/worktrees',
       '  --depth <n>       How many directory levels below here to search for repositories',
-      '                    (`fleet` only, and only outside one); the default is 4',
+      '                    (`fleet` only, and only when it walks); the default is 4',
       '  --help            Print this message',
       '',
     ].join('\n');

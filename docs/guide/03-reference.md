@@ -50,18 +50,26 @@ repository.
 | `--markdown` | `next`, `bay` | Prints the waybill as markdown, with each handover command in its own fence |
 | `--list` | `bay` | Lists candidate branches instead of cutting a bay |
 | `--bay-dir <path>` | `bay` | Where bays are created; overrides `WAYBILL_BAY_DIR` and `waybill.baydir` |
-| `--depth <n>` | `fleet` | How many directory levels below the working directory to search for repositories; the default is 4 |
+| `--depth <n>` | `fleet` | How many directory levels below the working directory to search for repositories, whenever the scan walks rather than narrowing to one repository; the default is 4 |
 | `--help` | any | Prints the usage |
 
 `--json` and `--markdown` cannot be combined. `waybill next` exits 0 only when it issued exactly
 one waybill. With no docket open, or more than one to choose from, it exits 2.
 
 `waybill fleet` is the one verb besides `help` that answers outside a repository. Inside a checkout
-it reports that repository alone; outside one it walks down to `--depth` levels, halting at every
-repository it finds rather than descending into it, and counts a repository once however many of
-its bays fall inside the walk. A repository with nothing in flight is left out of the listing and
-counted in the `scanned` total on the header line. Where a column is absent altogether rather than
-showing `–`, tmux or `ps` could not be read at all.
+that has a docket open it reports that repository alone; otherwise it walks down to `--depth`
+levels, and counts a repository once however many of its bays fall inside the walk.
+
+The walk halts at every repository that has a docket open rather than descending into it — a
+checkout vendored inside a project being worked on is that project's business. A checkout with
+nothing in flight is treated as a container rather than a project and walked straight through,
+including the one you are standing in. That is what lets a projects directory kept under version
+control stay transparent: without it, a `~/Projects` that is itself a checkout hides every
+repository underneath and the scan finds nothing.
+
+A repository with nothing in flight is left out of the listing and counted in the `scanned` total
+on the header line. Where a column is absent altogether rather than showing `–`, tmux or `ps` could
+not be read at all.
 
 In a terminal `waybill fleet` stays up and refreshes itself every couple of seconds: `q` leaves it,
 `r` refreshes it now, and Ctrl-C leaves it too. Only the rows that changed are rewritten, so the

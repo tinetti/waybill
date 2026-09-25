@@ -1,6 +1,6 @@
 ---
 description: "Waybill — every open docket in every repository at or below here"
-argument-hint: "[--depth <n> — how many directory levels below here to search; the default is 4, and it only applies outside a repository]"
+argument-hint: "[--depth <n> — how many directory levels below here to search; the default is 4, and it only applies when the scan walks]"
 allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*)
 ---
 

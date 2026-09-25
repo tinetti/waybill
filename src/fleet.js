@@ -69,3 +69,30 @@ export function fleet(cwd, bookings, options = {}) {
   }
   return dockets;
 }
+
+/**
+ * Whether the repository holding `cwd` has any docket open, without resolving a single leg.
+ *
+ * Shares {@link fleet}'s definition of in-flight — a bay on disk, on a branch of its own — and
+ * stops at the first one it finds. The discovery walk asks this of every repository it meets, and
+ * what it needs back is a yes or a no rather than a fleet; going through `fleet` would pay for leg
+ * inference, and on a deferred scan a subprocess, per docket of every repository merely passed over.
+ *
+ * Kept here beside `fleet` rather than in the scanner so the two cannot drift: a record `fleet`
+ * learns to skip is a record this has to skip too, and the three filters below are that list.
+ *
+ * @param {string} cwd anywhere in the repository
+ * @returns {boolean}
+ */
+export function hasOpenDocket(cwd) {
+  try {
+    const base = defaultBranch(cwd);
+    const [, ...linked] = listWorktrees(cwd);
+    return linked.some((record) => record.branch !== null && record.branch !== base && !record.prunable);
+  } catch {
+    // A repository git cannot answer for is treated as in flight. The caller uses this to decide
+    // whether to walk *into* a checkout, and a failed git call is no licence to go rummaging
+    // through one — it leaves the walk exactly where the old unconditional halt left it.
+    return true;
+  }
+}
