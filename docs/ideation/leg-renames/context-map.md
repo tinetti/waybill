@@ -1,83 +1,144 @@
 # Context Map: leg-renames
 
-**Phase**: 1
+**Phase**: 2
 **Gates**: 5/5 ready
 **Verdict**: GO
 
 Worktree root: `/Users/jtinetti/Projects/tinetti/waybill/.claude/worktrees/waybill-feat-leg-renames`. All paths below are relative to it.
 
+Phase 1 has landed as commit `456f7d8` ("feat: cut the route to six legs and rename four of them"). Two files carry **uncommitted** phase-1 leftovers in the working tree — `tests/frontmatter.test.js` (leg-id literals `contract`/`specs` → `ideate`/`specify`) and `tests/help.test.js`. They are correct and belong to phase 1; do not revert, stash, or re-do them, and do not use bare `git stash`.
+
 ## Gates
+
+### Phase 2 (current)
+
+| Gate                 | Status | Evidence                                                                                                                                                                                                           |
+| -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Scope clarity        | ready  | Every file the spec names was read at its cited lines; the three places the spec is factually wrong (the `!docketOpen` early return, `new --markdown`, the `new.md` golden's producer) are each named with a concrete resolution below. |
+| Pattern familiarity  | ready  | Read `src/cli.js:399-479` (`firstLeg` + `begin`), `src/waybill.js:136-182,186-215,296-310` (`handoverCommands`, `nextBlock`, `renderWaybill`), `commands/bay.md:91`, `commands/new.md` whole, and both golden renderings. |
+| Dependency awareness | ready  | `firstLeg` has exactly one caller (`src/cli.js:475`); the golden/test consumers of `new`'s output are enumerated below; the two prose sites phase 2 deliberately leaves stale are named.                          |
+| Edge case coverage   | ready  | Concrete list below: the trunk path the spec's snippet misses, the `/waybill:bay ` trailing-space grep, the "run only the last" collision, the transfer/`/clear` interaction, the outside-a-repo short-circuit.   |
+| Test strategy        | ready  | Baseline captured by running the inner loop: `node --test tests/cli.test.js tests/commands.test.js` → 126 tests, 121 pass, **5 fail**, all pre-existing golden staleness (named below). `UPDATE_GOLDEN=1` is the regeneration flag (`tests/helpers/repo-fixture.js:274-281`). |
+
+### Phase 1 (retained)
 
 | Gate                 | Status | Evidence                                                                                                                                                                                                                                  |
 | -------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Scope clarity        | ready  | Every file the spec names was read and its change is concrete; the two places the spec under-names (six extra `knownLegs` call sites, the fixture-count arithmetic) are enumerated with file:line and a resolution below.                  |
-| Pattern familiarity  | ready  | Read `src/legs.js:32-41` (the `LEGS` shape), `src/inference.js:120-186` (the walk), every booking's frontmatter, and the whole `tests/fixtures/` chain — the conventions to replicate are explicit.                                        |
-| Dependency awareness | ready  | All ten consumers of `LEGS`/`knownLegs` are listed below, including the six test-tier sites that will hard-throw `unknown leg \`brainstorm\`` once the booking lands.                                                                      |
-| Edge case coverage   | ready  | Concrete list below: the `git mv` collision, the `LegFixture` typedef stranded in `ideate.js`, `src/cli.js:424` silently re-pointing at `bay`, the byte-exact grep criterion on `tests/legs.test.js`, the fixture-count conflict.           |
-| Test strategy        | ready  | `node --test tests/legs.test.js` runs pure and green today (7/7, 60 ms); inner loop and phase gate are `node --test` invocations; `package.json:15` is the only script — no lint, typecheck, build, or justfile (verified by `ls`).        |
+| Scope clarity        | ready  | Every file the spec named was read and its change was concrete; the two under-named places (six extra `knownLegs` call sites, the fixture-count arithmetic) were enumerated with file:line.                                                |
+| Pattern familiarity  | ready  | Read `src/legs.js:32-41`, `src/inference.js:120-186`, every booking's frontmatter, and the whole `tests/fixtures/` chain.                                                                                                                  |
+| Dependency awareness | ready  | All ten consumers of `LEGS`/`knownLegs` listed, including the six test-tier sites that would hard-throw `unknown leg \`brainstorm\``.                                                                                                     |
+| Edge case coverage   | ready  | The `git mv` collision, the `LegFixture` typedef stranded in `ideate.js`, `src/cli.js:424` silently re-pointing at `bay`, the byte-exact grep criterion, the fixture-count conflict.                                                       |
+| Test strategy        | ready  | `node --test tests/legs.test.js` ran green; `package.json:15` is the only script — no lint, typecheck, build, or justfile.                                                                                                                 |
 
 ## Key Patterns
 
-- `src/legs.js:32-41` — the `LEGS` array. Per-entry shape `{ id, owner }`, `progress: true` only on `execute`. Column-aligned object literals, one entry per line. The file's own JSDoc (`:16-31`) states the invariant the tests hold: shape, not count.
-- `src/legs.js:99-120` — `WRAPPER_STAMPS`, a `Map` keyed by id, declared *below* both stamp functions because `const` is not hoisted. `bay` is already in it, so `bay` at index 0 needs no walk change.
-- `src/inference.js:120-186` — `resolveLeg`'s walk. The general path (`legIsDone`, `deferred`, `done.indexOf(false)`) already handles a wrapper-owned leg at index 0. Only lines `140-146` are special-cased.
-- `src/bookings.js:71-121` — `loadBookings`. `:97-98` is the only gate on leg ids and it consults the caller-supplied set; `:91-96` throws when a booking has neither `stampPath` nor `stampCmd`, independent of whether the id is a leg. Confirms the spec's claim that widening the set is the entire off-route mechanism.
-- `tests/legs.test.js` — deliberately count-free. Structural assertions only, each with a comment stating *why* the shape holds. New assertions should match that voice.
-- `tests/fixtures/*.js` — each fixture builds on the previous leg's (`contract.js:4` ← `refine.js`, `specs.js:4` ← `contract.js`, `execute.js:4` / `review.js:4` ← `specs.js`). Every file's `@returns` is `import('./ideate.js').LegFixture`.
+### Phase 2
+
+- `src/cli.js:399-446` — `firstLeg`'s current shape. Builds a synthetic `Inference` rather than inferring one; the doc comment (`:401-421`) is the thing the spec asks to rewrite. **Line numbers shifted by +6 from the spec's citations after phase 1**: the function opens at `:425` (spec says `:419`), `LEGS[0].id` is `:430` (spec says `:424`), `bookings.get(LEGS[0].id)` is `:434` (spec says `:428`), the warning is `:439-443` (spec says `:435`), the `begin` doc comment is `:448` (spec says `:409`), the `firstLeg` doc comment starts `:401` (spec says `:67`, which is now `repoRoot`'s comment at `:29-38`; the `ideate`-naming prose the spec means is at `:33`).
+- `src/cli.js:464-479` — `begin`. `args.length > 0` → exit 2, which is what makes `new --markdown` impossible (see risk 2). `io.out(renderWaybill(state, checkIgnored(root, paperPaths(bookings))))` is the single line the handoff appends to.
+- `src/waybill.js:186-215` (`nextBlock`) + `:136-182` (`handoverCommands`) — where the `NEXT:` block comes from. A `handover: transfer` booking (which the brainstorm is) emits `/clear`, `/model`, `/effort`, then the raw command, because `bay` is `null` on this path. `src/waybill.js:324-345` is the markdown twin (`**NEXT** — paste each block on its own, in order:`).
+- `src/waybill.js:296-310` (`renderWaybill`) — returns a string ending in **exactly one** newline, sections joined by `\n\n` (`withFindings`, `:243-249`). `IGNORED BY GIT:` and `WARNINGS:` are appended *after* `NEXT:`, so a handoff concatenated onto the return value lands after the warnings.
+- `src/waybill.js:65-69` (`position`) — confirmed as the spec claims: `if (!state.docketOpen) return 'no docket open'` short-circuits before reading `index`. Dropping `index: 1` is safe. `renderWaybill:306` likewise skips `strip(state)` when `!docketOpen`, so a `leg: 'brainstorm'` id that is absent from `LEGS` never reaches the positional walk at `:104-123`.
+- `bookings/ideation-brainstorm.md` — the booking `new` must resolve: `leg: brainstorm`, `command: /ideation:brainstorm`, `model: opus`, `effort: high`, `handover: transfer`, `stampCmd: false`. Its body already says "`/waybill:new` resolves it by name rather than by position", written in phase 1.
+- `commands/bay.md:91` — the literal rule phase 2 inverts: "Do not invent a branch, and do not pick one for me from whatever we were last working on."
+- `tests/helpers/repo-fixture.js:274-281` (`assertGolden`) — `assertGolden(dir, name, actual, ext = 'txt')`, byte-exact, rewrites when `UPDATE_GOLDEN=1`. This is how `new.txt`/`new.md` get captured; do not hand-write them.
+- `tests/waybill.test.js:148-149` — `assertGolden(GOLDEN, 'no-docket', renderWaybillMarkdown(resolve(noDocketFixture().dir), CLEAN), 'md')`. The only existing producer of a no-docket **markdown** golden, and the template for `new.md` (see risk 2).
+- `tests/cli.test.js:477-565` (`describe('waybill new')`) — seven cases. `:478-487` is the byte-exact comparison to re-point; `:489-497` already asserts `/^\/waybill:bay$/m` with a comment that names phase 2 as its owner; `:513-529` is the docket-open warning path; `:549-555` the outside-a-repo path.
+
+### Phase 1 (retained)
+
+- `src/legs.js:32-41` — the `LEGS` array; per-entry shape `{ id, owner }`, `progress: true` only on `execute`.
+- `src/legs.js:43-56` — `OFF_ROUTE_BOOKINGS = ['brainstorm']` and `BOOKABLE_IDS`, both now shipped. `OFF_ROUTE_BOOKINGS[0]` is the constant phase 2's snippet imports.
+- `src/legs.js:99-120` — `WRAPPER_STAMPS`, declared below both stamp functions because `const` is not hoisted.
+- `src/inference.js:120-186` — `resolveLeg`'s walk, now with no special-cased index.
+- `src/bookings.js:71-121` — `loadBookings`; `:97-98` is the only gate on leg ids, `:91-96` throws on a booking with neither `stampPath` nor `stampCmd`.
+- `tests/legs.test.js` — deliberately count-free, structural assertions with a comment per invariant.
+- `tests/fixtures/*.js` — each fixture builds on the previous leg's; every `@returns` is `import('./ideate.js').LegFixture`.
 
 ## Dependencies
 
-`LEGS` / `knownLegs` blast radius — **ten** sites, not the four the spec's Technical Approach claims:
+### Phase 2
 
-- `src/legs.js:32` (`LEGS`) — consumed by → `src/inference.js:1`, `src/cli.js:4`, `src/doctor.js:6`, `src/help.js:3`, and six test suites.
-- `src/legs.js:131-133` (`ideateIsDone`) — consumed by → `src/inference.js:1,146` only. No other consumer; deleting it is safe.
+- `src/cli.js:425` (`firstLeg`) — consumed by → **`src/cli.js:475` only** (`begin`). Not exported, no test imports it. Changing its return shape is self-contained.
+- `src/cli.js:475-477` (`begin`'s output) — consumed by → `tests/cli.test.js:482,490,502,513,533,540,549` and, at runtime, `commands/new.md`'s `` ! `` line. No JSON surface (`new --json` is rejected at `:466`).
+- `tests/golden/no-docket.txt` — consumed by → `tests/cli.test.js:486` (to be re-pointed at `new.txt`) **and** `tests/waybill.test.js:178`. `tests/golden/no-docket.md` — consumed by → `tests/waybill.test.js:149` only. Both goldens survive phase 2 as the renderer's own; only cli.test.js's claim on them is dropped.
+- `commands/new.md` — consumed by → `tests/commands.test.js:37` (the `DECLARED` list), `:204-223` (the model/effort pin, already re-pointed at `ideation-brainstorm.md` in phase 1 and green), `:294` (`assert.equal(source('new.md').includes('--markdown'), false)`), `:297-306` ("only the last", `/clear`, `/model`, `/effort` named in backticks), `:308-312` (no "then run:"). Any rewrite of the Task text must keep all four literals.
+- Prose describing `new` as "leg 1's waybill" that phase 2 does **not** own: `src/cli.js:38` (USAGE), `src/help.js:30,52` → `tests/golden/help.txt:4,31`, `docs/guide/03-reference.md:11,37`, `docs/guide/01-ride-along.md:16`, `README.md:122,138`. Phases 4/5 per contract-data; leaving them is correct for this phase, but see risk 5.
 
-Sites that build `knownLegs` from `LEGS.map((leg) => leg.id)` and **load the shipped `bookings/` directory** — every one throws `unknown leg \`brainstorm\`` the moment `bookings/ideation-brainstorm.md` exists, so every one must move to `BOOKABLE_IDS`:
+### Phase 1 (retained)
 
-- `src/inference.js:75` — named by the spec.
-- `src/cli.js:87` (`KNOWN_LEGS`) — named by the spec.
-- `src/doctor.js:29` (`KNOWN_LEGS`) — named by the spec.
-- `src/help.js:122` — named by the spec.
-- `tests/inference.test.js:37` (`KNOWN_LEGS`, used at `:105`) — spec names `:100` and `:114` but not the constant at `:37` or the eight-id `deepEqual` at `:85-94`.
-- `tests/bookings.test.js:344` — **not named by the spec**.
-- `tests/bookings-overlay.test.js:24,44` — `resolve()` calls `resolveBookings`, which loads the built-ins. **Not named** (the spec lists this file only for fixture imports and literals).
-- `tests/booking-swap.test.js:17,53` — same shape. **Not named** beyond fixture imports.
-- `tests/inspection-gitignore.test.js:127` — `loadBookings(BOOKINGS, { knownLegs: LEGS.map(...) })` against the shipped dir. **Not named by the spec at all.**
-- `tests/review.test.js:89` — same. **Not named by the spec at all.**
-
-Other `LEGS`-coupled consumers that phase 1 perturbs but does not own:
-
-- `src/cli.js:419-437` (`firstLeg`) — resolves `LEGS[0].id` / `bookings.get(LEGS[0].id)`. After this phase `LEGS[0]` is `bay`, so `firstLeg` starts handing out the bay booking and its warning text at `:435` still says "the ideate leg writes nothing to disk". Owned by phase 2 (contract line 52); expected wrong at the end of phase 1.
-- `src/inference.js:90,94` — the not-a-git-repository return also uses `LEGS[0].id`; it becomes `bay`, which is correct under the new route.
-- `tests/guide.test.js:138,147,155,158`, `tests/help.test.js:90,141,195`, `tests/waybill.test.js`, `tests/cli.test.js`, all 33 goldens — expected red at the end of this phase, settled in phase 4.
-
-Retired-id literals in `src/` (criterion 3 greps `! grep -rqE "'(refine|contract|specs)'" src/`): today only `src/legs.js:35,36,37` match. Rewriting `LEGS` clears that criterion outright. Unquoted prose mentions in `src/cli.js:93,409,435`, `src/waybill.js:58,159,298`, `src/fleet.js:19`, `src/progress.js:139` are **not** matched by that pattern and belong to phases 4/5.
+`LEGS` / `knownLegs` blast radius — ten sites: `src/inference.js:75`, `src/cli.js:87`, `src/doctor.js:29`, `src/help.js:122`, `tests/inference.test.js:37`, `tests/bookings.test.js:344`, `tests/bookings-overlay.test.js:24,44`, `tests/booking-swap.test.js:17,53`, `tests/inspection-gitignore.test.js:127`, `tests/review.test.js:89`. All now routed through `BOOKABLE_IDS`. `src/inference.js:90,94` (the not-a-git-repository return) still uses `LEGS[0].id`, which is `bay` and correct under the new route.
 
 ## Conventions
 
-- **Naming**: lower-case hyphen-free leg ids. Bookings are `<namespace>-<leg>.md` (`ideation-`, `openspec-`, `waybill-`) — note the namespace does not have to match the leg id, which is exactly the trade the contract accepted for `specify`. Fixtures are `<leg>.js` exporting `<leg>Fixture`.
-- **Imports**: relative, explicit `.js` extensions, ESM (`"type": "module"`). Node builtins first with the `node:` prefix, then local modules, then test helpers. No barrels, no default exports.
-- **Error handling**: the loader tier throws with the offending file and key (`src/bookings.js:89,93,98,109`); the inference tier never throws and reports through `warnings` (`src/inference.js:55-67`). Keep that split — a booking problem throws, a repository problem warns.
-- **Types**: JSDoc typedefs only, no TypeScript, no typecheck step. `@typedef` blocks live at the top of the module that owns the concept (`Leg` in `src/legs.js:6`, `Booking` in `src/bookings.js:9-13`, `LegFixture` in `tests/fixtures/ideate.js:3-6`).
-- **Testing**: `node:test` + `node:assert/strict`, `describe`/`it`, test names written as full sentences that state the invariant ("anchors on bay, the first leg that leaves papers behind"). Comments above assertions explain *why* the invariant holds, not what the line does. Tests live in `tests/*.test.js` beside `tests/fixtures/` and `tests/helpers/`.
-- **Commands**: `node --test tests/` is the entire gate. No justfile, no ESLint/Prettier, no tsconfig (verified). The unrelated global rule preferring `bun` does not apply here — this repo pins `node >= 22` in `package.json:11` and ships `node --test` as its only script.
+Unchanged from phase 1, and re-confirmed against the phase-2 files:
+
+- **Naming**: lower-case hyphen-free leg ids. Bookings `<namespace>-<leg>.md`. Goldens `<name>.txt` / `<name>.md` in `tests/golden/`.
+- **Imports**: relative, explicit `.js`, ESM. Node builtins first with `node:`, then local modules. No barrels, no default exports. `src/cli.js:4` already imports from `./legs.js` — add `OFF_ROUTE_BOOKINGS` to that existing named import rather than a second statement.
+- **Error handling**: loader tier throws with the offending file and key; inference/CLI tier never throws and reports through `warnings` or a one-line stderr message plus exit 2.
+- **Types**: JSDoc typedefs only, no TypeScript, no typecheck step. Every exported and most internal functions carry a `@param`/`@returns` block; `firstLeg`'s is long-form prose explaining *why*, and the rewrite should match that voice rather than shrink it.
+- **Testing**: `node:test` + `node:assert/strict`, `describe`/`it`, test names as full sentences stating the invariant. Comments above assertions explain why the invariant holds. Byte-exact goldens via `assertGolden`.
+- **Commands**: `node --test tests/` is the entire gate. No justfile, no ESLint/Prettier, no tsconfig. `package.json:15` is the only script.
+- **Markdown/prose**: source lines wrap at ~100 columns in both `commands/*.md` and JSDoc; HTML comments in command files carry the rationale and are deliberately skipped by `tests/commands.test.js`'s literal sweeps.
 
 ## Risks
 
-1. **The spec's "four call sites" is wrong — there are ten.** `tests/inspection-gitignore.test.js:127`, `tests/review.test.js:89`, `tests/bookings.test.js:344`, `tests/bookings-overlay.test.js:24` and `tests/booking-swap.test.js:17` all build `knownLegs` from `LEGS` and load the shipped bookings dir. Once `bookings/ideation-brainstorm.md` lands, each throws `unknown leg \`brainstorm\`` at module/suite level — a hard failure, not a golden mismatch. All five must import `BOOKABLE_IDS`. Two of them (`inspection-gitignore`, `review`) appear in **no** phase's Modified Files list, so nothing downstream will catch them either.
+Phase-2 risks first; the phase-1 list is retained below for reference.
 
-2. **The fixture count is arithmetically impossible as written.** The spec's New Files table creates `tests/fixtures/brainstorm.js`, and the shuffle deletes only `refine.js` — 9 files minus 1 is 8. But the spec's Testing Requirements say "the fixture directory holds exactly seven files" and keep `tests/inference.test.js:100` at `LEGS.length + 1` (6+1=7). The contract repeats the error at line 50 ("down from 9 files to 7"). **Resolution supported by the codebase**: keep `brainstorm.js` and relax the assertion to `LEGS.length + 2`, updating the comment at `tests/inference.test.js:97-99`. That comment already carves out `no-docket.js` as "the one deliberate exception, since the state it covers is not one of the legs" — `brainstorm` is now a second such exception, by exactly the same reasoning. Deleting the fixture instead would break the byte-identical-render twin assertion in `tests/waybill.test.js` that `tests/fixtures/no-docket.js:13-18` documents.
+1. **The spec's `firstLeg` snippet does not fix the path that is actually broken.** It keeps `if (!state.docketOpen) return state;` and rewrites only the docket-open branch. But `!docketOpen` is the *primary* path — `waybill new` on a clean trunk. Verified by running the suite: `new` today prints
 
-3. **The `LegFixture` typedef is stranded by the rename.** `tests/fixtures/ideate.js:3-6` owns the `@typedef LegFixture`, and every other fixture references it as `import('./ideate.js').LegFixture` (`no-docket.js:20`, `bay.js:14`, `refine.js:7`, `contract.js:11`, `specs.js:11`, and more). After `ideate.js` → `brainstorm.js` and `contract.js` → `ideate.js`, those references resolve to a file that no longer declares the type. There is no typecheck step so nothing fails — it rots silently. Carry the typedef into the new `ideate.js` (or into `tests/helpers/repo-fixture.js`) and re-point the references. The spec does not mention this.
+   ```
+   main · no docket open
 
-4. **Criterion 2 is a byte-exact grep on test source.** `contract-data.json:63` runs `grep -qF "'bay', 'ideate', 'specify', 'execute', 'review', 'cleanup'" tests/legs.test.js`. The new `deepEqual` must render that array literal on one line with exactly `', '` separators — a prettier-style multiline array, different quoting, or extra spacing fails a criterion the code itself satisfies.
+   NEXT:
+   /model haiku
+   /effort low
+   /waybill:bay
+   ```
 
-5. **Silent pin drift at `tests/commands.test.js:213`.** Verified: the line reads `meta(BOOKINGS, 'ideation-ideate.md')` and reaches the file by literal filename through `parseFrontmatter`, never through `loadBookings`. All three ideation bookings are `opus`/`high`, so left alone it keeps passing while asserting against the wrong booking. Re-point it in this phase, as the spec says.
+   because `resolveLeg` does `done.fill(false)` when no docket is open (`src/inference.js:150`), so `done.indexOf(false)` is `0` → `leg: 'bay'` → the `waybill-bay.md` booking (haiku/low). Implemented as written, `new` would still hand off the bay booking and the spec's own key test case — "the brainstorm booking's `command`, `model` and `effort` appear in the rendered block" — would fail. **Resolution**: build the brainstorm state unconditionally and make only the *warning* conditional:
 
-6. **`git mv` ordering is load-bearing.** `bookings/ideation-ideate.md` must be vacated to `ideation-brainstorm.md` *before* `ideation-contract.md` moves onto that name, or the brainstorm booking is overwritten and its history lost. Same ordering in `tests/fixtures/`. Verify afterwards with `git log --follow bookings/ideation-ideate.md`.
+   ```js
+   function firstLeg(cwd, root, bookings) {
+     const state = resolveLeg(cwd, bookings);
+     return {
+       leg: BRAINSTORM,
+       completed: [], skipped: [],
+       booking: bookings.get(BRAINSTORM),
+       branch: defaultBranch(root),
+       docketOpen: false,
+       changeId: null,
+       warnings: state.docketOpen ? [...state.warnings, /* reworded */] : state.warnings,
+     };
+   }
+   ```
 
-7. **Source frontmatter to carry across, verified on disk**: `bookings/ideation-contract.md` has `handover: through` (must become `transfer`) and `stampPath: docs/ideation/*/contract.md`; `bookings/ideation-ideate.md` has `stampCmd: false` and `command: /ideation:brainstorm` (both must survive the rename to `ideation-brainstorm.md`, or `src/bookings.js:91-96` throws and every `/waybill:*` command fails); `bookings/ideation-refine.md` carries `stampPath: docs/ideation/*/contract-data.json`, which is dropped, not merged.
+   This also drops the "byte-for-byte what the trunk used to print in reply to `next`" invariant that `src/cli.js:403-406` and `tests/cli.test.js:478-481` both assert in prose — deliberately, and both comments must be rewritten to say so.
 
-8. **Assertions the spec does not name that will break in the suites it *does* name**: `tests/inference.test.js:85-94` deep-equals the full eight-id list, and `tests/inference.test.js` (~:124) asserts "keeps refine and contract on one command, separated only by stamp" via `bookings.get('refine').command` — that test's premise is deleted by this change and the test must go, not be repaired.
+2. **`tests/golden/new.md` has no producer, and the spec's playground command does not exist.** `begin` rejects every argument (`src/cli.js:465-468`), `tests/cli.test.js:865-870` pins that `new --markdown` exits 2, and `tests/commands.test.js:294` pins that `commands/new.md` never mentions `--markdown`. So the Feedback Strategy's `node src/cli.js new --markdown` cannot be run, and no product code path renders `new` in markdown. `renderWaybillMarkdown` lives in `src/waybill.js`, which the contract forbids touching. **Resolution**: render `new.md` in `tests/waybill.test.js` — a file phase 2's Modified Files table omits and must gain — as `renderWaybillMarkdown(<the same synthetic state>, CLEAN)` plus the markdown form of the handoff, following `tests/waybill.test.js:148-149`. That requires the handoff text to live in one exported helper pair in `src/cli.js` (e.g. `bayHandoff()` / `bayHandoffMarkdown()`) rather than as an inline template literal, or the two goldens will drift. The alternative — dropping `new.md` entirely — satisfies the contract's criterion (which greps only `new.txt`) but contradicts the spec's New Files table; if the builder takes it, say so in the commit message.
 
-9. **Decision-log check against reality**: no contradiction found. The rejected alternatives were spot-checked against the codebase — `commands/bay.md:91` exists as cited, `tests/commands.test.js:204-216` does read by filename rather than through `loadBookings` as the withdrawn justification concedes, `src/doctor.js:405-429` does catch the `resolveBookings` throw and degrade it to `warn`, and `src/bookings.js:97-98` does gate on the caller-supplied set alone. The only premise that fails is the Technical Approach's "constructed identically at four call sites" — see risk 1.
+3. **The criterion greps `/waybill:bay ` with a trailing space.** `contract-data.json:99`: `grep -q '/waybill:bay ' tests/golden/new.txt`. The bare `/waybill:bay` line `new` renders today (the bay booking's command) does **not** match — the handoff must render an argument after the command, i.e. `/waybill:bay <branch>`. The same check's second half, `! grep -qE 'leg [0-9]+ of' tests/golden/new.txt`, holds automatically because `position()` returns `no docket open`.
+
+4. **The handoff must not become the last line of the `NEXT:` block.** `commands/new.md`'s Task says "Run **only the last** of them", and `tests/commands.test.js:297-306` pins the phrase `only the last`. If `/waybill:bay <branch>` is appended inside `NEXT:`, the session runs `bay` instead of the brainstorm — the exact inversion of this command's purpose. Append it to `renderWaybill`'s returned string as its own section (it will therefore land after `IGNORED BY GIT:` / `WARNINGS:`, since `withFindings` appends those last — `src/waybill.js:224-251`), preserve the "ends with exactly one newline" contract, and update the Task text to say the handoff is for *after* the brainstorm, not now. `tests/cli.test.js:536` asserts `indexOf('NEXT:') < indexOf('WARNINGS:')`, which stays true.
+
+5. **`new`'s own one-line descriptions are now false and no phase owns them.** `src/cli.js:38`, `src/help.js:30,52`, `commands/new.md:2` (`description: "Waybill — begin an effort: the first leg's waybill, then run it"`) all still call `new` "leg 1's waybill". `contract-data.json`'s phase 5 lists README and the guide but names neither `src/help.js` nor `src/cli.js:38`. Phase 2 should not change `src/help.js` — `tests/golden/help.txt` is phase 4's and would go red early — but the `commands/new.md` `description:` field is unpinned by any test and is squarely in this phase's file set, so fix that one and leave a note for phase 5 about `src/help.js:30,52` and `src/cli.js:38`.
+
+6. **Inner-loop baseline is red for reasons outside this phase.** `node --test tests/cli.test.js tests/commands.test.js` → 121 pass / 5 fail today. `tests/commands.test.js` is fully green; the five failures are all byte-exact golden comparisons in `tests/cli.test.js`, in the suites `waybill next`, `waybill new`, `waybill status`, `waybill next --markdown`, `waybill bay --markdown`. Within `waybill new` exactly one case fails — `:478` "prints leg 1's waybill — byte-for-byte…", the `no-docket.txt` comparison, which this phase re-points. Do not treat the other four as regressions; they settle in phase 4. The phase-2 target is: `waybill new`'s suite fully green, the other four unchanged.
+
+7. **The `/clear` in the brainstorm's handover is intentional and must survive.** `handover: transfer` makes `handoverCommands` emit `/clear` first (`src/waybill.js:172`). `commands/new.md`'s Task explains at length why the session must *not* run it. Both the golden and that explanation have to stay consistent — if the handoff rewrite tempts a switch to `handover: through` to suppress `/clear`, that changes `bookings/ideation-brainstorm.md`, which is phase 1's file and out of scope.
+
+8. **The outside-a-repository path never reaches `firstLeg`.** `begin` returns 2 at `src/cli.js:473` before calling it, so `defaultBranch(root)` is never handed a null root. The spec's "outside a repository (the exit-2 path)" experiment exercises `repoRoot`, not the new code — `tests/cli.test.js:549-555` already covers it and passes; keep it, do not re-derive it.
+
+9. **Decision-log check against reality (phase 2)**: one contradiction found. The logged decision "`/waybill:new` proposes a concrete branch name (Full tier)" and the spec's step "Derive the branch name from the brainstorm conclusion" cannot both be satisfied in `src/cli.js`: the CLI is a pure, stateless process with no access to the session's conversation, and `renderWaybill` is documented as "Pure by design — no filesystem, no subprocess, no clock" (`src/waybill.js:290-292`). The only coherent reading is that the **CLI always renders the `<branch>` placeholder** (which is also what the criterion's trailing-space grep wants) and the Full-tier proposal is an instruction in `commands/new.md` telling the session to substitute a name derived from the brainstorm it just ran, falling back to pasting `<branch>` verbatim when there is nothing to derive from. Implement it that way; the spec's Failure Modes row "Invented name presented as certain" then resolves to wording in `commands/new.md`, not to a code branch. The rest of the log was spot-checked and holds: `commands/bay.md:91` reads exactly as quoted, `position()` does short-circuit at `src/waybill.js:66`, and `tests/golden/ideate.md:2` is `main · no docket open`.
+
+### Phase 1 risks (retained)
+
+1. The spec's "four call sites" was wrong — there were ten, including `tests/inspection-gitignore.test.js:127` and `tests/review.test.js:89`, which appear in no phase's Modified Files list.
+2. The fixture count was arithmetically impossible as written; resolved by keeping `brainstorm.js` as a second deliberate exception alongside `no-docket.js`.
+3. The `LegFixture` typedef was stranded by the `ideate.js` → `brainstorm.js` rename; every fixture references `import('./ideate.js').LegFixture` and nothing typechecks, so it rots silently.
+4. Criterion 2 is a byte-exact grep on test source (`grep -qF "'bay', 'ideate', 'specify', 'execute', 'review', 'cleanup'" tests/legs.test.js`) — the array literal must stay on one line with `', '` separators.
+5. Silent pin drift at `tests/commands.test.js:213` — now re-pointed at `ideation-brainstorm.md` and green.
+6. `git mv` ordering was load-bearing for the three-way booking and fixture collisions.
+7. Source frontmatter carried across the renames: `handover: through` → `transfer` on the merged `ideate` booking; `stampCmd: false` and `command: /ideation:brainstorm` preserved on `ideation-brainstorm.md`.
+8. `tests/inference.test.js:85-94`'s eight-id `deepEqual` and the "keeps refine and contract on one command" test had premises deleted by the change.
+9. No decision-log contradiction found in phase 1 beyond the "four call sites" premise.

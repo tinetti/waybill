@@ -475,25 +475,55 @@ describe('waybill next <branch>/<leg>', () => {
 });
 
 describe('waybill new', () => {
-  it("prints leg 1's waybill — byte-for-byte the block the trunk used to answer `next` with", () => {
-    // The golden's third consumer, and the first outside the renderer suite. That is the point:
-    // `tests/waybill.test.js` proves the renderer still produces this block, and this proves the
-    // verb still routes to it. The spec's claim is byte-for-byte, so nothing weaker will do.
+  it('prints the on-ramp block — the brainstorm handover, then the handoff that opens a docket', () => {
+    // A golden of its own, and deliberately no longer `no-docket.txt`. That one is what the
+    // *renderer* answers a trunk with, and `new` is no longer the same block moved to a different
+    // verb: it hands off an off-route booking the trunk's own resolution never names, and it ends
+    // with a section the renderer knows nothing about. Byte-exact, because the whole deliverable
+    // is a block of text a session pastes from.
     const result = cli(['new'], noDocketFixture().dir);
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
-    assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'no-docket.txt'), 'utf8'));
+    assertGolden(GOLDEN, 'new', result.out);
   });
 
-  it('hands the first leg off and invokes nothing — a terminal has no session to invoke in', () => {
+  it('hands off the off-route brainstorm by name, not whatever booking sits at leg 1', () => {
     const result = cli(['new'], trunkWith().repo);
 
     assert.equal(result.code, 0);
     assert.match(result.out, /^NEXT:$/m);
-    // Leg 1's carrier, which this phase made `bay`. Phase 2 reworks `new` to resolve the
-    // off-route brainstorm booking by name instead of taking whatever sits at `LEGS[0]`.
-    assert.match(result.out, /^\/waybill:bay$/m);
+    // The booking's own command, model and effort, sourced from `bookings/ideation-brainstorm.md`.
+    // `LEGS[0]` is `bay` now, so a positional lookup would hand off the wrong leg entirely — and
+    // it would do it silently, since `bay` has a perfectly valid booking of its own.
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
+    assert.match(result.out, /^\/model opus$/m);
+    assert.match(result.out, /^\/effort high$/m);
+  });
+
+  it('ends with a pasteable /waybill:bay handoff, after the brainstorm rather than instead of it', () => {
+    const result = cli(['new'], trunkWith().repo);
+
+    // The placeholder, never a name the CLI made up: this process has no conversation to derive
+    // one from, so proposing a name is `commands/new.md`'s job and `<branch>` is what it falls
+    // back to. The trailing argument is load-bearing — a bare `/waybill:bay` is not pasteable.
+    assert.match(result.out, /^\/waybill:bay <branch>$/m);
+    // Outside the `NEXT:` block, and after it. `commands/new.md` tells the session to run only the
+    // last line of that block; a handoff folded into it would cut the branch straight away and
+    // skip the very brainstorm the branch is supposed to be named after.
+    assert.ok(
+      result.out.indexOf('/ideation:brainstorm') < result.out.indexOf('/waybill:bay <branch>'),
+      'the handoff landed inside the NEXT: block',
+    );
+  });
+
+  it('claims no leg position anywhere — the brainstorm is off the route, not first on it', () => {
+    const result = cli(['new'], trunkWith().repo);
+
+    assert.match(result.out, /^main · no docket open$/m);
+    // Absent, not merely different: `position()` short-circuits on `docketOpen`, and this is what
+    // says so from the outside rather than trusting the short-circuit to stay.
+    assert.equal(/leg \d+ of \d+/.test(result.out), false, `a position was claimed:\n${result.out}`);
   });
 
   it('answers identically with dockets in flight — `new` has no exit contract of its own', () => {
@@ -516,6 +546,10 @@ describe('waybill new', () => {
     assert.equal(result.err, '', 'the `!` invocation captures stdout only, so stderr would vanish');
     assert.match(result.out, /^WARNINGS:$/m);
     assert.match(result.out, /new efforts begin on the trunk/);
+    // The warning names the brainstorm, not a leg number. It used to say "still leg 1's waybill",
+    // which now points at `bay` — the one leg this command must never be read as handing off.
+    assert.match(result.out, /brainstorm writes nothing to disk/);
+    assert.equal(/leg \d+/.test(result.out), false, `the warning claimed a leg:\n${result.out}`);
     // The header names the trunk this waybill is for. `feat/one · no docket open` would be a false
     // claim about a branch that does carry one, and `feat/one · leg 1 (bay)` a false claim
     // about where that docket stands.
@@ -527,12 +561,12 @@ describe('waybill new', () => {
     );
   });
 
-  it('still hands off the first leg from inside a bay rather than blocking on the warning', () => {
+  it('still hands off the brainstorm from inside a bay rather than blocking on the warning', () => {
     const { bays } = trunkWith('feat/one');
 
     const result = cli(['new'], bays[0]);
 
-    assert.match(result.out, /^\/waybill:bay$/m);
+    assert.match(result.out, /^\/ideation:brainstorm$/m);
     assert.ok(result.out.indexOf('NEXT:') < result.out.indexOf('WARNINGS:'), 'the warning buried it');
   });
 

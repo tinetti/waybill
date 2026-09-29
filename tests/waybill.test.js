@@ -171,10 +171,12 @@ describe('renderWaybill golden output', () => {
     assertGolden(GOLDEN, 'complete', renderWaybill(result, CLEAN));
   });
 
-  it('renders no docket open on the base branch, which is the block `waybill new` prints', () => {
-    // Since the exit contract landed this is `new`'s answer, not the trunk's answer to `next` —
-    // `next` there reports the fleet and issues nothing. The block did not change, it moved to the
-    // verb that means it, and `tests/cli.test.js` asserts the verb still routes to this golden.
+  it('renders no docket open on the base branch — the renderer\'s own answer, claimed by no verb', () => {
+    // No CLI verb prints this block any more. `next` on the trunk reports the fleet and issues
+    // nothing, and `new` stopped sharing it when the brainstorm left the route: it hands off an
+    // off-route booking the trunk's own resolution never names, and has `tests/golden/new.txt`
+    // of its own. Kept because it is the renderer's no-docket contract — the branch line with no
+    // leg strip under it — which every surface that reaches this state still depends on.
     assertGolden(GOLDEN, 'no-docket', renderWaybill(resolve(noDocketFixture().dir), CLEAN));
   });
 

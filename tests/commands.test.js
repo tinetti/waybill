@@ -304,6 +304,27 @@ describe('the shipped command set', () => {
     }
   });
 
+  it('tells `new` the /waybill:bay handoff is for after the brainstorm, not to be run now', () => {
+    // The handoff renders outside the `NEXT:` block precisely so "run only the last of them"
+    // cannot reach it, but the Task text is the other half of that guard: a session that reads
+    // the block bottom-up and cuts the branch first skips the conversation the branch is named
+    // after, and no assertion on the CLI's output can catch that.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    assert.match(source, /AFTER THE BRAINSTORM/);
+    assert.ok(source.includes('`/waybill:bay`'), 'new.md never names the handoff command');
+  });
+
+  it('records in `new.md` that proposing a branch name inverts the rule `bay.md` states', () => {
+    // The Full tier has `new` propose a concrete name; `commands/bay.md` tells the model never to
+    // invent one. Both are deliberate, and the only thing stopping a later reader from "fixing"
+    // the inversion as a bug is this note — so the note is pinned, not merely written.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    const rule = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.match(rule, /Do not invent a branch/, 'the rule `new.md` claims to invert moved');
+    assert.match(source, /commands\/bay\.md/, 'new.md does not point at the rule it inverts');
+    assert.match(source, /<branch>/, 'new.md does not name the placeholder it falls back to');
+  });
+
   it('points no command file at the removed "then run:" handover line', () => {
     for (const rel of ['new.md', 'next.md', 'bay.md']) {
       const source = fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
