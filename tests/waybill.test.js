@@ -20,12 +20,11 @@ import {
 } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { assertGolden, cleanupAll, createRepo, forgePath, git, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { brainstormFixture } from './fixtures/brainstorm.js';
 import { ideateFixture } from './fixtures/ideate.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 import { bayFixture } from './fixtures/bay.js';
-import { refineFixture } from './fixtures/refine.js';
-import { contractFixture } from './fixtures/contract.js';
-import { specsFixture } from './fixtures/specs.js';
+import { specifyFixture } from './fixtures/specify.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
 import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
@@ -58,18 +57,18 @@ const CLEAN = { ignored: [], warnings: [] };
  */
 function state(overrides = {}) {
   return {
-    leg: 'specs',
-    index: 5,
-    completed: ['ideate', 'bay', 'refine', 'contract'],
+    leg: 'specify',
+    index: 3,
+    completed: ['bay', 'ideate'],
     skipped: [],
     booking: {
-      leg: 'specs',
+      leg: 'specify',
       command: '/spec:propose',
       model: 'placeholder-model',
       effort: 'high',
       handover: 'transfer',
       body: '',
-      path: '/bookings/openspec-specs.md',
+      path: '/bookings/openspec-specify.md',
     },
     branch: 'feat/thing',
     docketOpen: true,
@@ -104,32 +103,30 @@ function dockets() {
       state: state({
         branch: 'fix/stamp-scoping',
         leg: 'execute',
-        index: 6,
-        completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+        index: 4,
+        completed: ['bay', 'ideate', 'specify'],
         progress: { done: 4, total: 9, source: 'tasks-md', changeId: 'fix-stamp-scoping' },
       }),
     },
     {
       branch: 'feat/fleet-view',
       path: '/repo/.claude/worktrees/waybill-feat-fleet-view',
-      state: state({ branch: 'feat/fleet-view', leg: 'refine', index: 3, completed: ['ideate', 'bay'] }),
+      state: state({ branch: 'feat/fleet-view', leg: 'ideate', index: 2, completed: ['bay'] }),
     },
   ];
 }
 
 /** The legs whose fixture is a linked worktree: everything after the bay is cut. */
-const HAS_BAY = new Set(['refine', 'contract', 'specs', 'execute', 'review', 'cleanup']);
+const HAS_BAY = new Set(['ideate', 'specify', 'execute', 'review', 'cleanup']);
 
 describe('renderWaybill golden output', () => {
   // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
   // fixture — identical on disk — so only an open request separates them.
-  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
+  /** @type {[string, (branch?: string) => import('./helpers/repo-fixture.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
-    ['ideate', ideateFixture],
     ['bay', bayFixture],
-    ['refine', refineFixture],
-    ['contract', contractFixture],
-    ['specs', specsFixture],
+    ['ideate', ideateFixture],
+    ['specify', specifyFixture],
     ['execute', executeFixture],
     ['review', reviewFixture],
     ['cleanup', cleanupFixture, 'open'],
@@ -153,7 +150,7 @@ describe('renderWaybill golden output', () => {
   });
 
   it('renders the same leg as a position, which is what `waybill status` prints', () => {
-    assertGolden(GOLDEN, 'status', renderPosition(resolve(specsFixture().dir), CLEAN));
+    assertGolden(GOLDEN, 'status', renderPosition(resolve(specifyFixture().dir), CLEAN));
   });
 
   it('renders a repository whose legs are all complete', () => {
@@ -164,7 +161,6 @@ describe('renderWaybill golden output', () => {
 
     // Left uncommitted, deliberately: see the identical case in tests/inference.test.js — committing
     // these onto `feat/thing` would move its ref past `main` and `isMerged` would read false.
-    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
@@ -183,13 +179,13 @@ describe('renderWaybill golden output', () => {
   });
 
   it('renders the trunk identically whether or not papers shipped into its history', () => {
-    // `no-docket.txt` and `ideate.txt` are byte-identical on purpose: the two fixtures differ only
-    // in what they commit, and identical output *is* the assertion that history no longer moves the
-    // render. Neither golden file can catch a divergence on its own — each would simply be
-    // regenerated — so the identity is asserted here rather than left to a reader to notice.
+    // The two renders are byte-identical on purpose: the fixtures differ only in what they commit,
+    // and identical output *is* the assertion that history no longer moves the render. Neither
+    // golden file can catch a divergence on its own — each would simply be regenerated — so the
+    // identity is asserted here rather than left to a reader to notice.
     assert.equal(
       renderWaybill(resolve(noDocketFixture().dir), CLEAN),
-      renderWaybill(resolve(ideateFixture().dir), CLEAN),
+      renderWaybill(resolve(brainstormFixture().dir), CLEAN),
     );
   });
 });
@@ -227,8 +223,8 @@ describe('fleet golden output', () => {
 const executeState = () =>
   state({
     leg: 'execute',
-    index: 6,
-    completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+    index: 4,
+    completed: ['bay', 'ideate', 'specify'],
     booking: { ...state().booking, leg: 'execute', command: '/spec:apply' },
   });
 
@@ -269,8 +265,8 @@ describe('renderWaybillMarkdown keyed lines', () => {
   it('runs cleanup with the branch as its argument, the one leg that takes a branch', () => {
     const cleanup = state({
       leg: 'cleanup',
-      index: 7,
-      completed: ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute'],
+      index: 6,
+      completed: ['bay', 'ideate', 'specify', 'execute', 'review'],
       booking: { ...state().booking, leg: 'cleanup', command: '/waybill:cleanup', handover: 'through', argument: 'branch' },
     });
     const output = renderWaybillMarkdown(cleanup, CLEAN, { bay: THING_BAY, token: 'cleanup' });
@@ -285,7 +281,7 @@ describe('renderWaybillMarkdown keyed lines', () => {
   });
 
   it('prints no RUN for a named leg with no booking bound, since there is nothing to run', () => {
-    const output = renderWaybillMarkdown(state({ booking: undefined }), CLEAN, { bay: BAY, token: 'specs' });
+    const output = renderWaybillMarkdown(state({ booking: undefined }), CLEAN, { bay: BAY, token: 'specify' });
     assert.equal(/^RUN:/m.test(output), false);
   });
 });
@@ -311,7 +307,7 @@ describe('renderFleet', () => {
   it('carries execute progress inline, where the leg strip gives it a line of its own', () => {
     assert.match(
       renderFleet('main', dockets(), CLEAN),
-      new RegExp(`^ {2}fix\\/stamp-scoping {5}· leg 6 of ${LEGS.length} \\(execute, 4 of 9 tasks\\)$`, 'm'),
+      new RegExp(`^ {2}fix\\/stamp-scoping {5}· leg 4 of ${LEGS.length} \\(execute, 4 of 9 tasks\\)$`, 'm'),
     );
   });
 
@@ -337,7 +333,7 @@ describe('renderSelect', () => {
   });
 
   it('names the command to re-run, after a blank line inside the same block', () => {
-    assert.match(renderSelect('main', dockets(), CLEAN), /\(refine\)\n\n {2}waybill next <branch>\n/);
+    assert.match(renderSelect('main', dockets(), CLEAN), /\(ideate\)\n\n {2}waybill next <branch>\n/);
   });
 
   it('keeps the warnings below the instruction rather than sorting them in between', () => {
@@ -404,13 +400,13 @@ describe('renderWaybillMarkdown', () => {
       '/clear',
       '/model placeholder-model',
       '/effort high',
-      '/waybill:next feat/thing/specs',
+      '/waybill:next feat/thing/specify',
     ]);
   });
 
   it('keeps the position in a text fence in markdown, so the strip keeps its line breaks', () => {
     const output = markdown();
-    assert.ok(output.startsWith(`\`\`\`text\nfeat/thing · leg 5 of ${LEGS.length} (specs)\n  ✓ ideate`));
+    assert.ok(output.startsWith(`\`\`\`text\nfeat/thing · leg 3 of ${LEGS.length} (specify)\n  ✓ bay`));
   });
 
   it('has no /effort fence in markdown when the booking declares no effort', () => {
@@ -425,7 +421,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('hands a transfer leg with a bay over to /waybill:next, and prints no cd in markdown', () => {
     const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
-    assert.match(output, /```\n\/effort high\n```\n\n```\n\/waybill:next feat\/thing\/specs\n```/);
+    assert.match(output, /```\n\/effort high\n```\n\n```\n\/waybill:next feat\/thing\/specify\n```/);
     // The leg's own command is named, but never as a fence: a fence is a block to paste, and the
     // wrapper above is the one the operator pastes.
     assert.equal(fences(output).flat().includes('/spec:propose add-thing'), false);
@@ -435,7 +431,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('names the command the wrapper runs, as prose under the last fence', () => {
     const output = renderWaybillMarkdown(state(), CLEAN, { bay: '/repo/bays/x' });
-    assert.match(output, /```\n\/waybill:next feat\/thing\/specs\n```\n\n→ runs `\/spec:propose add-thing`\n/);
+    assert.match(output, /```\n\/waybill:next feat\/thing\/specify\n```\n\n→ runs `\/spec:propose add-thing`\n/);
   });
 
   it('puts the annotation between the last fence and the booking body', () => {
@@ -453,7 +449,7 @@ describe('renderWaybillMarkdown', () => {
 
   it('keeps the raw command on a through leg, whose session never leaves the bay', () => {
     const through = { ...state().booking, command: '/ideation:ideation', handover: 'through' };
-    const output = renderWaybillMarkdown(state({ leg: 'contract', booking: through }), CLEAN, { bay: BAY });
+    const output = renderWaybillMarkdown(state({ leg: 'ideate', booking: through }), CLEAN, { bay: BAY });
     assert.match(output, /```\n\/ideation:ideation add-thing\n```/);
     assert.equal(output.includes('/waybill:next'), false);
     assert.equal(output.includes('→ runs'), false);
@@ -474,7 +470,7 @@ describe('renderWaybillMarkdown', () => {
   });
 
   it('names the missing booking in markdown, with no fence', () => {
-    const output = renderWaybillMarkdown(state({ leg: 'bay', index: 2, booking: undefined }), CLEAN);
+    const output = renderWaybillMarkdown(state({ leg: 'bay', index: 1, booking: undefined }), CLEAN);
     assert.match(
       output,
       /^\*\*NEXT\*\* — no booking is bound to the bay leg — add one under bookings\/ to give this leg a waybill$/m,
@@ -587,28 +583,28 @@ describe('renderWaybill header and leg strip', () => {
   it('names the branch, the position, and the current leg', () => {
     assert.equal(
       renderWaybill(state(), CLEAN).split('\n')[0],
-      `feat/thing · leg 5 of ${LEGS.length} (specs)`,
+      `feat/thing · leg 3 of ${LEGS.length} (specify)`,
     );
   });
 
   it('drops the branch prefix entirely on a detached HEAD rather than printing null', () => {
     const first = renderWaybill(state({ branch: null }), CLEAN).split('\n')[0];
-    assert.equal(first, `leg 5 of ${LEGS.length} (specs)`);
+    assert.equal(first, `leg 3 of ${LEGS.length} (specify)`);
     assert.equal(first.includes('null'), false);
   });
 
   it('walks the leg list positionally, so completed legs after the current one keep their place', () => {
     const output = renderWaybill(
-      state({ leg: 'bay', index: 2, completed: ['ideate', 'refine', 'contract'], booking: undefined }),
+      state({ leg: 'bay', index: 1, completed: ['specify', 'ideate'], booking: undefined }),
       CLEAN,
     );
-    assert.equal(output.split('\n')[1], '  ✓ ideate  ✓ refine  ✓ contract');
+    assert.equal(output.split('\n')[1], '  ✓ ideate  ✓ specify');
     assert.equal(output.split('\n')[2], '  ▶ bay');
   });
 
   it('names a skipped leg rather than hiding it', () => {
-    const output = renderWaybill(state({ skipped: ['refine'] }), CLEAN);
-    assert.match(output, /^ {2}⚠ refine \(skipped\)$/m);
+    const output = renderWaybill(state({ skipped: ['ideate'] }), CLEAN);
+    assert.match(output, /^ {2}⚠ ideate \(skipped\)$/m);
   });
 
   it('says every leg is complete when the walk fell off the end', () => {
@@ -627,8 +623,8 @@ describe('renderWaybill progress', () => {
     renderWaybill(
       state({
         leg: 'execute',
-        index: 6,
-        completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+        index: 4,
+        completed: ['bay', 'ideate', 'specify'],
         progress: { done, total, source: 'tasks-md', changeId: CHANGE_ID },
       }),
       CLEAN,
@@ -648,8 +644,8 @@ describe('renderWaybill progress', () => {
     assert.match(withProgress(4, 4), /^ {2}▶ execute \(4 of 4 tasks\)$/m);
   });
 
-  it('omits the progress suffix on the six legs that carry none', () => {
-    assert.match(renderWaybill(state(), CLEAN), /^ {2}▶ specs$/m);
+  it('omits the progress suffix on the five legs that carry none', () => {
+    assert.match(renderWaybill(state(), CLEAN), /^ {2}▶ specify$/m);
   });
 });
 
@@ -753,7 +749,7 @@ describe('renderWaybill NEXT block', () => {
   });
 
   it('says so plainly when no booking is bound to the leg, instead of emitting an empty block', () => {
-    const output = renderWaybill(state({ leg: 'bay', index: 2, booking: undefined }), CLEAN);
+    const output = renderWaybill(state({ leg: 'bay', index: 1, booking: undefined }), CLEAN);
     assert.match(output, /NEXT:\n {2}no booking is bound to the bay leg/);
     assert.match(output, /bookings\//);
   });
@@ -818,11 +814,11 @@ describe('renderWaybill reports what it could not do', () => {
 
   it('names the offending booking when a stamp could not run', () => {
     const output = renderWaybill(
-      state({ warnings: ['/bookings/openspec-specs.md: stampCmd missing binary `nope`: nope'] }),
+      state({ warnings: ['/bookings/openspec-specify.md: stampCmd missing binary `nope`: nope'] }),
       CLEAN,
     );
     assert.match(output, /^WARNINGS:$/m);
-    assert.match(output, /openspec-specs\.md/);
+    assert.match(output, /openspec-specify\.md/);
   });
 
   it('reports an inspection that could not answer alongside the inference warnings', () => {

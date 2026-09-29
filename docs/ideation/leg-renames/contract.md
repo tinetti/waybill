@@ -1,0 +1,159 @@
+# Leg Renames and a Six-Leg Route Contract
+
+**Created**: 2026-09-29
+**Readiness**: All 5 gates ready
+**Status**: Approved
+**Approval**: Express — single consolidated confirmation, no per-artifact review
+**Supersedes**: None
+
+## Problem Statement
+
+Waybill's route is eight legs, and the names have drifted out of any single scheme. Five are verbs (`ideate`, `refine`, `execute`, `review`, `cleanup`), two are nouns (`contract`, `specs`), and exactly one — `bay` — speaks the freight vocabulary the rest of the tool is built from (waybill, docket, stamp, booking, carrier, trunk). A half-committed metaphor reads worse than either whole one, and the leg name is the single word a waybill shows you most often.
+
+Two of the eight legs are not really two. `refine` and `contract` both book `/ideation:ideation`, one after the other, with no human gate between them; they differ only in which file they stamp (`contract-data.json` then `contract.md`). One carrier, two positions.
+
+One of the eight is not really a leg. `ideate` carries `stampCmd: false` because rough ideation leaves nothing on disk by design, so waybill has to judge it backwards from repository state instead. That single exception is what forces `ideateIsDone` (src/legs.js:131-133) and the hardcoded index-0 branch in the inference walk (src/inference.js:140-146). It is also already a fiction: `/waybill:new` runs the brainstorm in-session rather than handing it off, which is the opposite of what every other leg does, and new.md's own frontmatter comment explains at length why it must break the rule.
+
+The cost lands on the only person who runs the route: every leg of every effort shows a name from an inconsistent scheme, `/waybill:next` walks a list with one member the model cannot judge on its own evidence, and the guide has to explain why leg 1 works differently from the other seven.
+
+## Goals
+
+1. LEGS is exactly six ids in route order: bay, ideate, specify, execute, review, cleanup.
+2. Every leg id reads as the work its booking does, and every leg is judged by papers on disk — zero legs judged backwards, zero special cases in the inference walk. Three ids match their carrier only by namespace rather than literally (`ideate` books /ideation:ideation, `specify` books /spec:propose, `execute` books /spec:apply); this goal does not license renaming any skill or any further leg.
+3. `ideateIsDone` and the index-0 branch in src/inference.js are deleted — not inlined, not relocated.
+4. `/waybill:new` runs the brainstorm off-route and ends with a pasteable `/waybill:bay` handoff.
+5. Today's `bookings/ideation-ideate.md` survives, renamed to `ideation-brainstorm.md`, as a booking that is not a leg — and a machine overlay can still rebook its carrier, proved by a test that exercises the rebooking rather than asserted in prose.
+6. No surface still names `refine`, `contract` or `specs` as a leg, or claims a route length of seven or eight — covering src, bookings, commands, goldens, tests, the root README.md, all four files under docs/guide/, and openspec/specs/command-surface/spec.md.
+
+## Success Criteria
+
+- [ ] The whole suite is green — the only mechanical gate this repo has. — check: `node --test tests/` → exits 0
+- [ ] LEGS is exactly the six expected ids in route order, pinned by an assertion that exists rather than by a promise in prose. — check: `node --test tests/legs.test.js && grep -qF "'bay', 'ideate', 'specify', 'execute', 'review', 'cleanup'" tests/legs.test.js` → exits 0
+- [ ] No retired leg id survives anywhere in src/ or in booking frontmatter. — check: `grep -q "'specify'" src/legs.js && ! grep -rqE "'(refine|contract|specs)'" src/ && ! grep -rqE '^leg: (refine|contract|specs)$' bookings/` → exits 0 — the positive half proves the grep can match at all, so neither negative half can pass vacuously
+- [ ] The brainstorm special case is deleted rather than inlined: neither the helper nor the index-0 skip it existed to serve remains. — check: `! grep -rqE 'ideateIsDone|i === 0|done\[0\]' src/ && node --test tests/inference.test.js` → exits 0
+- [ ] The brainstorm keeps a booking file, is absent from the route, and has an assertion saying so. — check: `test -f bookings/ideation-brainstorm.md && grep -q 'ideation-brainstorm' tests/bookings.test.js && node --test tests/bookings.test.js` → exits 0
+- [ ] A machine overlay can still rebook the brainstorm carrier — the only surviving justification for keeping it a booking, so it is exercised rather than claimed. — check: `grep -q 'brainstorm' tests/booking-swap.test.js && node --test tests/booking-swap.test.js tests/bookings-overlay.test.js` → exits 0
+- [ ] An overlay binding a retired leg id degrades to a doctor warning rather than taking doctor down with it — the evidence behind treating the machine-local breakage as out of scope. — check: `grep -q 'unknown leg' tests/doctor.test.js && node --test tests/doctor.test.js` → exits 0; today's only overlay-warn case uses a duplicate-leg fixture, so this pins a retired-leg case being added
+- [ ] Every golden that carries a leg line reports a six-leg route, and none reports any other length. — check: `grep -rqE 'leg [1-6] of 6 \(' tests/golden/ && ! grep -rqE 'leg [0-9]+ of [^6]' tests/golden/` → exits 0
+- [ ] The guide's waybill samples still match a leg golden each — the coupling that stops the walkthrough drifting from the route. — check: `node --test tests/guide.test.js` → exits 0
+- [ ] The prose surfaces outside the guide's mechanical coupling carry no retired leg id and no stale route length, so phase 4 cannot be skipped silently. — check: `node --test tests/guide.test.js && ! grep -rnE '(seven|eight) legs|leg [0-9]+ of [78]|`(refine|specs)`' README.md docs/guide/ openspec/specs/command-surface/spec.md openspec/changes/add-help-card/` → exits 0; bare `contract` is excluded from the pattern because it is a legitimate artifact word in this repo, and openspec/changes/archive/ is excluded because it is a historical record
+- [ ] `/waybill:new` renders a pasteable `/waybill:bay` handoff and no leg position, pinned as a golden of its own. — check: `node --test tests/cli.test.js tests/commands.test.js && grep -q '/waybill:bay ' tests/golden/new.txt && ! grep -qE 'leg [0-9]+ of' tests/golden/new.txt` → exits 0; no new.* golden exists today, so this also pins that phase 2 creates one — the old ideate.txt/.md goldens now belong to the renamed ideate leg
+- [ ] The branch name `/waybill:new` proposes actually follows from the brainstorm conclusion rather than being a generic slug. — judgment call: Run /waybill:new after a brainstorm and read the proposed name; only a human can tell whether it names the effort well. The structural halves are covered by the cmd check above.
+
+## Scope Boundaries
+
+### In Scope
+
+- src/legs.js: six legs, new ids, `ideateIsDone` deleted — The LEGS array is the route; every downstream consumer derives from it.
+- src/inference.js: delete the index-0 backwards-judging branch at :140-146 — It exists only to serve the leg being removed. Both statements go — deleting the helper while inlining the skip is the failure goal 3 names.
+- Booking files: a three-way rename — `ideation-ideate.md`→`ideation-brainstorm.md`, `ideation-contract.md`→`ideation-ideate.md`, `openspec-specs.md`→`openspec-specify.md` — with `ideation-refine.md` deleted into the merged booking and tests/commands.test.js:213 re-pointed — Bookings index on the `leg:` frontmatter field, so every retired id is a load-time throw until fixed. The shuffle collides on the name `ideation-ideate.md`, and the model/effort pin at tests/commands.test.js:213 matches by literal filename against bookings that are all opus/high — so left unstated it silently starts asserting against the merged contract booking and still passes.
+- tests/fixtures/: `ideate.js`→`brainstorm.js`, `refine.js`+`contract.js` merged into a new `ideate.js`, `specs.js`→`specify.js`, directory down from 9 files to 7 — tests/inference.test.js:100 asserts `readdirSync(FIXTURES).length === LEGS.length + 1`, and five suites import the chain (inference, waybill, cli, booking-swap, bookings-overlay). Carries the same filename collision as the bookings.
+- One exported constant of off-route booking ids in src/legs.js, folded into the knownLegs set the existing call sites already build — resolveBookings only rejects an id absent from the caller-supplied set (src/bookings.js:97-99), and the call sites already construct it from LEGS (src/cli.js:87, src/doctor.js:29, src/help.js:122, src/inference.js:75). Explicitly not: a new frontmatter key, an `offRoute` field on Booking, or a second loader.
+- commands/new.md and src/cli.js: a by-name brainstorm booking lookup, plus a `/waybill:bay` handoff block — src/cli.js:424,428 resolve the booking through `LEGS[0]`, which no longer names the brainstorm; the warning at src/cli.js:435 rewords. src/waybill.js gains no pre-route mode, flag or parameter — `position()` already returns `no docket open` on this path (src/waybill.js:65-69), and tests/golden/ideate.md:2 confirms `new` prints no leg position today.
+- Two new test cases: a doctor overlay bound to a retired leg id, and a booking-swap case rebooking the brainstorm carrier — Both back claims the contract otherwise only asserts — that doctor covers the machine-local breakage, and that keeping the brainstorm a booking buys rebookability. Without them, two criteria pass regardless of the change.
+- All 33 goldens in tests/golden/, plus a new `new.txt` — Byte-exact assert.equal comparisons with no regeneration mechanism; nearly every one embeds the route length, and `new`'s output can no longer share the ideate goldens.
+- ~230 leg-name assertions across 12 test files — Heaviest in tests/inference.test.js; tests/legs.test.js's index-1 anchor and its stated rationale both change, and booking-swap/fleet/inspection-gitignore each carry leg ids.
+- Prose surfaces: root README.md, all four files under docs/guide/ (including docs/guide/README.md), and the three `fix/specs` sites at src/cli.js:93, tests/cli.test.js:448-450 and openspec/specs/command-surface/spec.md:104-105 — Per the next-from-anywhere learning, waybill documents its behavior well outside src/. `fix/specs` is a branch chosen to collide with a leg id and prove the parser disambiguates; it tests nothing once that id retires.
+- `/waybill:new` proposes a concrete branch name rather than printing a `/waybill:bay <branch>` placeholder — Deferred a tier because it traces to no problem paragraph — the problem statement is entirely about the naming scheme, the refine/contract merge, and the ideate special case. It is also the one in-scope item not forced by the byte-exact-golden argument, so deferring it costs no rework. Kept in the plan because it is the behavior chosen at interview.
+
+### Out of Scope
+
+- Making `/waybill:next` gate-aware — a `gate:` field, a "next gate, N legs out" line, or changing what `next` hands you — A separate effort; this change deliberately leaves next's behavior untouched.
+- Re-modelling `contract → specs` and `review → cleanup` as human stops — Two genuinely mis-modelled handovers found during the brainstorm, but they belong to the gate effort, not the rename.
+- Any migration or repair of the user's `~/.waybill/bookings` overlay — src/doctor.js:405-429 already catches the throw, reports warn rather than fail precisely so doctor stays runnable, and names the offending leg and file. A release-note line covers discovery; the new doctor test case above is what makes this claim checkable.
+- Pointing overlay failure messages at `waybill doctor` — A real one-line gap, but it improves every overlay failure rather than anything this rename introduces — TODO, not scope.
+- Renaming any skill, or any leg beyond the four named here — Goal 2 is about legibility, not literal carrier matching; three ids match only by namespace and that is accepted.
+- A version number anywhere in the specs — Per the bang-line-exit-guard learning: main releases independently and release PRs own versioning, so a spec naming a version goes stale.
+
+### Future Considerations
+
+- None.
+
+## Decisions Considered and Rejected
+
+- **Name each leg for the work its booking does** — rejected: Name each leg for its stamp — the artifact it leaves behind. Stamp-naming was the stronger principle in the abstract (waybill is a stamp-reader), but carrier-naming reads better against the booking file and fixes the verb/noun mix at the same time. Stated limit, after the scope-creep critic showed the literal version is false for half the route: `ideate`, `specify` and `execute` match their carriers only by namespace.
+- **Merge `refine` into `contract` and call the result `ideate`** — rejected: Keep them as two legs. One carrier, two sequential positions, no human gate between. contract.md is strictly downstream of contract-data.json, so the merged leg stamps on contract.md alone and loses no coverage.
+- **The merged `ideate` leg inherits `handover: transfer` from `refine`** — rejected: Inherit `through` from `contract`. The ideation interview is long and expensive and previously got a fresh session. Inheriting `through` would run it in the same context that already held the whole brainstorm.
+- **Collapse the brainstorm leg into `/waybill:new` and drop it from the route** — rejected: Keep `brainstorm` as leg 1 with `stampCmd: false`. It was the route's only leg that could not be judged from its own papers, which forced two special cases in the source. `/waybill:new` already ran it in-session rather than handing it off, so the leg was a fiction wrapped around a command that never behaved like the other seven. Consequence accepted: a docket now begins at a branch, and there is no waybill state at all during a brainstorm.
+- **Keep `bookings/ideation-brainstorm.md` as a booking that is not a leg, and prove the rebookability with a test** — rejected: Hardcode `/ideation:brainstorm` into commands/new.md. Preserves per-machine rebooking of the brainstorm carrier. Note a justification withdrawn under the scope-creep critic: tests/commands.test.js:204-216 reads the booking by filename via parseFrontmatter, not through loadBookings, so that pin needs only a file on disk and never argued for a load path. Rebookability is now the sole justification, which is why it gets its own criterion.
+- **`/waybill:new` proposes a concrete branch name in its `/waybill:bay` handoff, at the Full tier** — rejected: Print a `/waybill:bay <branch>` placeholder. The brainstorm conclusion is exactly the context that makes the name inferable, and it mirrors how ideation names its own project rather than asking. It deliberately inverts commands/bay.md:91 — "do not invent a branch, and do not pick one for me from whatever we were last working on" — for this one path, and must be written down where a later reader will find it. Tiered to Full because the scope-creep critic showed it traces to no problem paragraph.
+- **Ship the rename, the leg removal, and the `new` rework as one change** — rejected: Split into two PRs, in either order. All 33 goldens are byte-exact and nearly every one embeds the route length, so a split rewrites every one of them twice and ships an intermediate seven-leg route nobody wants. This overrides the standing AGENTS.md preference for small incremental PRs, consciously.
+- **Treat the machine-local overlay breakage as a release note, backed by a new doctor test** — rejected: Build a migration, or extend `waybill doctor` to recognise the rename. src/doctor.js:405-429 already catches the resolveBookings throw and degrades it to warn so doctor survives on the broken machine. The success-criteria critic found the claim unverified — the only existing overlay-warn test uses a duplicate-leg fixture, not a retired id — so one test case comes into scope to make the out-of-scope decision honest.
+- **Carry the off-route brainstorm booking as one exported id constant folded into the existing knownLegs sets** — rejected: A second booking category — an `offRoute` frontmatter key, an `offRoute` field on Booking, or a parallel loader function. Raised by the over-engineering critic: the pre-revision scope said only "a load path for a booking that is deliberately not a leg", which invites building a category for exactly one file. resolveBookings already rejects only ids absent from the caller-supplied set, so widening that set is the whole change.
+- **`/waybill:new` keeps src/waybill.js untouched; only the booking lookup, the warning text, and the appended handoff change** — rejected: A pre-route rendering mode in src/waybill.js. Raised by the over-engineering critic, and the pre-revision scope rested on a factual error: it claimed `new` could no longer print `leg 1 of N`. It never printed one — `position()` (src/waybill.js:65-69) short-circuits to `no docket open` against firstLeg's hardcoded `docketOpen: false`, and tests/golden/ideate.md:2 shows exactly that.
+- **The ride-along's leg headings and waybill fences move into the goldens phase** — rejected: Keeping all guide edits together in the prose phase. Raised by the hidden-dependency critic: tests/guide.test.js:134-143 deep-equals the `## Leg N · <id>` headings against LEGS and :145-158 requires each leg golden's bytes to appear verbatim as a fence. The guide and the goldens are two halves of one assertion, so the original ordering left the suite red across a phase boundary and made the whole-suite criterion unsatisfiable until the last phase.
+- **Accept that three leg ids match their carrier only by plugin namespace** — rejected: Renaming the vendored spec commands so `specify` and `execute` match literally. Raised by both the scope-creep and hidden-dependency critics. Making it literally true means renaming commands/spec/propose.md and apply.md, which pulls in src/doctor.js:215-258's required-set symlink check and its hardcoded message at :256 naming the bare /spec:propose and /spec:apply, plus every machine's existing symlinks. Far outside a rename.
+- **Every cmd check pairs a positive assertion with its negative half** — rejected: Bare negated greps and criteria whose distinguishing content lives in the `expect` prose. The success-criteria critic found two criteria that could not fail and four whose substance was unexecuted prose. A negated grep passes for free when nothing can ever emit the string, so each one now carries a twin that proves the pattern is matchable.
+
+## Execution Plan
+
+_Added during Phase 5 handoff. Pick up this contract cold and know exactly how to execute._
+
+### Dependency Graph
+
+```
+The route model
+  ├── The new on-ramp  (blocked by The route model)
+        └── Goldens, the ride-along, and the test sweep  (blocked by The new on-ramp, Evidence for the out-of-scope claims)
+              └── Prose surfaces  (blocked by Goldens, the ride-along, and the test sweep)
+  └── Evidence for the out-of-scope claims  (blocked by The route model)
+```
+
+### Execution Steps
+
+**Run the project** (recommended) — autopilot reads this contract, plans dependency waves, runs independent phases in parallel, and gates on failure:
+
+```bash
+/ideation:autopilot docs/ideation/leg-renames/contract.md
+```
+
+**Or run it unattended** — a `/goal` is a durability wrapper around the same autopilot run: Claude re-checks the condition before it is allowed to stop, so failures get repaired and re-run. Generated by `contract-gen --print-goal`; this is the only copy of that string:
+
+```
+/goal Drive the Leg Renames and a Six-Leg Route contract (leg-renames) to completion with /ideation:autopilot.
+
+1. Run `/ideation:autopilot docs/ideation/leg-renames/contract.md`. All commits belong on branch feat/leg-renames — switch to it before any run.
+2. It dispatches a BACKGROUND workflow. Wait for the completion notification — never start a second autopilot run while one is in flight.
+3. Then run the ideation plugin's `scripts/verify.mjs` against `docs/ideation/leg-renames/contract-data.json` and leave its VERIFY line in the conversation. Resolve the plugin's install directory first — `${CLAUDE_PLUGIN_ROOT}/scripts/verify.mjs` is a placeholder, not a shell variable, and bash will not expand it. That line is the only evidence this goal is judged on.
+4. If anything failed, fix the spec or the implementation and go back to step 1. Autopilot skips phases that already have commits.
+
+Done when the most recent VERIFY line reads fail=0 and commits=5/5 — or when two consecutive VERIFY lines are identical and still failing, in which case name the failing checks and stop, because a contract whose checks have rotted must not trap the run.
+```
+
+**Or run phases manually** in dependency order:
+
+**Strategy**: Hybrid — phase 1 gates everything; phases 2 and 3 then run as a parallel wave (disjoint files: cli/commands vs doctor/booking-swap); phase 4 joins them; phase 5 follows.
+
+1. **Phase 1** — The route model _(blocking)_
+
+   ```bash
+   /ideation:execute-spec docs/ideation/leg-renames/spec-phase-1.md
+   ```
+
+2. **Phase 2** — The new on-ramp _(blocking)_
+
+   ```bash
+   /ideation:execute-spec docs/ideation/leg-renames/spec-phase-2.md
+   ```
+
+3. **Phase 3** — Evidence for the out-of-scope claims _(blocking)_
+
+   ```bash
+   /ideation:execute-spec docs/ideation/leg-renames/spec-phase-3.md
+   ```
+
+4. **Phase 4** — Goldens, the ride-along, and the test sweep _(blocking)_
+
+   ```bash
+   /ideation:execute-spec docs/ideation/leg-renames/spec-phase-4.md
+   ```
+
+5. **Phase 5** — Prose surfaces _(blocking)_
+
+   ```bash
+   /ideation:execute-spec docs/ideation/leg-renames/spec-phase-5.md
+   ```
+
+---
+
+_This contract was generated from brain dump input. Review and approve before proceeding to specification._

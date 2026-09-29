@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS } from '../src/legs.js';
 import { paperPaths, checkIgnored } from '../src/inspection.js';
 import { loadBookings } from '../src/bookings.js';
 import { cleanupAll, createRepo, tempRoot, writeFile } from './helpers/repo-fixture.js';
@@ -124,7 +124,7 @@ describe('checkIgnored', () => {
 });
 
 describe('paperPaths', () => {
-  const shipped = () => loadBookings(BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
+  const shipped = () => loadBookings(BOOKINGS, { knownLegs: BOOKABLE_IDS });
 
   it('de-globs the shipped bookings down to the two wrapper-owned directories', () => {
     assert.deepEqual(paperPaths(shipped()), ['docs/ideation/', 'openspec/']);

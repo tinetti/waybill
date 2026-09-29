@@ -1,4 +1,4 @@
-import { LEGS, WRAPPER_STAMPS, ideateIsDone } from './legs.js';
+import { BOOKABLE_IDS, LEGS, WRAPPER_STAMPS } from './legs.js';
 import { BUILTIN_BOOKINGS, evaluateBooking, loadBookings } from './bookings.js';
 import { changedPaths, checkoutRoot, currentBranch, defaultBranch, superprojectRoot } from './repo.js';
 import { discoverChangeId, executeProgress } from './progress.js';
@@ -72,7 +72,7 @@ function legIsDone(leg, state, bookings, warnings, progress, deferred) {
 export function resolveLeg(cwd, bookings) {
   /** @type {string[]} */
   const warnings = [];
-  bookings ??= loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) });
+  bookings ??= loadBookings(BUILTIN_BOOKINGS, { knownLegs: BOOKABLE_IDS });
 
   // Inside a submodule every git query answers for the submodule's own tree, so the legs would be
   // resolved against a repository the operator's change does not live in. Anchor on the
@@ -131,25 +131,22 @@ export function resolveLeg(cwd, bookings) {
   let progress;
   const executeState = () => (progress ??= executeProgress(root, docketOpen ? undefined : null, changed));
 
-  // Every leg but `ideate` is judged on its own; `ideate` is judged on what came after it.
+  // Every leg is judged on its own papers, first to last, with no position treated specially.
   //
   // `deferred` tracks whether the walk has passed an open leg yet, so a costly stamp behind one is
-  // never run. `ideate` is skipped here and judged below, so it must not set the flag — the walk
-  // would otherwise defer every stamp on the route.
+  // never run.
   let deferred = false;
-  const done = LEGS.map((leg, i) => {
-    if (i === 0) return false;
+  const done = LEGS.map((leg) => {
     const complete = legIsDone(leg, state, bookings, warnings, executeState, deferred);
     if (!complete) deferred = true;
     return complete;
   });
-  done[0] = ideateIsDone(state, done.some(Boolean));
 
   // With no docket open there is no position to report, so the walk's verdict is discarded — the
   // walk still runs, because the warnings it collects are worth having either way. It cannot simply
   // be trusted: `stampCmd` is unscoped by design, so a booking whose command matches papers left in
-  // history stamps its leg, which back-stamps `ideate` through `laterComplete` and leaves the
-  // position mid-workflow — handing the operator a `/waybill:start <change-id>` that cannot succeed.
+  // history stamps its leg and leaves the position mid-workflow — handing the operator a
+  // `/waybill:start <change-id>` that cannot succeed.
   // The whole vector is cleared, not just the position: `next --json` would otherwise report
   // `docketOpen: false` beside a list of legs a docket that does not exist had supposedly finished,
   // and the header and the payload have to agree.

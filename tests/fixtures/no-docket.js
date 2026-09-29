@@ -10,13 +10,14 @@ import { commitPapers, createRepo } from '../helpers/repo-fixture.js';
  * asserted twice on purpose — at renderer level in `tests/waybill.test.js`, and through the verb in
  * `tests/cli.test.js`. Those answer different questions and neither subsumes the other.
  *
- * The twin of {@link import('./ideate.js').ideateFixture}, which commits nothing: `no-docket.txt`
- * and `ideate.txt` are byte-identical on purpose, because history must not move the render. Keep
+ * The twin of {@link import('./brainstorm.js').brainstormFixture}, which commits nothing:
+ * `no-docket.txt` and the brainstorm's own golden are byte-identical on purpose, because history
+ * must not move the render. Keep
  * this fixture differing from that one *only* in what it commits — an assertion in
  * `tests/waybill.test.js` compares the two renders directly, since neither golden file could catch
  * a divergence alone.
  *
- * @returns {import('./ideate.js').LegFixture}
+ * @returns {import('../helpers/repo-fixture.js').LegFixture}
  */
 export function noDocketFixture() {
   const repo = createRepo({ remote: true, originHead: true });

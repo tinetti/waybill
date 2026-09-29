@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from './legs.js';
+import { BOOKABLE_IDS, LEGS } from './legs.js';
 import { configuredBookingsDir, resolveBookings } from './bookings.js';
 import { checkoutRoot } from './repo.js';
 
@@ -26,7 +26,7 @@ const QUERY_TIMEOUT_MS = 2000;
 const AUTH_TIMEOUT_MS = 5000;
 
 /** The legs an overlay may bind, resolved once rather than per lookup. */
-const KNOWN_LEGS = { knownLegs: LEGS.map((leg) => leg.id) };
+const KNOWN_LEGS = { knownLegs: BOOKABLE_IDS };
 
 /**
  * This plugin's own `package.json`.

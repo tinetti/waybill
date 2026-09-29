@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
 import { renderWaybill } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
 import { loadBookings } from '../src/bookings.js';
@@ -14,8 +14,6 @@ import { cleanupFixture } from './fixtures/cleanup.js';
 after(cleanupAll);
 
 const SHIPPED = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings');
-const KNOWN_LEGS = LEGS.map((leg) => leg.id);
-
 /** The booking under test, swapped whole: a different command *and* a different stamp. */
 const ALTERNATE = [
   '---',
@@ -50,7 +48,7 @@ function committedCopy() {
   return dir;
 }
 
-const load = (dir) => loadBookings(dir, { knownLegs: KNOWN_LEGS });
+const load = (dir) => loadBookings(dir, { knownLegs: BOOKABLE_IDS });
 // `forgePath('open')` rather than a bare `pathWithout('openspec')`: the review leg's stamp asks a
 // forge, and this suite's fixture is a docket with every task ticked — so without a stub reporting
 // a request open the walk stops at `review` and the swap under test is never reached. See
@@ -97,5 +95,38 @@ describe('swapping one booking', () => {
     assert.match(after, /^\/ideation:execute-spec/m);
     assert.equal(after.includes('/spec:apply'), false);
     assert.match(after, /^\/clear$/m);
+  });
+});
+
+describe('swapping the off-route brainstorm booking', () => {
+  // The only surviving reason the brainstorm is a booking at all rather than a carrier hardcoded
+  // into `commands/new.md`: an operator can rebook it exactly like a leg. Exercised rather than
+  // claimed, because a booking nothing can swap is just a file.
+  const ALTERNATE_BRAINSTORM = [
+    '---',
+    'leg: brainstorm',
+    'command: /superpowers:brainstorming',
+    'model: placeholder-model',
+    'effort: low',
+    'handover: transfer',
+    'stampCmd: false',
+    '---',
+    'Pressure-test the idea before anything is cut.',
+    '',
+  ].join('\n');
+
+  it('rebooks its carrier the same way a leg is rebooked, with one file', () => {
+    const dir = committedCopy();
+
+    const before = load(dir).get('brainstorm');
+    assert.equal(before.command, '/ideation:brainstorm');
+
+    writeFile(path.join(dir, 'ideation-brainstorm.md'), ALTERNATE_BRAINSTORM);
+    const after = load(dir).get('brainstorm');
+
+    assert.equal(after.command, '/superpowers:brainstorming');
+    assert.equal(after.model, 'placeholder-model');
+    // Still off the route after the swap: rebooking a booking cannot add a leg.
+    assert.equal(LEGS.some((leg) => leg.id === 'brainstorm'), false);
   });
 });

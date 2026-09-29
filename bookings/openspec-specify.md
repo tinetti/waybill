@@ -1,5 +1,5 @@
 ---
-leg: specs
+leg: specify
 command: /spec:propose
 model: opus
 effort: high

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS } from '../src/legs.js';
 import { run } from '../src/cli.js';
 import { resolveBookings } from '../src/bookings.js';
 import {
@@ -20,8 +20,6 @@ import {
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
-
-const KNOWN_LEGS = LEGS.map((leg) => leg.id);
 
 /**
  * The tiers under test are read by the production code through the *operator's* environment, not
@@ -41,7 +39,7 @@ function isolated(vars, fn) {
   );
 }
 
-const resolve = (cwd) => resolveBookings(cwd, { knownLegs: KNOWN_LEGS });
+const resolve = (cwd) => resolveBookings(cwd, { knownLegs: BOOKABLE_IDS });
 
 /**
  * A booking that rebinds the cleanup leg whole: a different command, a different model, a
@@ -116,9 +114,9 @@ const WORK_CLEANUP = [
   '',
 ].join('\n');
 
-const WORK_SPECS = [
+const WORK_SPECIFY = [
   '---',
-  'leg: specs',
+  'leg: specify',
   'command: /ideation:ideation',
   'model: opus',
   'effort: high',
@@ -150,7 +148,7 @@ const WORK_OVERLAY = {
   'waybill-review.md': WORK_REVIEW,
   'waybill-bay.md': WORK_BAY,
   'waybill-cleanup.md': WORK_CLEANUP,
-  'ideation-specs.md': WORK_SPECS,
+  'ideation-specify.md': WORK_SPECIFY,
   'ideation-execute.md': WORK_EXECUTE,
 };
 
@@ -335,7 +333,7 @@ describe('the work overlay', () => {
 
     assert.equal(bookings.get('review').command, '/waybill:review');
     assert.equal(bookings.get('cleanup').command, '/waybill:cleanup');
-    assert.equal(bookings.get('specs').command, '/spec:propose');
+    assert.equal(bookings.get('specify').command, '/spec:propose');
     assert.equal(bookings.get('execute').command, '/spec:apply');
   });
 
@@ -347,7 +345,7 @@ describe('the work overlay', () => {
 
     assert.equal(bookings.get('review').command, '/mr-review');
     assert.equal(bookings.get('cleanup').command, '/mar');
-    assert.equal(bookings.get('specs').command, '/ideation:ideation');
+    assert.equal(bookings.get('specify').command, '/ideation:ideation');
     assert.equal(bookings.get('execute').command, '/ideation:execute-spec');
     // The bay leg keeps the stock carrier; the only thing the overlay changes is how it tells the
     // operator to name the branch, so the body is the only place the rebooking is visible.
@@ -356,19 +354,19 @@ describe('the work overlay', () => {
       'the overlay left a leg unbound, or bound one the shipped route does not have');
   });
 
-  it('gives execute a completion stamp that specs does not have, so the two cannot stamp together', () => {
+  it('gives execute a completion stamp that specify does not have, so the two cannot stamp together', () => {
     // Under an ideation booking there is no `openspec/changes/<id>/` path, so the progress gate
-    // short-circuits and the stamp alone decides. Sharing a `stampPath` with `specs` and nothing
+    // short-circuits and the stamp alone decides. Sharing a `stampPath` with `specify` and nothing
     // else would complete both legs in the same instant and step the route over `execute`.
     const repo = createRepo();
     const dir = overlayDir(WORK_OVERLAY);
 
     const bookings = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () => resolve(repo));
-    const specs = bookings.get('specs');
+    const specify = bookings.get('specify');
     const execute = bookings.get('execute');
 
-    assert.equal(specs.stampPath, execute.stampPath, 'the premise: the two legs share a path');
-    assert.equal(specs.stampCmd, undefined);
+    assert.equal(specify.stampPath, execute.stampPath, 'the premise: the two legs share a path');
+    assert.equal(specify.stampCmd, undefined);
     assert.equal(execute.stampCmd, WORK_EXECUTE_STAMP);
   });
 });

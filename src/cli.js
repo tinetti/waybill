@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from './legs.js';
+import { BOOKABLE_IDS, LEGS } from './legs.js';
 import {
   cdLines,
   renderBaySelect,
@@ -83,8 +83,14 @@ function repoRoot(cwd, io) {
   return root;
 }
 
-/** The legs a booking may be declared for, resolved once per command rather than per lookup. */
-const KNOWN_LEGS = { knownLegs: LEGS.map((leg) => leg.id) };
+/** The ids a booking may be declared for, resolved once per command rather than per lookup. */
+const KNOWN_LEGS = { knownLegs: BOOKABLE_IDS };
+
+/**
+ * The route's own ids, which is a narrower set than {@link KNOWN_LEGS}: an off-route booking is
+ * loadable but is not a position, so `<branch>/brainstorm` is a branch name, not a leg token.
+ */
+const LEG_IDS = LEGS.map((leg) => leg.id);
 
 /**
  * Split `next`'s argument into the branch and the leg a pasted `/waybill:next <branch>/<leg>` names.
@@ -259,7 +265,7 @@ function next(cwd, args, io) {
     const { branch, token } = parseTarget(
       named,
       dockets.map((candidate) => candidate.branch),
-      KNOWN_LEGS.knownLegs,
+      LEG_IDS,
     );
     const docket = dockets.find((candidate) => candidate.branch === branch);
     if (docket === undefined) {
@@ -406,7 +412,7 @@ function doctor(cwd, args, io) {
  * "infer from the repository". Nothing about leg 1 is inferred — it is where every effort starts.
  *
  * The branch is the *trunk's*, not the bay's. `feat/x · no docket open` would be a false claim about
- * a branch that plainly carries one, and `feat/x · leg 1 of 8 (ideate)` a false claim about where
+ * a branch that plainly carries one, and `feat/x · leg 1 of 6 (bay)` a false claim about where
  * that docket stands; this waybill belongs to the trunk, and the warning says why it was printed
  * here anyway. The warning rides in `state.warnings` rather than going to stderr so it lands in the
  * block's own `WARNINGS:` section, where the Task reads it, rather than wherever stderr falls.
@@ -432,7 +438,8 @@ function firstLeg(cwd, root, bookings) {
     warnings: [
       ...state.warnings,
       `new efforts begin on the trunk, and ${state.branch} already carries a docket — this is ` +
-        'still leg 1\'s waybill, and the ideate leg writes nothing to disk wherever it is run',
+        'still leg 1\'s waybill, and it begins a fresh effort rather than moving this bay\'s ' +
+        'docket on',
     ],
   };
 }

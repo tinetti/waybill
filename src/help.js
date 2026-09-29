@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { LEGS } from './legs.js';
+import { BOOKABLE_IDS, LEGS } from './legs.js';
 import { resolveBookings } from './bookings.js';
 
 /**
@@ -119,7 +119,7 @@ export function renderHelp(cwd) {
   /** @type {string|null} */
   let problem = null;
   try {
-    bookings = resolveBookings(cwd, { knownLegs: LEGS.map((leg) => leg.id) });
+    bookings = resolveBookings(cwd, { knownLegs: BOOKABLE_IDS });
   } catch (error) {
     bookings = new Map();
     problem = error.message.split('\n')[0];

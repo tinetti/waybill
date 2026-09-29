@@ -12,7 +12,7 @@ import { reviewFixture } from './review.js';
  * disagree about a repository they are supposed to describe the same way.
  *
  * @param {string} [branch]
- * @returns {import('./ideate.js').LegFixture}
+ * @returns {import('../helpers/repo-fixture.js').LegFixture}
  */
 export function cleanupFixture(branch = 'feat/thing') {
   return reviewFixture(branch);

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
 import {
+  BUILTIN_BOOKINGS,
   bookingIsDone,
   evaluateBooking,
   loadBookings,
@@ -341,9 +342,55 @@ describe('resolveBookings reads WAYBILL_BOOKINGS_DIR as a path', () => {
         HOME: home,
         WAYBILL_BOOKINGS_DIR: '~/overlay',
       },
-      () => resolveBookings(repo, { knownLegs: LEGS.map((leg) => leg.id) }),
+      () => resolveBookings(repo, { knownLegs: BOOKABLE_IDS }),
     );
 
     assert.equal(bookings.get('cleanup').model, 'overlay-model');
   });
+});
+
+describe('the off-route brainstorm booking', () => {
+  const shipped = () => loadBookings(BUILTIN_BOOKINGS, { knownLegs: BOOKABLE_IDS });
+
+  it('loads from `ideation-brainstorm.md` without being a leg', () => {
+    // The entire off-route mechanism, and the reason there is no `offRoute` frontmatter key: the
+    // loader gates on the set the caller hands it, so one extra id in `BOOKABLE_IDS` is the whole
+    // change. Nothing derives the route from the bookings, so it stays off the tick strip.
+    const booking = shipped().get('brainstorm');
+
+    assert.match(booking.path, /ideation-brainstorm\.md$/);
+    assert.equal(booking.command, '/ideation:brainstorm');
+    assert.equal(LEGS.some((leg) => leg.id === 'brainstorm'), false);
+  });
+
+  it('is rejected by a caller that only knows the route, so the widening is deliberate', () => {
+    // The negative half. If `LEGS` alone still accepted it, `BOOKABLE_IDS` would be decoration.
+    assert.throws(
+      () => loadBookings(BUILTIN_BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) }),
+      /unknown leg `brainstorm`/,
+    );
+  });
+
+  it('still has to declare a stamp, exactly as a leg does', () => {
+    // `stampCmd: false` is load-bearing: the loader's missing-stamp check does not care whether a
+    // booking is a leg, so dropping it during the rename would take every `waybill` command down.
+    assert.equal(shipped().get('brainstorm').stampCmd, 'false');
+    const stampless = ['---', 'leg: brainstorm', 'command: /c', 'model: m', '---', ''].join('\n');
+    assert.throws(
+      () => loadBookings(bookingDir({ 'ideation-brainstorm.md': stampless }), { knownLegs: BOOKABLE_IDS }),
+      /ideation-brainstorm\.md.*stamp/s,
+    );
+  });
+
+  for (const retired of ['refine', 'contract', 'specs']) {
+    it(`rejects a booking still bound to the retired \`${retired}\` leg`, () => {
+      // The shape a machine-local overlay takes after this rename ships — see `tests/doctor.test.js`
+      // for how that throw is degraded to a warning rather than taking `waybill doctor` with it.
+      const md = VALID.replace('leg: contract', `leg: ${retired}`);
+      assert.throws(
+        () => loadBookings(bookingDir({ 'overlay.md': md }), { knownLegs: BOOKABLE_IDS }),
+        new RegExp(`unknown leg \`${retired}\``),
+      );
+    });
+  }
 });
