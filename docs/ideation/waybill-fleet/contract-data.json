@@ -1,0 +1,304 @@
+{
+  "projectName": "Waybill Fleet",
+  "slug": "waybill-fleet",
+  "date": "2026-09-24",
+  "status": "Approved",
+  "supersedes": null,
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "Four concrete failures named by the operator — stalled dockets go unnoticed, no signal which to advance next, stacked branches merged out of order, no single morning glance — against a stated baseline of 5–10 dockets across several repos under ~/Projects."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "Six goals, each naming an observable change with a number, split so that the MVP-tier goals are satisfiable by the MVP scope tier alone and the live-mode and signal goals are pinned to the Full tier."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "Nineteen pass/fail criteria, all nineteen carrying a runnable command; every check runs a whole suite file or a shell assertion, because `node --test --test-name-pattern` exits 0 when nothing matches and would pass vacuously against tests never written."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "`waybill status`, the existing picker/signals tmux matching, persisted preferences, project toggles, the filter tree, HTML output and `--json` are each excluded with rationale; every in-scope item carries an MVP/Full/Stretch tier."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "The live contradiction — cutting the TUI as too expensive, then requiring live fill-in and self-update, which need the same ANSI machinery — was surfaced and knowingly accepted, and is resolved by a pure renderer beneath a separate paint layer forked on TTY detection, with the injection seam defined in Phase 4 before Phase 5 consumes it."
+      }
+    ]
+  },
+  "problem": [
+    "Waybill's only fleet view today is `waybill status` run from a repository's trunk, which reaches `renderFleet()` at src/cli.js:328 and prints one line per docket in that single repository — `feat/work-laptop-readiness · leg 5 of 7 (specs)`. That is the entire picture. There is no age, no indication of which docket has stalled, no signal about which is closest to done, no record of which branches were cut from which, and no visibility whatsoever beyond the current repository.",
+    "The operator runs 5–10 dockets at once, spread across several repositories under ~/Projects. Four concrete failures follow. Stalled dockets go unnoticed — a branch sits untouched for days and nothing surfaces it until it is stumbled back into. There is no signal for which docket to advance next, so selection is guesswork. Branches cut from other branches get merged out of order, producing conflicts or a broken trunk, because nothing anywhere records that B was stacked on A. And starting the day means running `status` in each repository in turn, checking git by hand, and reconstructing the whole picture mentally.",
+    "None of this is blocked by missing data. Waybill is stateless by design (docs/guide/02-glossary.md:44 — 'reads the stamps off the repository every time and keeps no state file'), and `fleet()` at src/fleet.js:31 already enumerates every open docket with its branch, worktree path and resolved leg. Progress exists as leg index/7 for every docket and as done/total tasks for the execute leg (src/progress.js:149). Age and stacking are one git call each. The view simply has never been written."
+  ],
+  "goals": [
+    "One command, run from any directory, lists every open docket in every git repository at or beneath the working directory to a configurable depth defaulting to 4 — missing no repository with an open docket, showing no repository without one, and counting a repository exactly once however many of its bays fall inside the scan.",
+    "Every docket row carries three facts absent from any waybill surface today: a progress bar, time since the branch opened, and time since it was last touched.",
+    "Each docket additionally shows its stacked-branch parent where one exists, and whether a tmux pane is open on its bay together with what is running there — with all three degrading to blank rather than to a false claim when tmux or ps is absent or unreadable.",
+    "In live mode the first frame paints before the slow lane — openspec task counts and the ps process walk — has resolved, targeting 500ms at 10 dockets across 3 repositories; the one-shot path instead waits for complete data, because a single frame printed early would omit task counts permanently rather than filling them in.",
+    "In a TTY the view self-updates every ~2s until dismissed with `q`, with `r` forcing an immediate repaint and slower data filling in after the first frame; piped or redirected it prints exactly one frame and exits 0, so `fleet | grep` and every golden-file test work unchanged.",
+    "Ships with zero new dependencies, no build step and exactly one package script, leaving the zero-dependency assertion at tests/commands.test.js:540-553 passing without modification."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "Run inside a repository, `fleet` lists that repository's open dockets and no others.",
+      "check": "node --test tests/fleet-dash-cmd.test.js — exits 0"
+    },
+    {
+      "criterion": "Run outside any repository, `fleet` discovers repositories in subdirectories, halts descent at each repository it finds, and aggregates their dockets; `--depth 1` finds a top-level repository and misses one nested two levels down, proving the depth is genuinely configurable and not hardcoded.",
+      "check": "node --test tests/fleet-dash-scan.test.js — exits 0"
+    },
+    {
+      "criterion": "A repository whose bays sit inside the scan root — the supported `waybill.baydir=..` / `WAYBILL_BAY_DIR` sibling layout (src/repo.js:119-135) — is reported exactly once, deduplicated by main checkout, with its dockets not repeated per bay.",
+      "check": "node --test tests/fleet-dash-scan.test.js — exits 0 (fixture sets waybill.baydir to a sibling path)"
+    },
+    {
+      "criterion": "Bookings are resolved per discovered repository root, so a repository with a `.waybill/bookings` overlay reports its own legs rather than the built-ins, even though the scan cwd is outside every repository.",
+      "check": "node --test tests/fleet-dash-scan.test.js — exits 0"
+    },
+    {
+      "criterion": "Repositories with zero open dockets are absent from the body, and a footer reports how many repositories were scanned so nothing looks silently dropped.",
+      "check": "node --test tests/fleet-dash-scan.test.js — exits 0"
+    },
+    {
+      "criterion": "The execute leg's openspec task count is off the synchronous path: the model can be assembled without it, and the first frame is emitted before a deliberately-slow openspec stub resolves.",
+      "check": "node --test tests/fleet-dash-model.test.js — exits 0"
+    },
+    {
+      "criterion": "The progress bar renders leg index of 7, with the execute leg's slice filled proportionally by its done/total task count rather than snapping to a whole leg, and falls back to the whole-leg bar when the task count has not yet arrived.",
+      "check": "node --test tests/fleet-dash-render.test.js — exits 0"
+    },
+    {
+      "criterion": "Within a repository, dockets are ordered most-idle first, and repositories are grouped rather than interleaved.",
+      "check": "node --test tests/fleet-dash-render.test.js — exits 0"
+    },
+    {
+      "criterion": "Both age columns are correct: opened is derived from the merge-base commit date against trunk, idle from the branch tip's committer date.",
+      "check": "node --test tests/fleet-dash-age.test.js — exits 0"
+    },
+    {
+      "criterion": "The renderer stays pure and clock-free per src/waybill.js:286 — `now` is an injected parameter, and two calls with the same model and the same `now` produce byte-identical output.",
+      "check": "node --test tests/fleet-dash-render.test.js — exits 0"
+    },
+    {
+      "criterion": "A branch cut from another open docket rather than from trunk is identified as stacked on it, and renders nested under its parent.",
+      "check": "node --test tests/fleet-dash-deps.test.js — exits 0"
+    },
+    {
+      "criterion": "A tmux pane is matched to a docket by exact pane_current_path against the docket's worktree path — never by fuzzy name match — and the session:window is shown; an absent tmux leaves the column blank.",
+      "check": "node --test tests/fleet-dash-signals.test.js — exits 0 (tmux stubbed via stubBin, tests/helpers/repo-fixture.js:149)"
+    },
+    {
+      "criterion": "Agent detection walks the process tree down from pane_pid: a known agent binary is named, any other busiest descendant is shown by command, and an absent or unreadable ps degrades to blank rather than a false claim.",
+      "check": "node --test tests/fleet-dash-agent.test.js — exits 0 (ps stubbed via stubBin)"
+    },
+    {
+      "criterion": "With stdout not a TTY the command prints exactly one frame, emits no ANSI escape bytes, and exits 0, matching goldens namespaced away from status's existing tests/golden/fleet.txt and fleet-empty.txt.",
+      "check": "node --test tests/fleet-dash-cmd.test.js — exits 0 (goldens at tests/golden/fleet-dash-*.txt)"
+    },
+    {
+      "criterion": "In live mode the first frame is written before the slow lane resolves — with openspec and ps stubbed to a deliberate delay, the first stdout write precedes both stubs and interpolated bars appear only in a later frame — while the one-shot path waits for complete data and prints exactly one frame.",
+      "check": "node --test tests/fleet-dash-perf.test.js — exits 0 (ordering assertion is primary; the wall-clock ceiling is secondary and generously margined, since the repo has no CI runner)"
+    },
+    {
+      "criterion": "In live mode the view repaints on the injected clock's ~2s tick, `r` forces an immediate repaint, and `q` exits 0 restoring cooked mode and the cursor — including on SIGINT.",
+      "check": "node --test tests/fleet-dash-live.test.js — exits 0 (injected clock and simulated stdin)"
+    },
+    {
+      "criterion": "Every new suite file is registered in the manual barrel tests/index.js — unregistered suites silently never run on Node 26, a mistake this repo records making five times, and tests/index.js:13 already imports an unrelated './fleet.test.js' so a bare grep for 'fleet' passes vacuously.",
+      "check": "for f in tests/fleet-dash-*.test.js; do grep -q \"'./$(basename \"$f\")'\" tests/index.js || { echo \"unregistered: $f\"; exit 1; }; done — exits 0"
+    },
+    {
+      "criterion": "The prose surfaces the test suite mechanically enforces are updated: tests/guide.test.js:197 requires every commands/*.md to appear as /waybill:<name> in docs/guide/03-reference.md, and :200-202 requires every --flag in USAGE's Options block to appear there too.",
+      "check": "node --test tests/guide.test.js tests/commands.test.js tests/help.test.js — exits 0 (covers the guide cross-reference, the DECLARED command list at tests/commands.test.js:32-43, zero-dependencies at :540, and the MAX_LINES=45 help-card budget at src/help.js:10)"
+    },
+    {
+      "criterion": "`waybill status` behavior is unchanged — asserted as protected behavior plus untouched artifacts, not as a blanket ban on editing files (docs/ideation/learnings.md:39).",
+      "check": "node --test tests/cli.test.js tests/waybill.test.js tests/fleet.test.js — exits 0, and git diff --exit-code main -- tests/cli.test.js tests/waybill.test.js tests/fleet.test.js tests/golden/status.txt tests/golden/fleet.txt tests/golden/fleet-empty.txt — exits 0"
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "`waybill fleet` CLI verb wired into COMMANDS and USAGE (src/cli.js:588, :31), plus commands/fleet.md with its bang line, its entry in the DECLARED list at tests/commands.test.js:32-43, and its /waybill:fleet row in docs/guide/03-reference.md",
+        "reason": "The surface itself; and tests/guide.test.js:197 plus tests/commands.test.js:113 make the prose and list edits mechanically required, not optional polish"
+      },
+      {
+        "item": "An OpenSpec change with a MODIFIED command-surface requirement admitting the fifth verb, stacked on the pending add-help-card delta's wording",
+        "reason": "openspec/specs/command-surface/spec.md:10-19 states the surface SHALL consist of exactly four verbs; shipping fleet makes the living spec false unless the delta lands with it"
+      },
+      {
+        "item": "Single-repository mode — cwd inside a repo renders that repo's fleet",
+        "reason": "Builds on fleet() at src/fleet.js:31; the cheapest path to a working command"
+      },
+      {
+        "item": "Multi-repository scan when cwd is not a repository, with `--depth` defaulting to 4, halting descent at each repository found, deduplicating by main checkout, and resolving bookings per discovered repo root",
+        "reason": "Running from ~/Projects is the stated primary use; dedup and per-repo bookings are load-bearing because the supported waybill.baydir=.. layout puts bays in the scan path and overlays are per-repository"
+      },
+      {
+        "item": "Execute-leg progress made deferrable so the openspec CLI lookup is off the synchronous critical path",
+        "reason": "fleet() → resolveLeg() → executeProgress() shells out to openspec once per docket today (src/inference.js:117,156 → src/progress.js:149); without a slow lane the 500ms goal is unreachable"
+      },
+      {
+        "item": "Repositories with no open dockets hidden, with a scanned-count footer",
+        "reason": "At depth 4 most repositories are clean; every visible line must be actionable"
+      },
+      {
+        "item": "Progress bar — leg index/7 with the execute leg interpolated by task done/total when available",
+        "reason": "Answers 'which should I advance next?'; execute is where time is actually spent, so a frozen bar there would defeat the feature"
+      },
+      {
+        "item": "Age columns: opened (merge-base date) and idle (tip committer date), with `now` injected into the renderer",
+        "reason": "The neglect alarm for 'stalled dockets go unnoticed'; injection preserves byte-stable goldens"
+      },
+      {
+        "item": "Grouping by repository, sorted by staleness within each",
+        "reason": "Repos are the unit of thought; most-neglected first serves the primary problem"
+      },
+      {
+        "item": "Pure one-shot render on a non-TTY stdout, covered by goldens namespaced as tests/golden/fleet-dash-*.txt",
+        "reason": "Keeps the src/waybill.js:286 purity contract; the namespacing avoids colliding with status's existing fleet.txt and fleet-empty.txt"
+      },
+      {
+        "item": "Io seam extended with TTY detection, clock and stdin injection points",
+        "reason": "Io is {out, err, signals} today with `out` a bare function (src/cli.js:24-29) — defining the seam in MVP stops the live phase from rewriting the verb's entrypoint"
+      }
+    ],
+    "full": [
+      {
+        "item": "Stacked-branch detection via git merge-base between open dockets in the same repository, rendered nested",
+        "reason": "The 'merge out of order' problem; needs no new state, which is what makes it acceptable in a stateless tool"
+      },
+      {
+        "item": "tmux pane presence via a single `tmux list-panes -a -F` call matched on exact pane_current_path",
+        "reason": "The fleet join needs exact worktree paths, which the picker's name heuristic at src/picker.js:100 structurally cannot supply — this is a second, independent integration, not a replacement of it"
+      },
+      {
+        "item": "Agent detection by descendant-process walk from pane_pid using one `ps` call; known agents named, other busiest descendants shown by command",
+        "reason": "pane_current_command reports `node` for Claude Code, which is why src/picker.js:70-75 already denylists it — the tree walk is the only honest answer"
+      },
+      {
+        "item": "Live TTY mode: paint layer with frame diffing, ~2s refresh, progressive fill of slow data",
+        "reason": "The self-updating dashboard; isolated above the pure renderer so goldens stay valid"
+      },
+      {
+        "item": "`q` to quit and `r` to force refresh via raw stdin, restoring cooked mode and cursor on every exit path including SIGINT",
+        "reason": "Minimal interaction; also lands the machinery that would make the deferred filter mode a small follow-up"
+      }
+    ],
+    "stretch": [
+      {
+        "item": "Progress indicator on stderr when a scan exceeds 0.5s, keeping stdout golden-clean"
+      }
+    ],
+    "outOfScope": [
+      {
+        "item": "Any change to `waybill status`, including its trunk-side fleet list",
+        "reason": "Explicitly excluded by the operator; guarded by asserting its suites and goldens are unchanged rather than by forbidding diffs to whole files"
+      },
+      {
+        "item": "The existing fuzzy tmux name matching in src/picker.js and src/signals.js",
+        "reason": "Left exactly as-is; the fleet view adds its own exact-path join rather than unifying the two, and that duplication is a deliberate choice not an oversight"
+      },
+      {
+        "item": "Persisted preferences or any configuration file",
+        "reason": "Cut during the interview; every session starts fresh, which also keeps the no-state-file property intact"
+      },
+      {
+        "item": "Project on/off toggles and the interactive filter/tree mode",
+        "reason": "Cut once cwd-relative auto-detection removed the need to select projects by hand"
+      },
+      {
+        "item": "A selection or cursor model, and acting on a selected docket",
+        "reason": "Interaction is capped at q and r; a cursor is what would turn this into a command center, and it is recorded as a future consideration instead"
+      },
+      {
+        "item": "HTML output",
+        "reason": "Waybill prints strings; a generated artifact is stale the moment it is written"
+      },
+      {
+        "item": "`--json` output from `fleet`",
+        "reason": "Follows the standing rejection at src/cli.js:305 — `next --json` is the machine-readable surface and a second one would be a second shape to keep in step"
+      },
+      {
+        "item": "Any version bump in package.json or .claude-plugin/plugin.json",
+        "reason": "Release PRs own versioning in this repo; naming a version in a spec is a recorded past mistake (docs/ideation/learnings.md:32)"
+      },
+      {
+        "item": "Windows support for the tmux and ps surfaces",
+        "reason": "tmux already implies a unix host; those columns degrade to blank elsewhere"
+      }
+    ],
+    "future": [
+      "The filter/toggle mode, reintroduced on top of the q/r raw-stdin machinery once it exists",
+      "Hybrid refresh — fs.watch on each .git plus a slow interval sweep — if the 2s poll proves too costly across many repositories",
+      "A selection cursor plus keys that act on the highlighted docket: attach its tmux window, advance a leg, retire a merged docket — the step that would make this a command center rather than a dashboard"
+    ]
+  },
+  "execution": {
+    "strategy": "Hybrid",
+    "phases": [
+      {
+        "title": "Fleet model, multi-repo discovery, deferrable progress",
+        "risk": "medium",
+        "blocking": true,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-1.md",
+        "notes": "Repository discovery beneath a non-repo cwd to configurable depth (default 4, halt at each repo found), deduplicated by main checkout so the supported waybill.baydir=.. sibling-bay layout cannot report a repo once per bay. Bookings resolved per discovered repo root, not once from the scan cwd. Execute-leg openspec progress split off the synchronous path into a deferrable slow lane. Clean repos filtered out, scanned count retained. SIDE EFFECT TO RECORD IN THE SPEC: evaluateBooking may execute a booking's stampCmd subprocess (src/bookings.js:318), so a scan from ~/Projects runs each scanned repo's configured stamp commands — the spec must state whether stampCmd is skipped during a multi-repo scan."
+      },
+      {
+        "title": "Age and stacked-branch dependencies",
+        "risk": "low",
+        "blocking": false,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-2.md",
+        "prereqs": ["Fleet model, multi-repo discovery, deferrable progress"],
+        "notes": "Per-docket opened date from merge-base against trunk, idle from tip committer date via a batched for-each-ref, and stacked-parent detection by merge-base between open dockets in the same repo. Pure git, no rendering. Runs in parallel with the signals phase."
+      },
+      {
+        "title": "tmux and agent signals",
+        "risk": "high",
+        "blocking": false,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-3.md",
+        "prereqs": ["Fleet model, multi-repo discovery, deferrable progress"],
+        "notes": "One tmux list-panes -a -F call joined to dockets on exact pane_current_path, plus one ps call walked as a process tree from pane_pid. Highest risk: both are environment-dependent and must degrade to blank rather than assert falsely. Delivers Full-tier items only, so the renderer phase does not hard-depend on it — its columns render blank if this phase is deferred. Leaves src/picker.js and src/signals.js untouched."
+      },
+      {
+        "title": "Pure renderer, bars, and the fleet verb",
+        "risk": "medium",
+        "blocking": true,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-4.md",
+        "prereqs": ["Age and stacked-branch dependencies"],
+        "notes": "renderFleetDashboard(model, now) as a pure string function — bars with execute interpolation, grouping by repo, staleness sort, nested stacked branches. Deliberately does NOT share layout with the existing renderFleet (src/waybill.js:496), which belongs to the out-of-scope status surface; note that in the spec so a later reader does not 'fix' the duplication. Soft-consumes the signals phase: renders those columns blank if absent. Also extends the Io typedef with the TTY/clock/stdin injection points the live phase consumes. Required companion edits, each mechanically enforced: COMMANDS and USAGE (src/cli.js:588, :31), commands/fleet.md, DECLARED at tests/commands.test.js:32-43, /waybill:fleet and every new --flag in docs/guide/03-reference.md (tests/guide.test.js:197, :200-202), the help card within MAX_LINES=45 (src/help.js:10), new suites registered in tests/index.js, and an OpenSpec command-surface delta stacked on add-help-card. Greps README and bookings prose for surfaces naming the verb set."
+      },
+      {
+        "title": "Live paint layer",
+        "risk": "high",
+        "blocking": false,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-5.md",
+        "prereqs": ["Pure renderer, bars, and the fleet verb"],
+        "notes": "Consumes the Io seam defined in Phase 4. TTY fork, frame-diffing repaint above the pure renderer, ~2s injected-clock refresh, progressive fill of the slow lane, raw-stdin q/r with guaranteed cooked-mode and cursor restore on every exit path including SIGINT. The repo's first ANSI and first stdin handling."
+      },
+      {
+        "title": "Human gate: run it against your real ~/Projects",
+        "kind": "gate",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/waybill-fleet/spec-phase-6-gate.md",
+        "prereqs": ["Live paint layer"],
+        "notes": "Fixtures cannot tell you whether the scan depth, the dedup rule, the staleness sort or the agent detection are right against a real machine with real tmux sessions. Run it from ~/Projects and confirm the repo count, that no repo is double-listed, and that agent detection matches what is actually running before this is called done."
+      }
+    ],
+    "agentTeamPrompt": "Phases 2 (Age and stacked-branch dependencies) and 3 (tmux and agent signals) both depend only on Phase 1 and are independent of each other — run them in parallel, then converge on Phase 4. Phase 1 must land first; Phase 5 must wait for Phase 4. Phase 3 delivers Full-tier items only and is a SOFT prereq for Phase 4: if it stalls, Phase 4 proceeds with its tmux and agent columns rendering blank, which the contract already requires as the degraded behavior. Coordinate on shared files (feat/fleet-dashboard, Phases 2 and 3 modify all three): src/scan.js — each phase appends its own decoration step to the per-repo assembly, so append, never restructure; src/fleet.js — both extend the Docket typedef, which is APPEND-ONLY, and neither may change the fields Phase 1 defined; tests/index.js — each registers its own suites and must not reorder or remove the other's lines. Only one teammate modifies a shared file at a time. Neither Phase 2 nor Phase 3 may edit src/cli.js, src/help.js, src/picker.js, src/signals.js, commands/, README.md, docs/guide/03-reference.md, tests/commands.test.js or openspec/ — those all belong to Phase 4, except src/picker.js and src/signals.js which are out of scope entirely and must stay byte-identical."
+  }
+}

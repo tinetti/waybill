@@ -398,9 +398,13 @@ export function bookingIsDone(booking, repoRoot, changed) {
  * @param {Booking} booking
  * @param {string} repoRoot
  * @param {Set<string>|null} changed repository-relative forward-slash paths
+ * @param {{skipStampCmd?:boolean}} [options] `skipStampCmd` leaves `stampCmd` unrun, so a booking
+ *   whose only stamp is a command is simply not-done. Set while scanning repositories the operator
+ *   asked only to *look* at: a `stampCmd` is arbitrary shell, and running every configured one
+ *   across a whole projects tree is not something reading a dashboard may do.
  * @returns {{done:boolean, warnings:string[]}}
  */
-export function evaluateBooking(booking, repoRoot, changed) {
+export function evaluateBooking(booking, repoRoot, changed, options = {}) {
   /** @type {string[]} */
   const warnings = [];
   const label = booking.path ?? `<${booking.leg}>`;
@@ -417,7 +421,7 @@ export function evaluateBooking(booking, repoRoot, changed) {
     }
   }
 
-  if (done && booking.stampCmd) {
+  if (done && booking.stampCmd && !options.skipStampCmd) {
     checked = true;
     const result = runStamp(booking.stampCmd, repoRoot);
     if (!result.ran) {

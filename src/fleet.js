@@ -2,10 +2,23 @@ import { defaultBranch, listWorktrees } from './repo.js';
 import { resolveLeg } from './inference.js';
 
 /**
- * @typedef {{branch:string, path:string, state:import('./inference.js').Inference}} Docket
+ * @typedef {{branch:string, path:string, state:import('./inference.js').Inference,
+ *            openedAt?:number|null, idleAt?:number|null, stackedOn?:string|null,
+ *            pane?:{session:string, windowIndex:string, windowName:string}|null,
+ *            activity?:import('./procs.js').Activity}} Docket
  *   `state` is the whole inference rather than a flattened leg and index, because the fleet view
  *   also renders execute's task progress and attributes each docket's warnings to the branch they
  *   came from — both of which live on the inference and neither of which the caller can rebuild.
+ *
+ *   The five optional fields are the fleet view's own, hung on by `scan.js` after this function
+ *   has returned: `openedAt` is the unix seconds of the merge-base commit with the trunk, `idleAt`
+ *   the unix seconds of the branch tip's committer date, and `stackedOn` the sibling branch this
+ *   one was cut from, or `null` when it was cut from the trunk. `pane` is the tmux pane sitting in
+ *   this docket's bay, matched on exact path, and `activity` what is running in it. Absent from a
+ *   plain `fleet` call, which is every caller that asks where one docket stands rather than how the
+ *   whole fleet looks.
+ *
+ *   Unix seconds, never a formatted age: the model has no clock, so a golden file of it is stable.
  */
 
 /**
@@ -25,10 +38,13 @@ import { resolveLeg } from './inference.js';
  *
  * @param {string} cwd anywhere in the repository — the trunk, or another bay
  * @param {Map<string, import('./bookings.js').Booking>} [bookings]
+ * @param {{deferProgress?:boolean, skipStampCmd?:boolean}} [options] forwarded to `resolveLeg`
+ *   unchanged: a fleet of ten dockets is exactly where paying per docket for a subprocess, or for
+ *   somebody's configured shell command, stops being affordable.
  * @returns {Docket[]} in git's order, which sorts by bay directory name rather than creation time —
  *   deterministic for a given set of bays, which is what lets the rendered fleet have a golden file
  */
-export function fleet(cwd, bookings) {
+export function fleet(cwd, bookings, options = {}) {
   const base = defaultBranch(cwd);
   // git lists the main checkout first, and a repository is not a docket in its own fleet.
   const [, ...linked] = listWorktrees(cwd);
@@ -48,8 +64,35 @@ export function fleet(cwd, bookings) {
     dockets.push({
       branch: record.branch,
       path: record.path,
-      state: resolveLeg(record.path, bookings),
+      state: resolveLeg(record.path, bookings, options),
     });
   }
   return dockets;
+}
+
+/**
+ * Whether the repository holding `cwd` has any docket open, without resolving a single leg.
+ *
+ * Shares {@link fleet}'s definition of in-flight — a bay on disk, on a branch of its own — and
+ * stops at the first one it finds. The discovery walk asks this of every repository it meets, and
+ * what it needs back is a yes or a no rather than a fleet; going through `fleet` would pay for leg
+ * inference, and on a deferred scan a subprocess, per docket of every repository merely passed over.
+ *
+ * Kept here beside `fleet` rather than in the scanner so the two cannot drift: a record `fleet`
+ * learns to skip is a record this has to skip too, and the three filters below are that list.
+ *
+ * @param {string} cwd anywhere in the repository
+ * @returns {boolean}
+ */
+export function hasOpenDocket(cwd) {
+  try {
+    const base = defaultBranch(cwd);
+    const [, ...linked] = listWorktrees(cwd);
+    return linked.some((record) => record.branch !== null && record.branch !== base && !record.prunable);
+  } catch {
+    // A repository git cannot answer for is treated as in flight. The caller uses this to decide
+    // whether to walk *into* a checkout, and a failed git call is no licence to go rummaging
+    // through one — it leaves the walk exactly where the old unconditional halt left it.
+    return true;
+  }
 }

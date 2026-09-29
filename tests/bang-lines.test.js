@@ -137,6 +137,24 @@ describe('the `!` lines that shell out to the CLI', () => {
     });
   }
 
+  it('answers `fleet` outside any repository, where the other verbs refuse', () => {
+    const result = runBang('fleet', tempRoot());
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /^FLEET /m);
+    assert.doesNotMatch(result.stdout, /waybill: exited/);
+  });
+
+  it('folds `fleet`’s rejection of a bad `--depth` onto stdout', () => {
+    const result = runBang('fleet', tempRoot(), { args: '--depth abc' });
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '', 'anything left on stderr is the harness’s to drop');
+    assert.match(result.stdout, /`--depth` takes a whole number/);
+    assert.match(result.stdout, MARKER);
+  });
+
   it('reports a clean trunk’s status with no marker', () => {
     const result = runBang('status', trunkWith());
 
@@ -177,8 +195,16 @@ describe('the `!` lines that shell out to the CLI', () => {
       .sort();
 
     // Pinned rather than `length > 0`, so an extraction that silently finds nothing cannot pass —
-    // a seventh command that shells out to the CLI is added here alongside its wrapper.
-    assert.deepEqual(invoking, ['bay.md', 'doctor.md', 'help.md', 'new.md', 'next.md', 'status.md']);
+    // an eighth command that shells out to the CLI is added here alongside its wrapper.
+    assert.deepEqual(invoking, [
+      'bay.md',
+      'doctor.md',
+      'fleet.md',
+      'help.md',
+      'new.md',
+      'next.md',
+      'status.md',
+    ]);
     // Every `node` call is wrapped, not just the first: `bay` has one per branch of its `if`.
     assert.deepEqual(
       invoking.filter((rel) => {

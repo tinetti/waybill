@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 5</title>
+    <style>
+      /* === DESIGN TOKENS === */
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas,
+          monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --max-width: 900px;
+        --sidebar-width: 220px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+
+      /* === LAYOUT === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--color-text);
+        background: var(--color-bg);
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4);
+      }
+
+      .doc-header {
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .doc-header h1 {
+        margin: 0 0 var(--space-1) 0;
+        font-size: 28px;
+        line-height: 1.25;
+      }
+
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .doc-content h2 {
+        margin-top: var(--space-6);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 22px;
+      }
+
+      .doc-content h3 {
+        margin-top: var(--space-5);
+        font-size: 18px;
+      }
+
+      .doc-content p,
+      .doc-content li,
+      .doc-content dd {
+        font-size: 15px;
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 0 var(--space-1);
+      }
+
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .note-entry h3 {
+        margin-top: 0;
+      }
+
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-text-muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: var(--space-3);
+      }
+
+      .note-entry dd {
+        margin: var(--space-1) 0 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 5</h1>
+      <p class="doc-meta">Waybill Fleet · 2026-09-24 · live paint layer</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Refresh loop — <code>ps</code> and tmux ride the fast lane, openspec alone is the slow one</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec leaves this open explicitly: &ldquo;Decide whether the slow-lane cadence (~10s proposed) should
+            differ for <code>ps</code> versus openspec. <code>ps</code> is cheap and could run on the fast lane;
+            openspec is the expensive one.&rdquo; The prose above it describes the slow lane as &ldquo;openspec task
+            counts and the <code>ps</code> process walk&rdquo;.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Only the openspec lookup is on the slow lane. tmux and <code>ps</code> stay on the ~2s fast tick, because
+            each is a <em>single machine-wide call</em> inside <code>scanFleet</code> (<code>src/scan.js:285-288</code>)
+            whose cost does not grow with the fleet, whereas openspec is one subprocess <em>per docket</em>. Keeping
+            them fast also makes the pane and activity columns track a pane you open while watching, which is what
+            those columns are for. Splitting them out would have meant changing <code>src/scan.js</code>, and the
+            spec's stronger instruction is that this phase &ldquo;changes nothing below&rdquo; the renderer.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Add a <code>signals: false</code> option to <code>scanFleet</code> so the fast lane could skip both calls
+            and a slow pass could fill them in. Rejected: it moves data logic into a phase that was scoped not to
+            touch any, to save two calls that together measured 94&nbsp;ms against a live tmux server with 1340
+            processes (Phase 3's own note).
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Refresh loop — the deferred lane holds a finished docket one leg back</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Live mode scans with <code>deferProgress</code>, which makes the leg walk read the execute leg as
+            unfinished until a count lands (<code>src/inference.js:180-186</code>). Phase 4 recorded the consequence
+            at <code>src/cli.js:362</code> and added that &ldquo;a later frame can correct the first one&rdquo;.
+            Against this repository the difference is visible: <code>fleet | cat</code> reports
+            <code>feat/fleet-dashboard</code> at <code>7/7 cleanup</code>, live mode at <code>6/7 execute</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The slow lane corrects the <em>bar</em> and not the <em>leg</em>, which is exactly what this phase's spec
+            asks of it &mdash; its own description of the lane is &ldquo;the first frame goes up with whole-leg bars
+            &hellip; the slow lane fills them in&rdquo;, and its test list says &ldquo;interpolated bars appear only
+            after the slow lane lands&rdquo;. A docket whose execute tasks are all ticked therefore sits at
+            <code>6/7 execute</code> in the live view with a full execute slice, until its bay is retired and it drops
+            off. Flagged here rather than papered over: Phase 6's operator should judge whether that reads as wrong.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Re-derive the leg in <code>src/live.js</code> once a count arrives complete, or run the slow lane as a
+            full non-deferred <code>scanFleet</code>. The first duplicates the leg walk in the paint layer, which the
+            spec forbids outright; the second is <code>spawnSync</code> per docket on the loop's own thread, freezing
+            <code>q</code> for as long as it runs &mdash; the subprocess storm the two-lane split exists to prevent.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>TTY fork — <code>bin/waybill</code> had to change, though the spec lists only <code>src/cli.js</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Modified Files table names <code>src/cli.js</code> and <code>tests/index.js</code> and nothing
+            else. But <code>run</code> now answers with a promise on the live path, and both entry points assign its
+            result straight to <code>process.exitCode</code>, which rejects a non-integer.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Two entry points changed &mdash; <code>bin/waybill</code> and the self-exec block at the foot of
+            <code>src/cli.js</code> &mdash; each wrapping the call in <code>Promise.resolve(...).then()</code>. Three
+            lines apiece, no parser and no flag added, so the wrapper stays the thinnest file in the repository as its
+            own comment insists.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Keep <code>run</code> synchronous and have the live loop drive itself through <code>process.exit</code>.
+            Rejected: it puts a hard exit inside library code, which is precisely what the wrapper's
+            <code>process.exitCode</code> comment exists to avoid &mdash; a large frame on a pipe would be truncated.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>TTY fork — the paint layer is imported statically, not on the live branch</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec says of the one-shot path: &ldquo;The one-shot path does not import the paint layer at all.&rdquo;
+            Read literally that calls for a dynamic <code>import()</code> behind the <code>io.isTTY</code> check.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <code>src/cli.js</code> imports <code>runLive</code> statically, like every other module it dispatches to.
+            The property that matters is behavioural &mdash; not one escape byte on a non-TTY stdout &mdash; and it is
+            asserted directly, both in this phase's suite and in <code>tests/fleet-dash-cmd.test.js</code>. An
+            unexecuted import emits nothing.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            <code>await import('./live.js')</code> inside the branch. Rejected: it makes the <code>fleet</code> handler
+            asynchronous on <em>both</em> paths to buy a few hundred microseconds of module parse, and a lazily-loaded
+            module is one the test suite can fail to notice is broken.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Validation — the diff-against-<code>main</code> check is measured against a moved target</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's validation block asserts <code>waybill status</code> is untouched by diffing six paths against
+            <code>main</code> — <code>tests/cli.test.js</code>, <code>tests/waybill.test.js</code>,
+            <code>tests/fleet.test.js</code> and the three status goldens. That command now reports a large diff.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The diff is <em>main moving</em>, not this branch: <code>main</code> gained a stock review leg and an
+            eight-leg route in <code>0c5c5fc</code> after this branch was cut, so every golden on <code>main</code>
+            reads <code>of 8</code> where this branch reads <code>of 7</code>. Nothing in Phases 1-5 touched those
+            files. Verified with the check the spec actually meant — the same six paths diffed against
+            <code>HEAD</code>, which is clean — plus
+            <code>node --test tests/cli.test.js tests/waybill.test.js tests/fleet.test.js</code>, which passes.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Rebase the branch onto <code>main</code> so the spec's command runs as written. Out of scope for a phase,
+            and it would fold an eight-leg route change into a dashboard branch; the rebase belongs to whoever opens
+            the pull request.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

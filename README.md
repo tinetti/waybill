@@ -88,11 +88,12 @@ The two surfaces install separately, and neither one brings the other.
 /plugin install waybill@tinetti
 ```
 
-That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:review`,
-`/waybill:cleanup`, `/waybill:doctor`, `/waybill:help`, and the four routing commands as
-**`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces every plugin command
-under the plugin name, and a `commands/` subdirectory becomes one more segment — measured against a
-scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown command.
+That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:fleet`,
+`/waybill:review`, `/waybill:cleanup`, `/waybill:doctor`, `/waybill:help`, and the four routing
+commands as **`/waybill:spec:{explore,propose,apply,archive}`**. Claude Code namespaces every plugin
+command under the plugin name, and a `commands/` subdirectory becomes one more segment — measured
+against a scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown
+command.
 
 The waybills for legs 5 and 6 name the **bare** `/spec:propose` and `/spec:apply`. Those names come
 from `~/.claude/commands/spec/`, not from the plugin — the symlink step under *The vendored
@@ -124,6 +125,7 @@ step.
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
+| `waybill fleet [--depth <n>]` | `/waybill:fleet [--depth <n>]` | Every open docket in every repository at or below here: progress, how long ago it opened, how long it has been idle, what it is stacked on, and the tmux pane sitting in its bay |
 | — | `/waybill:review` | Push the branch and open its pull or merge request, then hand it to a reviewer. A slash command only: there is no `waybill review` verb, because the leg is a conversation rather than a computation |
 | `waybill doctor` | `/waybill:doctor` | Can this machine run the route: every prerequisite, with its fix |
 | `waybill help` | `/waybill:help` | The route, the words, and the verbs on one screen |

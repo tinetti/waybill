@@ -33,6 +33,7 @@ const DECLARED = [
   'bay.md',
   'cleanup.md',
   'doctor.md',
+  'fleet.md',
   'help.md',
   'new.md',
   'next.md',

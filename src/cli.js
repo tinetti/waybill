@@ -13,6 +13,9 @@ import {
 } from './waybill.js';
 import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
+import { scanFleet } from './scan.js';
+import { renderFleetDashboard } from './fleet-dash.js';
+import { runLive } from './live.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
 import { checkoutRoot, defaultBranch, inBay, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
@@ -24,9 +27,18 @@ import { gatherSignals } from './signals.js';
 
 /**
  * @typedef {{out:(text:string)=>void, err:(text:string)=>void,
- *            signals:()=>import('./signals.js').Signals}} Io
+ *            signals:()=>import('./signals.js').Signals,
+ *            isTTY:boolean, now:()=>number, stdin:NodeJS.ReadStream}} Io
+ *   Everything outside this process that a command may read, in one injectable bag, so a test can
+ *   replace any of it without touching the real terminal.
+ *
  *   `signals` is a thunk rather than a value so the terminal is only read by the one command that
  *   ranks by it — every other verb would otherwise pay a tmux round-trip for nothing.
+ *
+ *   `isTTY`, `now` and `stdin` are the fleet view's seam. `now` is here rather than inside the
+ *   renderer because the renderer is pure: ages are a function of a clock the caller supplies, so a
+ *   golden file of a frame is stable overnight. `isTTY` and `stdin` are read by the live mode; the
+ *   one-shot path only needs to know that it is not one.
  */
 
 const USAGE = [
@@ -39,6 +51,7 @@ const USAGE = [
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
+  '  fleet           Every open docket in every repository at or below here',
   '  doctor          Can this machine run the route: every prerequisite, with its fix',
   '  help            This page: the route, the words, and the verbs',
   '',
@@ -50,6 +63,8 @@ const USAGE = [
   '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
   '                    `git config waybill.baydir`. Relative paths resolve against the main',
   '                    checkout; the default is .claude/worktrees',
+  '  --depth <n>       How many directory levels below here to search for repositories',
+  '                    (`fleet` only, and only when it walks); the default is 4',
   '  --help            Print this message',
 ].join('\n');
 
@@ -340,6 +355,64 @@ function status(cwd, args, io) {
 }
 
 /**
+ * `waybill fleet` — every open docket in every repository at or below here.
+ *
+ * The first verb that works outside a repository, and the only one besides `help` that calls no
+ * {@link repoRoot}: standing in `~/Projects` is a legitimate place to ask this, and it is the place
+ * the question is most worth asking. Inside a checkout the scan resolves that one repository and
+ * reports it alone, because an operator standing in a project is asking about that project.
+ *
+ * Complete data rather than a fast first frame, on the one-shot path. The scan is run *without*
+ * `deferProgress`, so the execute leg's task count is resolved on the synchronous path along with
+ * everything else. That is the accuracy-over-speed trade the contract asks of a single frame, and it
+ * is stronger than awaiting the deferred lane would be: deferring makes the leg walk treat execute
+ * as unfinished (`src/inference.js:180-186`), so a docket whose tasks are all ticked would render at
+ * leg 6 with a count beside it rather than at leg 7, and filling the count in afterwards cannot move
+ * the leg. Live mode takes the opposite trade, and can: there a later frame corrects the first one.
+ *
+ * The `io.isTTY` fork is the only thing live mode adds to this file. A pipe, a redirect and
+ * `node --test` all take the path below unchanged — one frame, exit 0, not one escape byte — which
+ * is what keeps `fleet | grep` working and every golden file valid.
+ *
+ * @param {string} cwd
+ * @param {string[]} args
+ * @param {Io} io
+ * @returns {number|Promise<number>} exit code, awaited only on the live path
+ */
+function fleetDashboard(cwd, args, io) {
+  /** @type {number|undefined} */
+  let depth;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--depth') {
+      // A whole number, and at least one: `--depth 0` would scan nothing at all and report an empty
+      // fleet, which reads exactly like a machine with nothing in flight.
+      const value = args[index + 1];
+      if (value === undefined || !/^[0-9]+$/.test(value) || Number(value) < 1) {
+        io.err(`waybill: \`--depth\` takes a whole number of directory levels, 1 or more\n${USAGE}\n`);
+        return 2;
+      }
+      depth = Number(value);
+      index += 1;
+      continue;
+    }
+    // `--help` is answered by `run` before dispatch, so no other option here is one we know.
+    if (arg.startsWith('-')) {
+      io.err(`waybill: unknown option \`${arg}\` for \`fleet\`\n${USAGE}\n`);
+      return 2;
+    }
+    io.err(`waybill: \`fleet\` takes no arguments\n${USAGE}\n`);
+    return 2;
+  }
+
+  if (io.isTTY) return runLive(cwd, depth === undefined ? {} : { depth }, io);
+
+  const model = scanFleet(cwd, depth === undefined ? {} : { depth });
+  io.out(renderFleetDashboard(model, io.now()));
+  return 0;
+}
+
+/**
  * `waybill help` — the one-screen reference page.
  *
  * Calls no {@link repoRoot}: the page reports configuration, never position, so it has an answer
@@ -624,6 +697,7 @@ const COMMANDS = new Map([
   ['bay', bay],
   ['next', next],
   ['status', status],
+  ['fleet', fleetDashboard],
   ['doctor', doctor],
   ['help', help],
 ]);
@@ -639,13 +713,19 @@ const COMMANDS = new Map([
  *
  * @param {string[]} [argv] arguments after the program name
  * @param {{cwd?:string, out?:(text:string)=>void, err?:(text:string)=>void,
- *          signals?:()=>import('./signals.js').Signals}} [options]
- * @returns {number} exit code
+ *          signals?:()=>import('./signals.js').Signals, isTTY?:boolean, now?:()=>number,
+ *          stdin?:NodeJS.ReadStream}} [options]
+ * @returns {number|Promise<number>} exit code — a promise only from `fleet` on a TTY, whose live
+ *   loop runs until the operator leaves it. Every other verb answers synchronously, as before.
  */
 export function run(argv = [], options = {}) {
   const out = options.out ?? ((text) => process.stdout.write(text));
   const err = options.err ?? ((text) => process.stderr.write(text));
   const signals = options.signals ?? (() => gatherSignals());
+  // Unix seconds, the unit every date in the fleet model is already in, so nothing has to divide.
+  const now = options.now ?? (() => Math.floor(Date.now() / 1000));
+  const isTTY = options.isTTY ?? Boolean(process.stdout.isTTY);
+  const stdin = options.stdin ?? process.stdin;
   const cwd = options.cwd ?? process.cwd();
   const [name, ...args] = argv;
 
@@ -665,9 +745,13 @@ export function run(argv = [], options = {}) {
     err(`waybill: unknown command \`${name}\`\n${USAGE}\n`);
     return 2;
   }
-  return command(cwd, args, { out, err, signals });
+  return command(cwd, args, { out, err, signals, isTTY, now, stdin });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exitCode = run(process.argv.slice(2));
+  // `Promise.resolve` rather than `await`: `fleet` on a TTY is the one command whose exit code is
+  // not known until the operator leaves it, and every other verb still settles in the same tick.
+  Promise.resolve(run(process.argv.slice(2))).then((code) => {
+    process.exitCode = code;
+  });
 }

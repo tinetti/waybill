@@ -31,12 +31,17 @@ const GIT_ENV = {
 /**
  * Run git in `cwd`, throwing on a non-zero exit so a broken fixture fails loudly.
  *
+ * `env` overlays {@link GIT_ENV} for the one call, which is how a fixture pins a commit's date:
+ * `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` have to reach git's own process, and the suite's git
+ * environment is a snapshot taken at import so `process.env` cannot be used to smuggle them in.
+ *
  * @param {string} cwd
  * @param {string[]} args
+ * @param {Record<string,string>} [env] extra environment variables for this invocation
  * @returns {string} trimmed stdout
  */
-export function git(cwd, args) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', env: GIT_ENV });
+export function git(cwd, args, env) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', env: { ...GIT_ENV, ...env } });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${result.stderr.trim()}`);
@@ -116,11 +121,13 @@ export function defaultBayPath(repoDir, branch) {
  *
  * @param {string} repoDir main checkout
  * @param {string} branch new branch to check out there
+ * @param {string} [from] the rev the branch is cut from, defaulting to the main checkout's HEAD —
+ *   the only way to build a bay that is genuinely stacked on another branch rather than on trunk
  * @returns {string} absolute path to the linked worktree
  */
-export function addWorktree(repoDir, branch) {
+export function addWorktree(repoDir, branch, from) {
   const target = resolveBayPath(branch, repoDir);
-  git(repoDir, ['worktree', 'add', '--no-track', '-b', branch, target]);
+  git(repoDir, ['worktree', 'add', '--no-track', '-b', branch, target, ...(from ? [from] : [])]);
   ensureBayIgnored(repoDir, path.dirname(target));
   return target;
 }

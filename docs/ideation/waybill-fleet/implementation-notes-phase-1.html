@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 1</title>
+    <style>
+      /* === DESIGN TOKENS === */
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas,
+          monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --max-width: 900px;
+        --sidebar-width: 220px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+
+      /* === LAYOUT === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--color-text);
+        background: var(--color-bg);
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4);
+      }
+
+      .doc-header {
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .doc-header h1 {
+        margin: 0 0 var(--space-1) 0;
+        font-size: 28px;
+        line-height: 1.25;
+      }
+
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .doc-content h2 {
+        margin-top: var(--space-6);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 22px;
+      }
+
+      .doc-content h3 {
+        margin-top: var(--space-5);
+        font-size: 18px;
+      }
+
+      .doc-content p,
+      .doc-content li,
+      .doc-content dd {
+        font-size: 15px;
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 0 var(--space-1);
+      }
+
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .note-entry h3 {
+        margin-top: 0;
+      }
+
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-text-muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: var(--space-3);
+      }
+
+      .note-entry dd {
+        margin: var(--space-1) 0 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 1</h1>
+      <p class="doc-meta">Waybill Fleet · 2026-09-24 · Fleet model, multi-repo discovery, deferrable progress</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Manual gate — <code>~/Projects</code> is itself a git repository on this machine</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's manual check asks for <code>discoverRepos</code> to be run against the real
+            <code>~/Projects</code> and the repository count confirmed. It returns exactly one entry:
+            <code>/Users/jtinetti/Projects</code>. That directory has a <code>.git</code> of its own, so the
+            "inside a repository, the answer is that repository" short circuit fires and the multi-repo walk never
+            runs there. The same is true of every directory beneath it, including
+            <code>~/Projects/tinetti</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Left as specified. The short circuit is the contract's stated rule, and overriding it here would be a
+            behaviour change invented during implementation rather than agreed in the contract. Discovery itself is
+            sound and fast — scanned against <code>$HOME</code> it found 3 repositories at depth 2 in 41 ms and 4 at
+            depth 3 in 252 ms, with no duplicates.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Have the fleet verb accept a flag that forces the multi-repo walk even inside a repository, or treat a
+            repository whose own bays are empty as a scan root. Both are Phase 4 surface decisions, and Phase 6 is the
+            gate where this has to be settled: on this operator's machine the dashboard will otherwise only ever show
+            the <code>~/Projects</code> repository's own dockets.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Deferred progress — the Open Item, answered</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec leaves open whether execute-leg done-ness can be decided without the task count in every case, or
+            whether a docket can flip between frames.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            It can flip, in both directions, so the Phase 4/5 renderer must tolerate a leg index changing between
+            frames. Deferring makes the walk see <code>total: 0</code>, which <code>legIsDone</code> reads as
+            unfinished, so a docket whose own change is fully ticked resolves to <code>execute</code> while deferred and
+            to <code>cleanup</code> once the count lands. The reverse also exists: when only the
+            <code>openspec</code> CLI knows about a change — no <code>tasks.md</code> on disk — the deferred walk sees
+            <code>changeId: null</code> and reads the leg as done by stamp, where the synchronous path would have taken
+            the CLI's counts. Both are accepted rather than designed around, as the spec's failure-mode table says.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Resolve the counts from <code>tasks.md</code> during the walk and defer only the CLI refinement. That would
+            make the two paths agree in the common case, but it puts two sources of truth in the same inference and
+            leaves the disagreement visible in the rendered row instead of in the leg index.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>The pending thunk resolves <code>null</code> when there is nothing to count</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec types the deferred value <code>() =&gt; Promise&lt;Progress|null&gt;</code> and requires that an
+            absent or failing <code>openspec</code> binary "resolves to <code>null</code> rather than throwing". But
+            <code>executeProgress</code> never returns <code>null</code> — with the CLI unavailable it falls back to
+            counting <code>tasks.md</code>, and with nothing on disk it returns
+            <code>{ done: 0, total: 0, changeId: null }</code>.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The thunk maps "no change in flight" (<code>changeId === null</code>) and any thrown error onto
+            <code>null</code>, and passes every real count through unchanged. That is the one signal the renderer needs
+            — fall back to the whole-leg bar — and it makes the declared return type reachable.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Return the <code>0 of 0</code> object verbatim and let the renderer special-case <code>total === 0</code>.
+            Rejected: it pushes the same decision into every caller and leaves <code>null</code> in the type with
+            nothing that ever produces it.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3><code>src/progress.js</code> was not modified</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Modified Files table asks for <code>executeProgress</code> to be exported "in a form callable
+            standalone against a repo root + change id, so the deferred lane can run it later".
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            No change was needed: <code>executeProgress(repoRoot, changeId, changed)</code>
+            (<code>src/progress.js:149</code>) is already exactly that, and the deferred lane calls it as-is. Touching
+            the file to satisfy the table would have been churn.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Add a thin re-export or wrapper to match the table literally. Rejected as dead indirection.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3><code>RepoFleet</code> carries a <code>warnings</code> array</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Data Model lists five fields on <code>RepoFleet</code>, while its Error Handling table requires
+            that a repository with a malformed bookings overlay fall back to the built-ins "for that repo only, record a
+            warning". There was nowhere to record it.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Added <code>warnings: string[]</code> as a sixth field. Per-repository rather than on
+            <code>FleetModel</code>, because the fallback is a fact about one repository and the renderer attributes it
+            to that group heading. The rest of the shape is untouched, so Phases 2 and 3 still treat it as append-only.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Collect warnings on <code>FleetModel</code>. Rejected: it loses which repository is misconfigured, which is
+            the only actionable part.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Dedup keys are resolved through symlinks, not only through <code>git worktree list</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's dedup rule covers bays — a <code>.git</code> file resolved to its main checkout. Its error table
+            separately asks the walk to track visited real paths so a symlink cannot loop.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The discovered main checkout is also passed through <code>realpathSync</code>. A symlink such as
+            <code>~/Projects/current -&gt; ~/Projects/foo</code> would otherwise be found as a second, differently named
+            copy of a project that the loop guard does not catch — the guard only stops re-<em>descending</em>, not
+            re-<em>discovering</em>. Covered by a fixture.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Leave the discovered path as written. Rejected: a duplicated project is precisely the failure mode this
+            phase exists to prevent, and the symlink route reaches it by a different door than the bay route.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

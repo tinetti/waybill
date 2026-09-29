@@ -9,4 +9,9 @@
 // process ends.
 import { run } from '../src/cli.js';
 
-process.exitCode = run(process.argv.slice(2));
+// `run` answers with a number for every verb but one: `fleet` on a TTY hands back a promise that
+// settles when the operator leaves the live view. Resolving either shape here keeps the exit code
+// the single thing this file is responsible for.
+Promise.resolve(run(process.argv.slice(2))).then((code) => {
+  process.exitCode = code;
+});

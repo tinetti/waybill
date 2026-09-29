@@ -275,17 +275,23 @@ describe('waybill help', () => {
       '  --bay-dir <path>  Where bays are created (`bay` only); overrides WAYBILL_BAY_DIR and',
       '                    `git config waybill.baydir`. Relative paths resolve against the main',
       '                    checkout; the default is .claude/worktrees',
+      '  --depth <n>       How many directory levels below here to search for repositories',
+      '                    (`fleet` only, and only when it walks); the default is 4',
       '  --help            Print this message',
       '',
     ].join('\n');
 
-    // The four docket verbs, then the two that report on something else: `doctor` on the machine,
-    // `help` on the command surface. Both are pinned by position, so a row added anywhere has to
-    // be accounted for here rather than quietly widening the banner.
+    // The four docket verbs, then the three that report on something else: `fleet` on every repo
+    // at or below here, `doctor` on the machine, `help` on the command surface. All three are
+    // pinned by position, so a row added anywhere has to be accounted for here rather than
+    // quietly widening the banner.
     const { commands, options: actual } = usage();
-    assert.deepEqual(commands.slice(0, -2), before);
-    assert.equal(commands.length, before.length + 2);
-    assert.ok(commands.at(-2).startsWith('  doctor '), `the fifth row is not \`doctor\`: ${commands.at(-2)}`);
+    // The four original verbs stay byte-identical and stay first; everything added since is a row
+    // appended after them, so this still fails on a reworded verb rather than only on a missing one.
+    assert.deepEqual(commands.slice(0, before.length), before);
+    assert.equal(commands.length, before.length + 3);
+    assert.ok(commands.at(-3).startsWith('  fleet '), `the fifth row is not \`fleet\`: ${commands.at(-3)}`);
+    assert.ok(commands.at(-2).startsWith('  doctor '), `the sixth row is not \`doctor\`: ${commands.at(-2)}`);
     assert.ok(commands.at(-1).startsWith('  help '), `the last row is not \`help\`: ${commands.at(-1)}`);
     assert.equal(actual, options);
   });
