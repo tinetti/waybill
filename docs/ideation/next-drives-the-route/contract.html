@@ -1,0 +1,1586 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>next drives the route — Mission Brief</title>
+    <script>
+      // Apply a saved forced theme before first paint to avoid a flash
+      try {
+        const saved = localStorage.getItem('ideation-contract-theme');
+        if (saved === 'light' || saved === 'dark')
+          document.documentElement.dataset.theme = saved;
+      } catch {}
+    </script>
+    <style>
+/* Command Deck — Contract Design Tokens & Components
+   Dark-first instrument panel with a co-equal light deck.
+   Cyan-teal telemetry accent; go/caution/danger status trio.
+   Inlined into generated HTML by contract-gen.ts at runtime.
+
+   Anchors: Linear (dark density + restraint), Grafana panels
+   (status rails, dense data), flight-telemetry go/no-go boards.
+   Explicitly NOT: neon glow, scanlines, fake terminal chrome. */
+
+:root {
+  /* Auto: follow the system. The header toggle forces a deck by setting
+     data-theme, which pins color-scheme and resolves every light-dark(). */
+  color-scheme: light dark;
+
+  /* ── Tokens: light-dark(light deck, dark deck) ──
+     OKLCH-derived, hued toward the cyan accent (~h230).
+     Dark deck is canonical; the light deck is co-equal, AA-verified. */
+  --bg: light-dark(#eef1f4, #0a0f16);
+  --surface-1: light-dark(#f9fafb, #101723);
+  --surface-2: light-dark(#ffffff, #161f2e);
+  --line: light-dark(#d4dce3, #243140);
+  --line-strong: light-dark(#aab8c4, #38485a);
+  --ink: light-dark(#16202b, #e6edf3);
+  --muted: light-dark(#46545f, #a2b2c2);
+  --faint: light-dark(#5b6b7a, #8295a8);
+
+  --accent: light-dark(#0a6d89, #56c8ea);
+  --accent-down: light-dark(#0a5e76, #3ba8c9);
+  --accent-tint: light-dark(#ddeef4, #11313f);
+
+  --go: light-dark(#137455, #46d49c);
+  --caution: light-dark(#8c6000, #e9b65a);
+  --danger: light-dark(#b62b50, #f5839b);
+  --go-tint: light-dark(#dff3ea, #0d2b21);
+  --caution-tint: light-dark(#f6ecd4, #2e2410);
+  --danger-tint: light-dark(#fae3e9, #331620);
+
+  /* ── Type ──────────────────────────────────────
+     Mono carries structure (headers, labels, data);
+     sans carries prose. Fixed rem scale, product register. */
+  --font-mono:
+    'Berkeley Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas,
+    monospace;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif;
+  --text-label: 0.6875rem; /* 11px mono labels   */
+  --text-meta: 0.75rem; /*    12px mono metadata */
+  --text-data: 0.8125rem; /*  13px mono data     */
+  --text-body: 1rem; /*       16px sans prose    */
+  --text-title: 1.25rem; /*   20px panel moments */
+  --text-display: 2.5rem; /*  40px project name  */
+
+  /* ── Space (4pt base) ─────────────────────────── */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+/* ── Forced themes (header toggle) ──────────────── */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* ── Reset ──────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.65;
+  /* light-on-dark compensation: +letter-spacing, raised line-height */
+  letter-spacing: 0.011em;
+  color: var(--ink);
+  background: var(--bg);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s6) var(--s8);
+  -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+}
+
+/* ── Shared voices ──────────────────────────────── */
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.label-accent {
+  color: var(--accent);
+}
+.label-danger {
+  color: var(--danger);
+}
+.mono-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status indicator: glyph + color, never color alone */
+.status-ind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.status-go {
+  color: var(--go);
+}
+.status-caution {
+  color: var(--caution);
+}
+
+/* ── Deck header ────────────────────────────────── */
+
+.deck-header {
+  padding-bottom: var(--s5);
+  border-bottom: 2px solid var(--line-strong);
+  margin-bottom: var(--s6);
+}
+.deck-id {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s5);
+}
+.deck-slug {
+  margin-bottom: var(--s3);
+}
+.deck-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.deck-meta {
+  text-align: right;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  align-items: flex-end;
+}
+.deck-meta .mono-meta {
+  line-height: 1.5;
+}
+.theme-toggle {
+  position: relative;
+  background: transparent;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: var(--s1);
+}
+/* expand hit area to ~44px without growing the visual */
+.theme-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+.theme-toggle:hover {
+  color: var(--accent);
+  border-color: var(--line-strong);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Gate strip: go/no-go board */
+.gate-strip {
+  margin-top: var(--s5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.gate-cell {
+  padding: var(--s3) var(--s4);
+  border-inline-start: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s1) var(--s3);
+  align-items: baseline;
+}
+.gate-cell:first-child {
+  border-inline-start: 0;
+}
+.gate-mark {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 700;
+  grid-row: span 2;
+}
+.gate-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.gate-evidence {
+  grid-column: 2;
+  font-size: var(--text-meta);
+  font-family: var(--font-sans);
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.gate-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s3);
+}
+
+/* ── Panels & sections ──────────────────────────── */
+
+.section {
+  margin-top: var(--s7);
+}
+.section-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.section-hdr .label {
+  flex: 0 0 auto;
+}
+.section-hdr-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+  align-self: center;
+}
+.section-count {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.05em;
+  color: var(--faint);
+}
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s6);
+}
+
+/* ── Prose (problem statement) ──────────────────── */
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-width: 68ch;
+}
+.prose p {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.65;
+  color: var(--ink);
+}
+.line-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--faint);
+  margin-right: var(--s2);
+  letter-spacing: 0.08em;
+  vertical-align: 0.12em;
+}
+
+/* ── Goals ──────────────────────────────────────── */
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.goal-row {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  align-items: baseline;
+}
+.goal-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.goal-text {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+/* ── Success criteria ───────────────────────────── */
+
+.criteria-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--s6);
+}
+.criteria-item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--s3);
+  align-items: baseline;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.criteria-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.criteria-check {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: var(--s1) var(--s2);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+  align-self: flex-start;
+}
+.criteria-judgment {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--caution);
+  font-weight: 600;
+}
+
+/* ── Scope ──────────────────────────────────────── */
+
+.scope-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--s6);
+}
+.nested-tiers {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+.tier-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius);
+}
+.tier-box-stretch {
+  width: 300px;
+  height: 300px;
+  border: 1px dashed var(--line-strong);
+}
+.tier-box-full {
+  width: 218px;
+  height: 218px;
+  border: 1px solid var(--accent-down);
+}
+.tier-box-mvp {
+  width: 136px;
+  height: 136px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+}
+.tier-box-label {
+  position: absolute;
+  top: var(--s2);
+  left: var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.tier-box-stretch .tier-box-label {
+  color: var(--faint);
+}
+.tier-box-full .tier-box-label {
+  color: var(--accent);
+}
+.tier-box-mvp .tier-box-label {
+  color: var(--accent);
+}
+.tier-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+.tier-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.tier-glyph {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 700;
+  color: var(--accent);
+}
+.tier-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.tier-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.tier-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--faint);
+}
+.tier-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.tier-items li {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tier-items strong {
+  font-weight: 500;
+}
+.tier-reason {
+  color: var(--muted);
+  margin-left: var(--s2);
+  font-size: 0.8125rem;
+}
+.scope-extras {
+  margin-top: var(--s5);
+}
+.scope-panel {
+  padding: var(--s4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+}
+.scope-panel-out {
+  background: var(--danger-tint);
+}
+.scope-panel .label {
+  display: block;
+  margin-bottom: var(--s3);
+}
+.scope-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.scope-list li {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.scope-out-item {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+}
+
+/* ── Pipeline (DAG) ─────────────────────────────── */
+
+.pipeline-wrap {
+  padding: var(--s5);
+  overflow-x: auto;
+}
+.pipeline {
+  display: block;
+  min-width: 560px;
+  max-width: 100%;
+  height: auto;
+}
+.pipeline .node-box {
+  fill: var(--surface-2);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.pipeline .node-gate .node-box {
+  fill: var(--accent-tint);
+  stroke: var(--accent-down);
+}
+.pipeline .node-rail {
+  stroke-width: 3;
+}
+.pipeline .node-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--faint);
+  letter-spacing: 0.08em;
+}
+.pipeline .node-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+.pipeline .node-kind {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pipeline .edge {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  fill: none;
+}
+.pipeline .edge-head {
+  fill: var(--line-strong);
+}
+
+/* ── Phase table ────────────────────────────────── */
+
+.phase-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-data);
+}
+.phase-table th {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--line-strong);
+}
+.phase-table td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+.phase-table tr:last-child td {
+  border-bottom: 0;
+}
+.phase-num {
+  font-family: var(--font-mono);
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.phase-title {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--ink);
+}
+.phase-kind {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.phase-risk {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.phase-notes {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+/* ── Commands ───────────────────────────────────── */
+
+.run-bar {
+  margin-top: var(--s5);
+  padding: var(--s5);
+  border: 1px solid var(--accent-down);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.4fr);
+  gap: var(--s5);
+  align-items: center;
+}
+.run-bar-headline {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: var(--s1) 0;
+}
+.run-bar-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.cmd-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.cmd-field-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.cmd-field-wide {
+  white-space: pre-wrap;
+}
+.cmd-field-wide .cmd-field-text {
+  white-space: pre-wrap;
+}
+.copy-btn {
+  position: relative;
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line-strong);
+  padding: var(--s1) var(--s3);
+  border-radius: 4px;
+  font-size: var(--text-label);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+/* expand hit area to ~44px without growing the visual */
+.copy-btn::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+.copy-btn:hover {
+  background: var(--accent-tint);
+  border-color: var(--accent-down);
+}
+.copy-btn:active {
+  color: var(--accent-down);
+}
+.copy-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cmd-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.cmd-row {
+  display: grid;
+  grid-template-columns: 36px 220px 1fr;
+  gap: var(--s4);
+  align-items: center;
+}
+.cmd-row-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.cmd-row-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Disclosure ─────────────────────────────────── */
+
+.disclosure {
+  margin-top: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.disclosure summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--s3) var(--s4);
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.disclosure summary:hover {
+  color: var(--ink);
+}
+.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure summary::before {
+  content: '▸';
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.disclosure[open] summary::before {
+  transform: rotate(90deg);
+}
+.disclosure summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.disclosure-body {
+  padding: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+/* ── First move / approval / close bands ────────── */
+
+.approval-bar {
+  margin-top: var(--s5);
+  padding: var(--s5);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+.approval-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: var(--s2);
+  max-width: 64ch;
+}
+.plan-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+.contract-close {
+  margin-top: var(--s7);
+  padding: var(--s5);
+  border: 1px solid var(--line-strong);
+  border-top: 2px solid var(--go);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s5);
+  align-items: center;
+}
+.close-headline {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin-top: var(--s2);
+}
+.close-desc {
+  font-size: 0.8125rem;
+  letter-spacing: 0.011em;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: var(--s2);
+  max-width: 60ch;
+}
+.close-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  align-items: flex-end;
+}
+
+/* ── Responsive ─────────────────────────────────── */
+
+@media (max-width: 820px) {
+  body {
+    padding: var(--s4) var(--s4) var(--s7);
+  }
+  .deck-id {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .deck-meta {
+    text-align: left;
+    align-items: flex-start;
+  }
+  .deck-title {
+    font-size: 1.75rem;
+  }
+  .gate-cell {
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+  }
+  .gate-cell:first-child {
+    border-top: 0;
+  }
+  .two-col,
+  .scope-layout,
+  .scope-extras,
+  .run-bar,
+  .contract-close {
+    grid-template-columns: 1fr;
+  }
+  .close-meta {
+    text-align: left;
+    align-items: flex-start;
+  }
+  .criteria-grid {
+    grid-template-columns: 1fr;
+  }
+  .nested-tiers {
+    display: none;
+  }
+  .cmd-row {
+    grid-template-columns: 36px 1fr;
+  }
+  .cmd-row .cmd-field {
+    grid-column: 1 / -1;
+  }
+  .phase-notes-col {
+    display: none;
+  }
+}
+
+/* ── Reduced motion ─────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure summary::before {
+    transition: none;
+  }
+}
+
+/* ── Print: the deck renders as a paper document ── */
+
+@media print {
+  /* Paper always wins, even when the toggle forced the dark deck */
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
+  }
+  :root {
+    --bg: #ffffff;
+    --surface-1: #ffffff;
+    --surface-2: #f4f6f8;
+    --line: #c9d2da;
+    --line-strong: #8d9aa6;
+    --ink: #000000;
+    --muted: #333d46;
+    --faint: #4d5a66;
+    --accent: #0a5e76;
+    --accent-down: #0a5e76;
+    --accent-tint: #e8f2f6;
+    --go: #0d5c43;
+    --caution: #6e4b00;
+    --danger: #9c2547;
+  }
+  body {
+    font-size: 11pt;
+    max-width: none;
+    padding: 20px;
+  }
+  .copy-btn,
+  .theme-toggle {
+    display: none !important;
+  }
+  .pipeline-wrap {
+    overflow: visible;
+  }
+  .disclosure:not([open]) > *:not(summary) {
+    display: block !important;
+  }
+  .disclosure summary::before {
+    display: none;
+  }
+  .panel,
+  .goal-row,
+  .gate-strip,
+  .run-bar,
+  .contract-close {
+    page-break-inside: avoid;
+  }
+}
+
+    </style>
+  </head>
+  <body data-contract-status="Approved">
+
+    <header class="deck-header">
+      <div class="deck-id">
+        <div>
+          <div class="deck-slug label">mission brief · next-drives-the-route</div>
+          <h1 class="deck-title">next drives the route</h1>
+        </div>
+        <div class="deck-meta">
+          <span class="status-ind status-go"><span class="status-dot" aria-hidden="true"></span>Approved</span>
+          <span class="mono-meta">created 2026-09-29</span>
+          
+          
+          <button type="button" class="theme-toggle" id="theme-toggle">theme · auto</button>
+        </div>
+      </div>
+
+      <div class="gate-verdict">
+        <span class="label">Readiness gates</span>
+        <span class="status-ind status-go">All gates ready</span>
+      </div>
+      <div class="gate-strip">
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Problem Clarity</span>
+          <span class="gate-evidence">A full eight-leg effort costs ~28 paste blocks across 8 stops — 4 of those stops are pure relay on legs needing no human judgment — because `commands/next.md:51-61` requires `next` to show its waybill verbatim and stop, so waybill cannot advance an effort while the operator is away from the keyboard.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Goal Definition</span>
+          <span class="gate-evidence">Under `--autopilot`, halts drop from 8 to 3 on the legs `next` can reach, a complete route walk costs at most 6 invocations, and the longest unattended run rises from 0 legs to 2 (`specs` + `execute`) — each figure pinned by a named test in the fixture walk.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Success Criteria</span>
+          <span class="gate-evidence">Every mechanical check puts its whole assertion in the runnable half — golden stability is `git diff --exit-code`, and per-criterion teeth come from `--test-name-pattern` piped to `grep -qE '^# pass [1-9]'`, since `node --test` exits 0 printing `# pass 0` when a pattern matches nothing.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Scope Boundaries</span>
+          <span class="gate-evidence">MVP is the route's gate field, `next` executing, `status`'s in-bay answer carrying the waybill, `--autopilot`, the failed-stamp ask and the mismatch warning; the booking-level override and subagent dispatch sit in Full; six exclusions are named explicitly, four of them by the operator.</span>
+        </div>
+        <div class="gate-cell">
+          <span class="gate-mark" style="color: var(--go)">✓</span>
+          <span class="gate-name">Consistency</span>
+          <span class="gate-evidence">The one contradiction found — `ideate` being a gate whose stamp cannot flip when conducted — proved unreachable: `src/cli.js:278` never issues an `ideate` waybill and `src/legs.js:131` marks it done whenever a docket is open, so its gate flag is documentation-only and the three gates `next` can reach all have stamps that flip when conducted.</span>
+        </div>
+      </div>
+    </header>
+    <main>
+
+    <section class="run-bar">
+      <div>
+        <div class="label label-accent">First move</div>
+        <div class="run-bar-headline">Run this.</div>
+        <div class="run-bar-desc">Phase 01 of 06 — <strong>The gate field</strong></div>
+      </div>
+      <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-first">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-1.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-first">copy</button>
+          </div>
+    </section>
+
+    <div class="section two-col">
+      <section>
+      <div class="section-hdr">
+        <span class="label">The problem</span>
+        <span class="section-hdr-rule"></span>
+      </div>
+        <div class="prose">
+          <p><span class="line-num">01</span>Waybill's `next` reports; it does not drive. `commands/next.md:51-61` instructs the session to show the CLI's waybill block verbatim and stop — &quot;It is already the whole answer&quot; — and running the commands it lists is explicitly the next session's job. The only override is a `RUN:` line, which the CLI prints only when the operator has already pasted `/waybill:next &lt;branch&gt;/&lt;leg&gt;` after clearing. Every leg boundary on the eight-leg route is therefore a manual relay.</p>
+          <p><span class="line-num">02</span>That relay costs roughly 28 paste blocks per effort: each `handover: transfer` leg renders `/clear`, `/model`, `/effort` and the command; each `through` leg renders three. Eight legs, eight stops. Four of those stops — `bay`, `specs`, `execute`, `cleanup` — ask nothing of the operator's judgment; they are pure transport, and the operator is the conveyor belt.</p>
+          <p><span class="line-num">03</span>The sharpest cost is not keystrokes but presence. Because nothing advances without a paste, an effort cannot progress while the operator is away, even across `specs` and `execute` — the two longest legs on the route, and the two that most obviously want to run unattended. A route designed to be walked in sessions currently requires a human at every session boundary, including the boundaries that exist only for context hygiene.</p>
+        </div>
+      </section>
+      <section>
+      <div class="section-hdr">
+        <span class="label">Goals</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">×5</span>
+      </div>
+        <div class="goal-list">
+          <div class="goal-row">
+            <span class="goal-num">01</span>
+            <span class="goal-text">Under `--autopilot`, halt exactly once per gate the command can reach — three halts (`refine`, `contract`, `review`) rather than today's eight — and never halt for transport.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">02</span>
+            <span class="goal-text">Walk a complete eight-leg route in at most 6 `/waybill:next` invocations, down from ~28 paste blocks; the fourth operator stop belongs to `/waybill:new` conducting `ideate` and is unchanged by this work.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">03</span>
+            <span class="goal-text">Raise the longest unattended run from 0 legs to 2, so `specs` and `execute` cross without the operator present.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">04</span>
+            <span class="goal-text">Make gate membership explicit data — a `gate` field on the route — rather than prose scattered across `commands/*.md`.</span>
+          </div>
+          <div class="goal-row">
+            <span class="goal-num">05</span>
+            <span class="goal-text">Preserve the context hygiene that `handover: transfer` buys: a leg whose booking names a more capable model than the running session must never run degraded in silence.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Done when</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">18 signals · 17 mechanically checked</span>
+      </div>
+      <ul class="criteria-grid">
+        <li class="criteria-item">
+          <span class="line-num">01</span>
+          <div class="criteria-body">
+            <span>The route declares `gate` on `ideate`, `refine`, `contract` and `review`, and on no other leg</span>
+            <code class="criteria-check">node --test --test-name-pattern 'route declares its gates' tests/legs.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">02</span>
+          <div class="criteria-body">
+            <span>`/waybill:status`'s in-bay answer renders the paste blocks `/waybill:next` renders today, with no existing golden's content modified (renames and additions allowed)</span>
+            <code class="criteria-check">node --test tests/cli.test.js tests/waybill.test.js &amp;&amp; git diff --exit-code --diff-filter=M -- tests/golden/</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">03</span>
+          <div class="criteria-body">
+            <span>`/waybill:status` on the trunk still renders the fleet listing with no waybill attached to any docket</span>
+            <code class="criteria-check">node --test --test-name-pattern 'fleet listing carries no waybill' tests/fleet.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">04</span>
+          <div class="criteria-body">
+            <span>On a non-gate leg the CLI emits the run literal and no paste blocks</span>
+            <code class="criteria-check">node --test --test-name-pattern 'non-gate leg emits the run literal' tests/cli.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">05</span>
+          <div class="criteria-body">
+            <span>On a gate leg the CLI emits the gate literal and stops, marking nothing after it for crossing</span>
+            <code class="criteria-check">node --test --test-name-pattern 'gate leg halts the walk' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">06</span>
+          <div class="criteria-body">
+            <span>A full-route fixture walk under `--autopilot` halts exactly three times, once per reachable gate</span>
+            <code class="criteria-check">node --test --test-name-pattern 'halts once per reachable gate' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">07</span>
+          <div class="criteria-body">
+            <span>A full-route fixture walk under `--autopilot` completes in at most six invocations</span>
+            <code class="criteria-check">node --test --test-name-pattern 'walks the route in six invocations' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">08</span>
+          <div class="criteria-body">
+            <span>From a contract-stamped fixture, one `--autopilot` invocation crosses `specs` and `execute` and halts at `review`</span>
+            <code class="criteria-check">node --test --test-name-pattern 'crosses specs and execute' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">09</span>
+          <div class="criteria-body">
+            <span>A leg that runs without flipping its stamp yields exactly one ask and exactly one carrier invocation — never a second automatic attempt</span>
+            <code class="criteria-check">node --test --test-name-pattern 'failed stamp asks once and retries never' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">10</span>
+          <div class="criteria-body">
+            <span>A non-gate leg booked `handover: transfer` is dispatched to a subagent at its booked model; a `through` leg runs in-session; a gate leg is never dispatched, whatever its handover</span>
+            <code class="criteria-check">node --test --test-name-pattern 'transfer dispatches and gates never do' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">11</span>
+          <div class="criteria-body">
+            <span>Each crossed leg reports the model it actually ran at, so a dispatched leg and an in-session one are told apart in the run log</span>
+            <code class="criteria-check">node --test --test-name-pattern 'run log names the model per leg' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">12</span>
+          <div class="criteria-body">
+            <span>`cleanup` is crossed only when its bay is clean; a dirty worktree, unpushed commits or an unmerged branch halts with the ask instead of deleting</span>
+            <code class="criteria-check">node --test --test-name-pattern 'cleanup halts on an unclean bay' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">13</span>
+          <div class="criteria-body">
+            <span>Gitignored papers in a clean bay are deleted with `cleanup` but named in the run log rather than removed silently</span>
+            <code class="criteria-check">node --test --test-name-pattern 'cleanup names the ignored papers it removes' tests/autopilot.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">14</span>
+          <div class="criteria-body">
+            <span>The repo-root README, docs/guide, commands/*.md and the help card all carry the new verb and no longer describe `next` as show-and-stop — asserted positively, not only by absence</span>
+            <code class="criteria-check">node --test --test-name-pattern 'root README carries the new verb' tests/guide.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">15</span>
+          <div class="criteria-body">
+            <span>The zero-dependency, no-build, node --test-only toolchain invariant still holds</span>
+            <code class="criteria-check">node --test --test-name-pattern 'zero dependencies and no build step' tests/commands.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">16</span>
+          <div class="criteria-body">
+            <span>Every command that shells out still wraps its bang line, so a non-zero exit cannot discard the command file</span>
+            <code class="criteria-check">node --test --test-name-pattern 'every shelling command wraps its bang line' tests/bang-lines.test.js 2&gt;&amp;1 | grep -qE '^# pass [1-9]'</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">17</span>
+          <div class="criteria-body">
+            <span>The whole suite is green</span>
+            <code class="criteria-check">node --test tests/</code>
+          </div>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">18</span>
+          <div class="criteria-body">
+            <span>The operator walks one real docket end-to-end under `--autopilot` and confirms it stops only at the gates, conducts each one, and never runs a leg at the wrong model in silence</span>
+            <span class="criteria-judgment">judgment call — no mechanical check</span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Scope</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">MVP nests inside Full nests inside Stretch</span>
+      </div>
+      <div class="scope-layout">
+        <div class="nested-tiers" aria-hidden="true">
+          <div class="tier-box tier-box-stretch"><span class="tier-box-label">Stretch ×1</span></div>
+          <div class="tier-box tier-box-full"><span class="tier-box-label">Full ×1</span></div>
+          <div class="tier-box tier-box-mvp"><span class="tier-box-label">MVP ×11</span></div>
+        </div>
+        <div class="tier-lists">
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">MVP — must ship</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×11</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>A `gate` field on the route in `src/legs.js`, true for `ideate`, `refine`, `contract` and `review`</strong><span class="tier-reason">— Everything else keys off it; gate membership must be data, not prose. `ideate`'s flag is documentation-only — `next` never reaches that leg.</span></li>
+              <li><strong>`/waybill:next` executes the next leg — invoking its carrier in-session rather than printing paste blocks</strong><span class="tier-reason">— The core verb change; the whole point</span></li>
+              <li><strong>`/waybill:next` conducts a gate leg and then stops, crossing nothing after it</strong><span class="tier-reason">— &quot;Take me to the next human gate, then walk me through it&quot; — the gate is conducted, not merely arrived at</span></li>
+              <li><strong>`/waybill:status`'s in-bay answer gains the waybill paste blocks; the trunk fleet listing keeps none</strong><span class="tier-reason">— The manual relay must stay reachable or a model mismatch has no escape hatch. The fleet listing never carried a waybill and must not start.</span></li>
+              <li><strong>`/waybill:next --autopilot` crosses non-gate legs until a gate, conducts it, and stops</strong><span class="tier-reason">— Where the unattended reach comes from — it crosses `specs` and `execute`</span></li>
+              <li><strong>Stop-and-ask when a crossed leg runs but its stamp does not flip: one prompt offering retry, inspect, or stop</strong><span class="tier-reason">— The only thing preventing a runaway loop; chosen over a silent halt so a failure becomes a decision</span></li>
+              <li><strong>A non-gate leg booked `handover: transfer` is dispatched to a subagent at its booked model; `through` legs run in-session; gate legs are never dispatched</strong><span class="tier-reason">— `transfer` already means &quot;this leg wants its own fresh context&quot;, and a subagent is exactly that. This is how autopilot crosses `specs` and `execute` at all — without it MVP autopilot crosses nothing worth crossing.</span></li>
+              <li><strong>A run log naming, per crossed leg, the model it actually ran at</strong><span class="tier-reason">— The only way a dispatched leg and an in-session one are told apart after an unattended run</span></li>
+              <li><strong>`cleanup` pre-flight: crossable when the bay is clean, halting with the ask on a dirty worktree, unpushed commits or an unmerged branch; gitignored papers deleted but named in the log</strong><span class="tier-reason">— Pre-approving cleanup's destructive git steps is what lets one autopilot run finish an effort; the pre-flight is what keeps that from discarding real work unattended</span></li>
+              <li><strong>Sweep every prose surface describing `next` as show-and-stop — repo-root README, docs/guide, commands/*.md, src/help.js — and add the missing root-README assertion to the suite</strong><span class="tier-reason">— docs/ideation/learnings.md records this exact gap from next-from-anywhere, and no test today reads the repo-root README at all</span></li>
+              <li><strong>Update `docs/guide/03-reference.md` in the same phase as each new booking key and CLI flag</strong><span class="tier-reason">— tests/guide.test.js:202-206 asserts every booking key and every USAGE flag appears there, so deferring the doc reddens the suite in the phase that adds the key</span></li>
+            </ul>
+          </div>
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">Full — target outcome</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×1</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>A `gate:` key in booking frontmatter overriding the route default in either direction</strong><span class="tier-reason">— Lets a solo operator un-gate `review` on their own machine; per-machine preference, not load-bearing for the paste-count goals</span></li>
+            </ul>
+          </div>
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-title">Stretch — if time permits</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×1</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>`--autopilot --dry-run`: print the run autopilot would make, and where it would stop, without running anything</strong></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col scope-extras">
+        <div class="scope-panel scope-panel-out">
+          <span class="label label-danger">Out of scope — said no on purpose</span>
+          <ul class="scope-list">
+            <li><span class="scope-out-item">Effort fidelity on dispatched subagents</span> — A subagent takes `model` but not `effort`; a dispatched `execute` runs opus-at-default rather than opus/high. Accepted and documented rather than worked around.</li>
+            <li><span class="scope-out-item">Splicing non-stock legs into the route via `after:`</span> — Already deliberately deferred to Future in commit 0c5c5fc; overlays rebook and re-gate the eight stock legs, never add a ninth</li>
+            <li><span class="scope-out-item">Fleet-wide autopilot across several open dockets</span> — One docket per invocation, as `next` works today</li>
+            <li><span class="scope-out-item">Any retry beyond the single ask — no backoff, no automatic second attempt, no repair logic</span> — One attempt per leg keeps the failure mode legible</li>
+            <li><span class="scope-out-item">Changing `ideate`'s stamp or giving it a paper</span> — `next` never reaches `ideate` (src/cli.js:278, src/legs.js:131), and a paper written before `bay` exists would land in the main checkout — the one thing waybill's design prevents</li>
+            <li><span class="scope-out-item">Gate awareness in `/waybill:new`</span> — `new` already conducts `ideate` and stops; the scope named was next, status and autopilot</li>
+            <li><span class="scope-out-item">Discovering the running session's model, and any model-capability ranking table</span> — Nothing in src/ can learn the session's model — only HOME, WAYBILL_BAY_DIR and WAYBILL_BOOKINGS_DIR are read anywhere — and a haiku&lt;sonnet&lt;opus table would go stale each model generation. `handover: transfer` is the trigger instead.</li>
+          </ul>
+        </div>
+        <div class="scope-panel">
+          <span class="label">Future — someday, maybe</span>
+          <ul class="scope-list">
+            <li>Detecting session cleanliness rather than assuming it, if assuming-clean proves wrong in practice</li>
+            <li>Making `effort` settable on a dispatched subagent, should the harness ever expose it</li>
+            <li>A gate that is situational rather than static — a leg becoming a gate because a stamp returned STAMP_UNKNOWN or a diff crossed a size threshold</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-hdr">
+        <span class="label">Execution</span>
+        <span class="section-hdr-rule"></span>
+        <span class="section-count">Sequential</span>
+      </div>
+      <div class="panel pipeline-wrap">
+        <svg class="pipeline" viewBox="0 0 1268 156" role="img" aria-label="Phase pipeline: 01 The gate field (wave 1); 02 status carries the waybill (wave 2); 03 next executes the leg (wave 3); 04 autopilot, the failed-stamp ask, and cleanup pre-flight (wave 4); 05 The booking-level gate override (wave 5); 06 The prose sweep (wave 5) — 5 waves">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="edge-head" d="M0,0 L10,5 L0,10 z" />
+            </marker>
+          </defs>
+      <path class="edge" d="M 206 38 H 263" marker-end="url(#arrow)" />
+      <path class="edge" d="M 470 38 H 527" marker-end="url(#arrow)" />
+      <path class="edge" d="M 734 38 H 791" marker-end="url(#arrow)" />
+      <path class="edge" d="M 998 38 H 1055" marker-end="url(#arrow)" />
+      <path class="edge" d="M 998 38 H 1030 V 118 H 1055" marker-end="url(#arrow)" />
+      <g class="node">
+        <rect class="node-box" x="6" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="7" y1="7.5" x2="205" y2="7.5" stroke="var(--go)" />
+        <text class="node-num" x="18" y="28">01</text>
+        <text class="node-kind" x="194" y="28" text-anchor="end" fill="var(--go)">low</text>
+        <text class="node-title" x="18" y="47">The gate field</text>
+        <text class="node-kind" x="18" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="270" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="271" y1="7.5" x2="469" y2="7.5" stroke="var(--caution)" />
+        <text class="node-num" x="282" y="28">02</text>
+        <text class="node-kind" x="458" y="28" text-anchor="end" fill="var(--caution)">med</text>
+        <text class="node-title" x="282" y="47">status carries the waybill</text>
+        <text class="node-kind" x="282" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="534" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="535" y1="7.5" x2="733" y2="7.5" stroke="var(--danger)" />
+        <text class="node-num" x="546" y="28">03</text>
+        <text class="node-kind" x="722" y="28" text-anchor="end" fill="var(--danger)">high</text>
+        <text class="node-title" x="546" y="47">next executes the leg</text>
+        <text class="node-kind" x="546" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="798" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="799" y1="7.5" x2="997" y2="7.5" stroke="var(--danger)" />
+        <text class="node-num" x="810" y="28">04</text>
+        <text class="node-kind" x="986" y="28" text-anchor="end" fill="var(--danger)">high</text>
+        <text class="node-title" x="810" y="47">autopilot, the failed-sta…</text>
+        <text class="node-kind" x="810" y="62">phase · blocking</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="1062" y="6" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="1063" y1="7.5" x2="1261" y2="7.5" stroke="var(--caution)" />
+        <text class="node-num" x="1074" y="28">05</text>
+        <text class="node-kind" x="1250" y="28" text-anchor="end" fill="var(--caution)">med</text>
+        <text class="node-title" x="1074" y="47">The booking-level gate ov…</text>
+        <text class="node-kind" x="1074" y="62">phase</text>
+      </g>
+      <g class="node">
+        <rect class="node-box" x="1062" y="86" width="200" height="64" rx="5" />
+        <line class="node-rail" x1="1063" y1="87.5" x2="1261" y2="87.5" stroke="var(--go)" />
+        <text class="node-num" x="1074" y="108">06</text>
+        <text class="node-kind" x="1250" y="108" text-anchor="end" fill="var(--go)">low</text>
+        <text class="node-title" x="1074" y="127">The prose sweep</text>
+        <text class="node-kind" x="1074" y="142">phase · blocking</text>
+      </g>
+        </svg>
+      </div>
+      <div class="panel">
+        <table class="phase-table">
+          <thead>
+            <tr>
+              <th scope="col">##</th>
+              <th scope="col">Phase</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Risk</th>
+              <th scope="col" class="phase-notes-col">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="phase-num">01</td>
+              <td class="phase-title">The gate field</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--go)">low</td>
+              <td class="phase-notes phase-notes-col">Add `gate` to the LEGS entries in src/legs.js and expose it through resolveLeg. Pure data; no behaviour change. Also documents the gate column in docs/guide/03-reference.md's route table and in src/help.js's ROUTE, so the concept is never introduced silently. The booking-level `gate:` key is phase 5, and that is where tests/guide.test.js:206's booking-key coupling bites.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">02</td>
+              <td class="phase-title">status carries the waybill</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--caution)">med</td>
+              <td class="phase-notes phase-notes-col">Larger than a renderer move: status() rejects every argument today by design (src/cli.js:316-321), so it gains --markdown, its bang line in commands/status.md:33 changes (pinned by tests/commands.test.js), tests/golden/status.txt moves, and docs/guide/03-reference.md gains the flag. Renders the in-bay waybill via renderWaybillMarkdown with no content change to any existing golden; the trunk fleet listing keeps no waybill. Rewrites commands/status.md:45-49, which today forbids exactly this. Lands before next stops printing so the relay is never unreachable.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">03</td>
+              <td class="phase-title">next executes the leg</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--danger)">high</td>
+              <td class="phase-notes phase-notes-col">The verb change. The CLI emits a run literal for a non-gate leg and a gate literal for a gate; commands/next.md acts on those literals, never on the session's reading, preserving the rule at next.md:68-69. Drops the `named`-only gating on ENTER BAY:/RUN: (src/cli.js:161-165, src/waybill.js:364-368) so a bare `/waybill:next` also emits them. A `through` leg runs in-session; a non-gate `transfer` leg is dispatched to a subagent at its booked model; a gate leg is always conducted in-session.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">04</td>
+              <td class="phase-title">autopilot, the failed-stamp ask, and cleanup pre-flight</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--danger)">high</td>
+              <td class="phase-notes phase-notes-col">--autopilot crosses non-gate legs, re-deriving state after each, conducts the gate it reaches, stops. One ask when a crossed leg fails to stamp, never a retry. Pre-approves cleanup's destructive git steps behind a pre-flight that halts on a dirty worktree, unpushed commits or an unmerged branch. Autopilot assumes the session is clean enough to cross two legs — crossing a `transfer` leg in a subagent is what makes that safe. Settles whether --autopilot combines with a named target, given commands/next.md:47 passes &quot;$ARGUMENTS&quot; as one quoted token and src/cli.js:225-231 reads any non-dash positional as a branch. Adds docs/guide/03-reference.md for the flag, and tests/autopilot.test.js with the named cases the criteria grep for. Crossing depends on the user-level /spec:* command links and `openspec` on PATH; a carrier that will not resolve surfaces as the single ask, not a stall.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">05</td>
+              <td class="phase-title">The booking-level gate override</td>
+              <td class="phase-kind">phase</td>
+              <td class="phase-risk" style="color: var(--caution)">med</td>
+              <td class="phase-notes phase-notes-col">Full tier. Accept `gate:` in booking frontmatter (src/bookings.js OPTIONAL) and resolve booking-over-route in src/inference.js, with tests pinning both override directions. Adds the key to docs/guide/03-reference.md in this phase for the same guide-test reason as phase 1.</td>
+            </tr>
+            <tr>
+              <td class="phase-num">06</td>
+              <td class="phase-title">The prose sweep</td>
+              <td class="phase-kind">phase · blocking</td>
+              <td class="phase-risk" style="color: var(--go)">low</td>
+              <td class="phase-notes phase-notes-col">Grep every surface describing next as show-and-stop — repo-root README, docs/guide/*, commands/*.md, src/help.js — and update it. Extend tests/guide.test.js to read the repo-root README, which no test reads today, asserting the new verb is present as well as the old phrasing gone.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="run-bar">
+        <div>
+          <div class="label label-accent">Run all phases</div>
+          <div class="run-bar-headline">Autopilot.</div>
+          <div class="run-bar-desc">Reads the contract, walks the dependency graph, and dispatches phases automatically.</div>
+        </div>
+        <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-autopilot">/ideation:autopilot</span>
+            <button type="button" class="copy-btn" data-copy="cmd-autopilot">copy</button>
+          </div>
+      </div>
+
+      <details class="disclosure">
+        <summary>Run phases individually (6)</summary>
+        <div class="disclosure-body">
+          <div class="cmd-list">
+            <div class="cmd-row">
+              <span class="cmd-row-num">01</span>
+              <span class="cmd-row-title">The gate field</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-1">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-1.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-1">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">02</span>
+              <span class="cmd-row-title">status carries the waybill</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-2">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-2.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-2">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">03</span>
+              <span class="cmd-row-title">next executes the leg</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-3">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-3.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-3">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">04</span>
+              <span class="cmd-row-title">autopilot, the failed-stamp ask, and cleanup pre-flight</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-4">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-4.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-4">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">05</span>
+              <span class="cmd-row-title">The booking-level gate override</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-5">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-5.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-5">copy</button>
+          </div>
+            </div>
+            <div class="cmd-row">
+              <span class="cmd-row-num">06</span>
+              <span class="cmd-row-title">The prose sweep</span>
+              <div class="cmd-field">
+            <span class="cmd-field-text" id="cmd-6">/ideation:execute-spec docs/ideation/next-drives-the-route/spec-phase-6.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-6">copy</button>
+          </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+    </section>
+
+    <section class="contract-close">
+      <div>
+        <div class="label label-accent">Contract approved</div>
+        <div class="close-headline">This plan is the commitment.</div>
+        <div class="close-desc">6 phases · Sequential. Scope changes mean a new revision that supersedes this brief — not silent drift.</div>
+      </div>
+      <div class="close-meta">
+        <span class="status-ind status-go"><span class="status-dot" aria-hidden="true"></span>Approved</span>
+        <span class="mono-meta">2026-09-29</span>
+      </div>
+    </section>
+    </main>
+
+    <script>
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        // aria-live so the copied/failed text swap is announced
+        btn.setAttribute('aria-live', 'polite');
+        btn.addEventListener('click', () => {
+          const target = document.getElementById(btn.dataset.copy);
+          if (!target) return;
+          const flash = label => {
+            btn.textContent = label;
+            setTimeout(() => (btn.textContent = 'copy'), 2000);
+          };
+          navigator.clipboard
+            .writeText(target.textContent.trim())
+            .then(() => flash('copied'))
+            // file:// or denied permission — the text is select-all, so
+            // point at the manual path instead of failing silently
+            .catch(() => flash('press ⌘C / Ctrl+C'));
+        });
+      });
+
+      /* === THEME TOGGLE (auto → light → dark) === */
+      const themeBtn = document.getElementById('theme-toggle');
+      if (themeBtn) {
+        const KEY = 'ideation-contract-theme';
+        const root = document.documentElement;
+        const apply = mode => {
+          if (mode === 'auto') delete root.dataset.theme;
+          else root.dataset.theme = mode;
+          themeBtn.textContent = 'theme · ' + mode;
+          try {
+            if (mode === 'auto') localStorage.removeItem(KEY);
+            else localStorage.setItem(KEY, mode);
+          } catch {}
+        };
+        apply(root.dataset.theme || 'auto');
+        themeBtn.addEventListener('click', () => {
+          const order = ['auto', 'light', 'dark'];
+          const current = root.dataset.theme || 'auto';
+          apply(order[(order.indexOf(current) + 1) % order.length]);
+        });
+      }
+    </script>
+  </body>
+</html>
