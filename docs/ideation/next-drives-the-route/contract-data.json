@@ -1,0 +1,272 @@
+{
+  "projectName": "next drives the route",
+  "slug": "next-drives-the-route",
+  "date": "2026-09-29",
+  "status": "Approved",
+  "supersedes": null,
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "A full eight-leg effort costs ~28 paste blocks across 8 stops — 4 of those stops are pure relay on legs needing no human judgment — because `commands/next.md:51-61` requires `next` to show its waybill verbatim and stop, so waybill cannot advance an effort while the operator is away from the keyboard."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "Under `--autopilot`, halts drop from 8 to 3 on the legs `next` can reach, a complete route walk costs at most 6 invocations, and the longest unattended run rises from 0 legs to 2 (`specs` + `execute`) — each figure pinned by a named test in the fixture walk."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "Every mechanical check puts its whole assertion in the runnable half — golden stability is `git diff --exit-code`, and per-criterion teeth come from `--test-name-pattern` piped to `grep -qE '^# pass [1-9]'`, since `node --test` exits 0 printing `# pass 0` when a pattern matches nothing."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "MVP is the route's gate field, `next` executing, `status`'s in-bay answer carrying the waybill, `--autopilot`, the failed-stamp ask and the mismatch warning; the booking-level override and subagent dispatch sit in Full; six exclusions are named explicitly, four of them by the operator."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "The one contradiction found — `ideate` being a gate whose stamp cannot flip when conducted — proved unreachable: `src/cli.js:278` never issues an `ideate` waybill and `src/legs.js:131` marks it done whenever a docket is open, so its gate flag is documentation-only and the three gates `next` can reach all have stamps that flip when conducted."
+      }
+    ]
+  },
+  "problem": [
+    "Waybill's `next` reports; it does not drive. `commands/next.md:51-61` instructs the session to show the CLI's waybill block verbatim and stop — \"It is already the whole answer\" — and running the commands it lists is explicitly the next session's job. The only override is a `RUN:` line, which the CLI prints only when the operator has already pasted `/waybill:next <branch>/<leg>` after clearing. Every leg boundary on the eight-leg route is therefore a manual relay.",
+    "That relay costs roughly 28 paste blocks per effort: each `handover: transfer` leg renders `/clear`, `/model`, `/effort` and the command; each `through` leg renders three. Eight legs, eight stops. Four of those stops — `bay`, `specs`, `execute`, `cleanup` — ask nothing of the operator's judgment; they are pure transport, and the operator is the conveyor belt.",
+    "The sharpest cost is not keystrokes but presence. Because nothing advances without a paste, an effort cannot progress while the operator is away, even across `specs` and `execute` — the two longest legs on the route, and the two that most obviously want to run unattended. A route designed to be walked in sessions currently requires a human at every session boundary, including the boundaries that exist only for context hygiene."
+  ],
+  "goals": [
+    "Under `--autopilot`, halt exactly once per gate the command can reach — three halts (`refine`, `contract`, `review`) rather than today's eight — and never halt for transport.",
+    "Walk a complete eight-leg route in at most 6 `/waybill:next` invocations, down from ~28 paste blocks; the fourth operator stop belongs to `/waybill:new` conducting `ideate` and is unchanged by this work.",
+    "Raise the longest unattended run from 0 legs to 2, so `specs` and `execute` cross without the operator present.",
+    "Make gate membership explicit data — a `gate` field on the route — rather than prose scattered across `commands/*.md`.",
+    "Preserve the context hygiene that `handover: transfer` buys: a leg whose booking names a more capable model than the running session must never run degraded in silence."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "The route declares `gate` on `ideate`, `refine`, `contract` and `review`, and on no other leg",
+      "check": "node --test --test-name-pattern 'route declares its gates' tests/legs.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "`/waybill:status`'s in-bay answer renders the paste blocks `/waybill:next` renders today, with no existing golden's content modified (renames and additions allowed)",
+      "check": "node --test tests/cli.test.js tests/waybill.test.js && git diff --exit-code --diff-filter=M -- tests/golden/"
+    },
+    {
+      "criterion": "`/waybill:status` on the trunk still renders the fleet listing with no waybill attached to any docket",
+      "check": "node --test --test-name-pattern 'fleet listing carries no waybill' tests/fleet.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "On a non-gate leg the CLI emits the run literal and no paste blocks",
+      "check": "node --test --test-name-pattern 'non-gate leg emits the run literal' tests/cli.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "On a gate leg the CLI emits the gate literal and stops, marking nothing after it for crossing",
+      "check": "node --test --test-name-pattern 'gate leg halts the walk' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "A full-route fixture walk under `--autopilot` halts exactly three times, once per reachable gate",
+      "check": "node --test --test-name-pattern 'halts once per reachable gate' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "A full-route fixture walk under `--autopilot` completes in at most six invocations",
+      "check": "node --test --test-name-pattern 'walks the route in six invocations' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "From a contract-stamped fixture, one `--autopilot` invocation crosses `specs` and `execute` and halts at `review`",
+      "check": "node --test --test-name-pattern 'crosses specs and execute' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "A leg that runs without flipping its stamp yields exactly one ask and exactly one carrier invocation — never a second automatic attempt",
+      "check": "node --test --test-name-pattern 'failed stamp asks once and retries never' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "A non-gate leg booked `handover: transfer` is dispatched to a subagent at its booked model; a `through` leg runs in-session; a gate leg is never dispatched, whatever its handover",
+      "check": "node --test --test-name-pattern 'transfer dispatches and gates never do' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "Each crossed leg reports the model it actually ran at, so a dispatched leg and an in-session one are told apart in the run log",
+      "check": "node --test --test-name-pattern 'run log names the model per leg' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "`cleanup` is crossed only when its bay is clean; a dirty worktree, unpushed commits or an unmerged branch halts with the ask instead of deleting",
+      "check": "node --test --test-name-pattern 'cleanup halts on an unclean bay' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "Gitignored papers in a clean bay are deleted with `cleanup` but named in the run log rather than removed silently",
+      "check": "node --test --test-name-pattern 'cleanup names the ignored papers it removes' tests/autopilot.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "The repo-root README, docs/guide, commands/*.md and the help card all carry the new verb and no longer describe `next` as show-and-stop — asserted positively, not only by absence",
+      "check": "node --test --test-name-pattern 'root README carries the new verb' tests/guide.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "The zero-dependency, no-build, node --test-only toolchain invariant still holds",
+      "check": "node --test --test-name-pattern 'zero dependencies and no build step' tests/commands.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "Every command that shells out still wraps its bang line, so a non-zero exit cannot discard the command file",
+      "check": "node --test --test-name-pattern 'every shelling command wraps its bang line' tests/bang-lines.test.js 2>&1 | grep -qE '^# pass [1-9]'"
+    },
+    {
+      "criterion": "The whole suite is green",
+      "check": "node --test tests/"
+    },
+    {
+      "criterion": "The operator walks one real docket end-to-end under `--autopilot` and confirms it stops only at the gates, conducts each one, and never runs a leg at the wrong model in silence"
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "A `gate` field on the route in `src/legs.js`, true for `ideate`, `refine`, `contract` and `review`",
+        "reason": "Everything else keys off it; gate membership must be data, not prose. `ideate`'s flag is documentation-only — `next` never reaches that leg."
+      },
+      {
+        "item": "`/waybill:next` executes the next leg — invoking its carrier in-session rather than printing paste blocks",
+        "reason": "The core verb change; the whole point"
+      },
+      {
+        "item": "`/waybill:next` conducts a gate leg and then stops, crossing nothing after it",
+        "reason": "\"Take me to the next human gate, then walk me through it\" — the gate is conducted, not merely arrived at"
+      },
+      {
+        "item": "`/waybill:status`'s in-bay answer gains the waybill paste blocks; the trunk fleet listing keeps none",
+        "reason": "The manual relay must stay reachable or a model mismatch has no escape hatch. The fleet listing never carried a waybill and must not start."
+      },
+      {
+        "item": "`/waybill:next --autopilot` crosses non-gate legs until a gate, conducts it, and stops",
+        "reason": "Where the unattended reach comes from — it crosses `specs` and `execute`"
+      },
+      {
+        "item": "Stop-and-ask when a crossed leg runs but its stamp does not flip: one prompt offering retry, inspect, or stop",
+        "reason": "The only thing preventing a runaway loop; chosen over a silent halt so a failure becomes a decision"
+      },
+      {
+        "item": "A non-gate leg booked `handover: transfer` is dispatched to a subagent at its booked model; `through` legs run in-session; gate legs are never dispatched",
+        "reason": "`transfer` already means \"this leg wants its own fresh context\", and a subagent is exactly that. This is how autopilot crosses `specs` and `execute` at all — without it MVP autopilot crosses nothing worth crossing."
+      },
+      {
+        "item": "A run log naming, per crossed leg, the model it actually ran at",
+        "reason": "The only way a dispatched leg and an in-session one are told apart after an unattended run"
+      },
+      {
+        "item": "`cleanup` pre-flight: crossable when the bay is clean, halting with the ask on a dirty worktree, unpushed commits or an unmerged branch; gitignored papers deleted but named in the log",
+        "reason": "Pre-approving cleanup's destructive git steps is what lets one autopilot run finish an effort; the pre-flight is what keeps that from discarding real work unattended"
+      },
+      {
+        "item": "Sweep every prose surface describing `next` as show-and-stop — repo-root README, docs/guide, commands/*.md, src/help.js — and add the missing root-README assertion to the suite",
+        "reason": "docs/ideation/learnings.md records this exact gap from next-from-anywhere, and no test today reads the repo-root README at all"
+      },
+      {
+        "item": "Update `docs/guide/03-reference.md` in the same phase as each new booking key and CLI flag",
+        "reason": "tests/guide.test.js:202-206 asserts every booking key and every USAGE flag appears there, so deferring the doc reddens the suite in the phase that adds the key"
+      }
+    ],
+    "full": [
+      {
+        "item": "A `gate:` key in booking frontmatter overriding the route default in either direction",
+        "reason": "Lets a solo operator un-gate `review` on their own machine; per-machine preference, not load-bearing for the paste-count goals"
+      }
+    ],
+    "stretch": [
+      {
+        "item": "`--autopilot --dry-run`: print the run autopilot would make, and where it would stop, without running anything"
+      }
+    ],
+    "outOfScope": [
+      {
+        "item": "Effort fidelity on dispatched subagents",
+        "reason": "A subagent takes `model` but not `effort`; a dispatched `execute` runs opus-at-default rather than opus/high. Accepted and documented rather than worked around."
+      },
+      {
+        "item": "Splicing non-stock legs into the route via `after:`",
+        "reason": "Already deliberately deferred to Future in commit 0c5c5fc; overlays rebook and re-gate the eight stock legs, never add a ninth"
+      },
+      {
+        "item": "Fleet-wide autopilot across several open dockets",
+        "reason": "One docket per invocation, as `next` works today"
+      },
+      {
+        "item": "Any retry beyond the single ask — no backoff, no automatic second attempt, no repair logic",
+        "reason": "One attempt per leg keeps the failure mode legible"
+      },
+      {
+        "item": "Changing `ideate`'s stamp or giving it a paper",
+        "reason": "`next` never reaches `ideate` (src/cli.js:278, src/legs.js:131), and a paper written before `bay` exists would land in the main checkout — the one thing waybill's design prevents"
+      },
+      {
+        "item": "Gate awareness in `/waybill:new`",
+        "reason": "`new` already conducts `ideate` and stops; the scope named was next, status and autopilot"
+      },
+      {
+        "item": "Discovering the running session's model, and any model-capability ranking table",
+        "reason": "Nothing in src/ can learn the session's model — only HOME, WAYBILL_BAY_DIR and WAYBILL_BOOKINGS_DIR are read anywhere — and a haiku<sonnet<opus table would go stale each model generation. `handover: transfer` is the trigger instead."
+      }
+    ],
+    "future": [
+      "Detecting session cleanliness rather than assuming it, if assuming-clean proves wrong in practice",
+      "Making `effort` settable on a dispatched subagent, should the harness ever expose it",
+      "A gate that is situational rather than static — a leg becoming a gate because a stamp returned STAMP_UNKNOWN or a diff crossed a size threshold"
+    ]
+  },
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      {
+        "title": "The gate field",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-1.md",
+        "notes": "Add `gate` to the LEGS entries in src/legs.js and expose it through resolveLeg. Pure data; no behaviour change. Also documents the gate column in docs/guide/03-reference.md's route table and in src/help.js's ROUTE, so the concept is never introduced silently. The booking-level `gate:` key is phase 5, and that is where tests/guide.test.js:206's booking-key coupling bites."
+      },
+      {
+        "title": "status carries the waybill",
+        "risk": "medium",
+        "blocking": true,
+        "prereqs": ["The gate field"],
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-2.md",
+        "notes": "Larger than a renderer move: status() rejects every argument today by design (src/cli.js:316-321), so it gains --markdown, its bang line in commands/status.md:33 changes (pinned by tests/commands.test.js), tests/golden/status.txt moves, and docs/guide/03-reference.md gains the flag. Renders the in-bay waybill via renderWaybillMarkdown with no content change to any existing golden; the trunk fleet listing keeps no waybill. Rewrites commands/status.md:45-49, which today forbids exactly this. Lands before next stops printing so the relay is never unreachable."
+      },
+      {
+        "title": "next executes the leg",
+        "risk": "high",
+        "blocking": true,
+        "prereqs": ["status carries the waybill"],
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-3.md",
+        "notes": "The verb change. The CLI emits a run literal for a non-gate leg and a gate literal for a gate; commands/next.md acts on those literals, never on the session's reading, preserving the rule at next.md:68-69. Drops the `named`-only gating on ENTER BAY:/RUN: (src/cli.js:161-165, src/waybill.js:364-368) so a bare `/waybill:next` also emits them. A `through` leg runs in-session; a non-gate `transfer` leg is dispatched to a subagent at its booked model; a gate leg is always conducted in-session."
+      },
+      {
+        "title": "autopilot, the failed-stamp ask, and cleanup pre-flight",
+        "risk": "high",
+        "blocking": true,
+        "prereqs": ["next executes the leg"],
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-4.md",
+        "notes": "--autopilot crosses non-gate legs, re-deriving state after each, conducts the gate it reaches, stops. One ask when a crossed leg fails to stamp, never a retry. Pre-approves cleanup's destructive git steps behind a pre-flight that halts on a dirty worktree, unpushed commits or an unmerged branch. Autopilot assumes the session is clean enough to cross two legs — crossing a `transfer` leg in a subagent is what makes that safe. Settles whether --autopilot combines with a named target, given commands/next.md:47 passes \"$ARGUMENTS\" as one quoted token and src/cli.js:225-231 reads any non-dash positional as a branch. Adds docs/guide/03-reference.md for the flag, and tests/autopilot.test.js with the named cases the criteria grep for. Crossing depends on the user-level /spec:* command links and `openspec` on PATH; a carrier that will not resolve surfaces as the single ask, not a stall."
+      },
+      {
+        "title": "The booking-level gate override",
+        "risk": "medium",
+        "blocking": false,
+        "prereqs": ["autopilot, the failed-stamp ask, and cleanup pre-flight"],
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-5.md",
+        "notes": "Full tier. Accept `gate:` in booking frontmatter (src/bookings.js OPTIONAL) and resolve booking-over-route in src/inference.js, with tests pinning both override directions. Adds the key to docs/guide/03-reference.md in this phase for the same guide-test reason as phase 1."
+      },
+      {
+        "title": "The prose sweep",
+        "risk": "low",
+        "blocking": true,
+        "prereqs": ["autopilot, the failed-stamp ask, and cleanup pre-flight"],
+        "specPath": "docs/ideation/next-drives-the-route/spec-phase-6.md",
+        "notes": "Grep every surface describing next as show-and-stop — repo-root README, docs/guide/*, commands/*.md, src/help.js — and update it. Extend tests/guide.test.js to read the repo-root README, which no test reads today, asserting the new verb is present as well as the old phrasing gone."
+      }
+    ]
+  }
+}
