@@ -7,8 +7,17 @@ import { fileURLToPath } from 'node:url';
 import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
 import { renderWaybill } from '../src/waybill.js';
 import { resolveLeg } from '../src/inference.js';
-import { loadBookings } from '../src/bookings.js';
-import { cleanupAll, forgePath, git, tempRoot, withPath, writeFile } from './helpers/repo-fixture.js';
+import { loadBookings, resolveBookings } from '../src/bookings.js';
+import {
+  cleanupAll,
+  createRepo,
+  forgePath,
+  git,
+  tempRoot,
+  withEnv,
+  withPath,
+  writeFile,
+} from './helpers/repo-fixture.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
 
 after(cleanupAll);
@@ -54,6 +63,20 @@ const load = (dir) => loadBookings(dir, { knownLegs: BOOKABLE_IDS });
 // a request open the walk stops at `review` and the swap under test is never reached. See
 // {@link forgePath}.
 const resolve = (dir, bookings) => withPath(forgePath('open'), () => resolveLeg(dir, bookings));
+/**
+ * The built-ins with `overlay` laid over them, read through the tiers the production code reads.
+ * Both git config tiers are pinned to `/dev/null` and `WAYBILL_BOOKINGS_DIR` is declared outright,
+ * because an overlay configured on the developer's own machine would otherwise answer for the case.
+ *
+ * @param {string} cwd
+ * @param {string|undefined} overlay
+ * @returns {Map<string, import('../src/bookings.js').Booking>}
+ */
+const overlaid = (cwd, overlay) =>
+  withEnv(
+    { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', WAYBILL_BOOKINGS_DIR: overlay },
+    () => resolveBookings(cwd, { knownLegs: BOOKABLE_IDS }),
+  );
 
 describe('swapping one booking', () => {
   it('costs exactly one file edit, and that file is a booking', () => {
@@ -127,6 +150,27 @@ describe('swapping the off-route brainstorm booking', () => {
     assert.equal(after.command, '/superpowers:brainstorming');
     assert.equal(after.model, 'placeholder-model');
     // Still off the route after the swap: rebooking a booking cannot add a leg.
+    assert.equal(LEGS.some((leg) => leg.id === 'brainstorm'), false);
+  });
+
+  it('is rebooked by an overlay laid over it, not only by editing the shipped file', () => {
+    // The case above edits the shipped booking in place, which nobody does on their own machine:
+    // the real route is `WAYBILL_BOOKINGS_DIR`, and it is the tier `/waybill:new` resolves through.
+    // Asserting the resolved command rather than "the overlay file parsed" is the point — the
+    // claim being backed is that a work machine can point the brainstorm at a different carrier.
+    const repo = createRepo();
+    const dir = path.join(tempRoot(), 'overlay-bookings');
+    writeFile(path.join(dir, 'ideation-brainstorm.md'), ALTERNATE_BRAINSTORM);
+
+    const shipped = overlaid(repo, undefined);
+    assert.equal(shipped.get('brainstorm').command, '/ideation:brainstorm');
+
+    const bookings = overlaid(repo, dir);
+    assert.equal(bookings.get('brainstorm').command, '/superpowers:brainstorming');
+    assert.equal(bookings.get('brainstorm').model, 'placeholder-model');
+    // The overlay entry wins whole, so it carries its own stamp rather than the shipped one.
+    assert.equal(bookings.get('brainstorm').path, path.join(dir, 'ideation-brainstorm.md'));
+    // Off the route before the overlay and off it after: an overlay rebooks, it does not enrol.
     assert.equal(LEGS.some((leg) => leg.id === 'brainstorm'), false);
   });
 });

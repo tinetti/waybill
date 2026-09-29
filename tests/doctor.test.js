@@ -413,6 +413,35 @@ describe('waybill doctor — the bookings overlay', () => {
       assert.ok(out.includes(` ${label} `) || out.includes(` ${label}  `), `no ${label} row`);
     }
   });
+
+  it('warns rather than failing when the overlay binds a leg the rename retired, and names the file', () => {
+    // The whole reason this rename ships no migration for machine-local overlays: after it, an
+    // operator's `~/.waybill/bookings/ideation-specs.md` binds a leg that no longer exists, and
+    // every `/waybill:*` command throws on it. Doctor is the escape hatch, so doctor must survive
+    // the throw and say which file to fix — a `fail` here, or an aborted run, and the operator is
+    // left with no working command to diagnose the one that broke.
+    const dir = path.join(tempRoot(), 'overlay');
+    const file = path.join(dir, 'ideation-specs.md');
+    // A `stampPath` is load-bearing, not decoration: `src/bookings.js` checks for a missing stamp
+    // *before* it checks the leg id, so a stampless fixture would throw about the stamp and this
+    // case would pass for a reason that has nothing to do with the rename.
+    writeFile(
+      file,
+      '---\nleg: specs\ncommand: /ideation:ideation\nmodel: m\nstampPath: docs/ideation/*/spec-phase-1.md\n---\nbody\n',
+    );
+    const { code, out } = healthy({ env: { WAYBILL_BOOKINGS_DIR: dir } });
+
+    assert.equal(code, 0, out);
+    const row = out.split('\n').find((line) => line.includes('bookings'));
+    // `WARN` positively, not merely "not ok": a drift to `fail` would also be not-ok and would
+    // slip through a negative assertion while flipping the exit code.
+    assert.match(row, /^ {2}WARN/);
+    assert.match(row, /unknown leg `specs`/);
+    assert.ok(row.includes(file), row);
+    for (const label of ['node', 'git', 'openspec', 'spec commands', 'plugin cache']) {
+      assert.ok(out.includes(` ${label} `) || out.includes(` ${label}  `), `no ${label} row`);
+    }
+  });
 });
 
 describe('waybill doctor — the plugin cache', () => {
