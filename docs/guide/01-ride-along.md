@@ -22,28 +22,10 @@ waybill new
 In a Claude Code session, type `/waybill:new` instead. It shows you the same waybill and then runs
 the leg's command for you, right there.
 
-## Leg 1 · ideate — Talk it through before you load anything
+## Before the route — Talk it through before you load anything
 
 Here's your first waybill. Read it top to bottom. It always comes in the same order: where the
 docket stands, then the NEXT block, then the carrier's instructions.
-
-```waybill
-main · no docket open
-
-NEXT:
-/clear
-/model opus
-/effort high
-/ideation:brainstorm
-
-  Talk the idea through before committing to it. Name the problem, argue for the smallest version
-  that could work, and surface the assumptions you have not tested yet. Nothing is written to disk
-  at this leg by design — the output is a decision to build, or a decision not to.
-
-  This leg's `stampCmd` never succeeds on purpose: rough ideation leaves no papers, so Waybill takes
-  its stamp from repository state (a later leg is already done, or a feature branch is checked out)
-  rather than from this booking.
-```
 
 The NEXT block is the handover. Paste it one line at a time, in order. Claude Code takes a
 multi-line paste as one input, and `/model` would swallow the rest as its argument. Ask me how I
@@ -58,7 +40,7 @@ what they want.
 > **Plainly:** On `main`, you ran `/clear`, set the model and effort, and ran
 > `/ideation:brainstorm` in a fresh Claude Code session. No file or branch was created.
 
-## Leg 2 · bay — Cut the branch, back up to a bay
+## Leg 1 · bay — Cut the branch, back up to a bay
 
 The idea survived. Time to cut a branch and give it a bay: its own worktree, so the main checkout
 never gets touched. From the trunk, name the branch:
@@ -74,8 +56,7 @@ Say you'd jumped the gun and run `git switch -c feat/thing` in the main checkout
 would hand you this for leg 2:
 
 ```waybill
-feat/thing · leg 2 of 8 (bay)
-  ✓ ideate
+feat/thing · leg 1 of 6 (bay)
   ▶ bay
 
 NEXT:
@@ -88,7 +69,7 @@ NEXT:
   handover it prints ends in `/waybill:next <branch>/<leg>`, which moves the next session into the bay
   after `/clear`; in a terminal, read the `cd` line it prints instead.
 
-  This leg's `stampCmd` never succeeds on purpose, exactly as the ideate leg's does not: Waybill takes
+  This leg's `stampCmd` never succeeds on purpose, exactly as the cleanup leg's does not: Waybill takes
   the bay's stamp from repository state — `git worktree list` and the configured bay path — never from a
   booking. This one exists to supply the waybill: the command, the model, and this text.
 ```
@@ -103,7 +84,7 @@ here on you work in the bay.
 > **Plainly:** Waybill created the branch `feat/thing` and a git worktree for it, by default under
 > `.claude/worktrees/` in the main checkout, and printed the handover for leg 3.
 
-## Leg 3 · refine — The interview
+## Leg 2 · ideate — The interview, then the contract
 
 New session. `/clear` wipes the handler clean, and a cleared session wakes up back in the main
 checkout. That's fine. Paste `/waybill:next feat/thing/refine` from anywhere and it walks the
@@ -114,9 +95,9 @@ waybill next
 ```
 
 ```waybill
-feat/thing · leg 3 of 8 (refine)
-  ✓ ideate  ✓ bay
-  ▶ refine
+feat/thing · leg 2 of 6 (ideate)
+  ✓ bay
+  ▶ ideate
 
 NEXT:
 /clear
@@ -124,9 +105,17 @@ NEXT:
 /effort high
 /ideation:ideation
 
-  Run the ideation interview. Push on scope, sequencing, and the decisions worth recording as
-  rejected, and keep going until the shape of the work is settled rather than merely described.
-  The interview and the contract are one session's work; carry straight on into the contract leg.
+  Run the ideation interview, then turn it into the contract — one session, one carrier. Push on
+  scope, sequencing, and the decisions worth recording as rejected, and keep going until the shape of
+  the work is settled rather than merely described.
+
+  The contract is what every later leg is checked against: goals, success criteria, phase breakdown,
+  and the decision log of what was considered and rejected. State the criteria as commands that can
+  be run, not as adjectives.
+
+  The stamp is the contract itself rather than the interview data behind it, because the contract is
+  downstream of that data — a written contract proves the interview happened, and no coverage is lost
+  by asking for the stronger paper.
 ```
 
 The interview asks hard questions about scope. Answer them. The handler who comes after you won't
@@ -135,32 +124,13 @@ have heard a word of it. They'll only have what gets written down.
 > **Plainly:** In a fresh session inside the worktree, `/ideation:ideation` ran the interview and
 > wrote `docs/ideation/<project>/contract-data.json`. That file is this leg's stamp.
 
-## Leg 4 · contract — Put it in writing
-
-Same session, no break. The waybill says so: there's no `/clear` in the NEXT block.
-
-```waybill
-feat/thing · leg 4 of 8 (contract)
-  ✓ ideate  ✓ bay  ✓ refine
-  ▶ contract
-
-NEXT:
-/model opus
-/effort high
-/ideation:ideation
-
-  Turn the interview into the contract: goals, success criteria, phase breakdown, and the decision
-  log of what was considered and rejected. The contract is what every later leg is checked against,
-  so state the criteria as commands that can be run, not as adjectives.
-```
-
-The contract is what every later leg gets checked against. Write the criteria as commands someone
-can run. "Nice and fast" isn't a criterion, rookie. It's a wish.
+Same session, no break. The contract is what every later leg gets checked against. Write the
+criteria as commands someone can run. "Nice and fast" isn't a criterion, rookie. It's a wish.
 
 > **Plainly:** Still in the same session, `/ideation:ideation` wrote
 > `docs/ideation/<project>/contract.md`. That file is this leg's stamp.
 
-## Leg 5 · specs — Scaffold the change
+## Leg 3 · specify — Scaffold the change
 
 `/clear` again. New handler. Ask the counter where the docket stands:
 
@@ -169,9 +139,9 @@ waybill next
 ```
 
 ```waybill
-feat/thing · leg 5 of 8 (specs)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
-  ▶ specs
+feat/thing · leg 3 of 6 (specify)
+  ✓ bay  ✓ ideate
+  ▶ specify
 
 NEXT:
 /clear
@@ -194,14 +164,14 @@ Write the tasks as checkboxes. The next leg counts them.
 > `openspec/changes/<change>/tasks.md` along with the proposal and spec deltas. That `tasks.md` is
 > this leg's stamp.
 
-## Leg 6 · execute — Do the work
+## Leg 4 · execute — Do the work
 
 `/clear`. The waybill now names the change, `add-thing`, because the carrier needs to know which
 one to apply. It also shows how far along you are.
 
 ```waybill
-feat/thing · leg 6 of 8 (execute)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs
+feat/thing · leg 4 of 6 (execute)
+  ✓ bay  ✓ ideate  ✓ specify
   ▶ execute (1 of 3 tasks)
 
 NEXT:
@@ -221,13 +191,13 @@ The next handler asks the counter, sees how many boxes are ticked, and picks it 
 > **Plainly:** In one or more fresh sessions, `/spec:apply add-thing` implemented the change and
 > ticked the boxes in `tasks.md`. The leg is stamped when every box is ticked.
 
-## Leg 7 · review — Somebody else's eyes
+## Leg 5 · review — Somebody else's eyes
 
 Every box is ticked, so the counter moves on:
 
 ```waybill
-feat/thing · leg 7 of 8 (review)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute
+feat/thing · leg 5 of 6 (review)
+  ✓ bay  ✓ ideate  ✓ specify  ✓ execute
   ▶ review
 
 NEXT:
@@ -288,13 +258,13 @@ request in the browser instead and the leg stamps on the next `waybill next` all
 > **Plainly:** `/waybill:review` pushed `feat/thing` and opened a pull request for it. The leg is
 > stamped once a request is open for the branch, whoever opened it and however.
 
-## Leg 8 · cleanup — Back to the trunk
+## Leg 6 · cleanup — Back to the trunk
 
 The request is open, so the counter moves on to the last leg:
 
 ```waybill
-feat/thing · leg 8 of 8 (cleanup)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute  ✓ review
+feat/thing · leg 6 of 6 (cleanup)
+  ✓ bay  ✓ ideate  ✓ specify  ✓ execute  ✓ review
   ▶ cleanup
 
 NEXT:

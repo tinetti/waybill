@@ -1,6 +1,6 @@
 ```text
-feat/thing · leg 7 of 8 (review)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs  ✓ execute
+feat/thing · leg 5 of 6 (review)
+  ✓ bay  ✓ ideate  ✓ specify  ✓ execute
   ▶ review
 ```
 

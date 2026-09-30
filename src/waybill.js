@@ -55,7 +55,7 @@ export const NEXT_LEG = 'NEXT LEG:';
 /**
  * Where one docket stands, with no branch attached.
  *
- * `docketOpen` is checked before `leg`, not after: on the base branch `leg` still reads `ideate`
+ * `docketOpen` is checked before `leg`, not after: on the base branch `leg` still reads `bay`
  * (nothing stamps it done from history alone), and reporting a leg position the repository has no
  * business claiming is exactly the bug this state exists to stop.
  *
@@ -156,7 +156,7 @@ function waybillText(body) {
  */
 function handoverCommands(booking, state, bay = null) {
   // The argument is dropped whenever the repository cannot supply it — `changeId` is null until a
-  // change exists on disk, and the whole point of the specs leg is that it does not yet. Omitting
+  // change exists on disk, and the whole point of the specify leg is that it does not yet. Omitting
   // it is the only honest option: an empty one would hand the next session a command it cannot run.
   const source =
     ARGUMENT_SOURCES.get(booking.argument ?? DEFAULT_ARGUMENT) ??
@@ -295,7 +295,7 @@ export function cdCommand(target) {
  */
 export function renderWaybill(state, inspection = { ignored: [], warnings: [] }, cd = []) {
   // No docket open means no leg walk to show a checklist of — the strip would otherwise print
-  // `▶ ideate` for a leg the repository was never actually working.
+  // `▶ bay` for a leg the repository was never actually working.
   const where = [header(state), ...(state.docketOpen ? strip(state) : [])].join('\n');
   // Before NEXT, not after: the order is the instruction. Move the shell first, then hand the
   // session over — a `/clear` acted on from the wrong directory answers for the wrong docket.

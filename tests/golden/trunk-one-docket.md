@@ -1,7 +1,7 @@
 ```text
-feat/session-handover · leg 5 of 8 (specs)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
-  ▶ specs
+feat/session-handover · leg 3 of 6 (specify)
+  ✓ bay  ✓ ideate
+  ▶ specify
 ```
 
 **NEXT** — paste each block on its own, in order:
@@ -19,7 +19,7 @@ feat/session-handover · leg 5 of 8 (specs)
 ```
 
 ```
-/waybill:next feat/session-handover/specs
+/waybill:next feat/session-handover/specify
 ```
 
 → runs `/spec:propose add-session-handover`

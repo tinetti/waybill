@@ -35,7 +35,7 @@ const USAGE = [
   'Commands:',
   // Route-table order rather than alphabetical, matching the order an effort actually goes through:
   // begin it, cut its bay, ask what comes next, ask where it stands.
-  '  new             Begin an effort: the first leg\'s waybill, and nothing else',
+  '  new             Begin an effort: the off-route brainstorm, then a bay handoff',
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',

@@ -149,11 +149,9 @@ describe('renderHelp', () => {
   it('names the stamp for each shipped leg', () => {
     const page = isolated(() => renderHelp(tempRoot()));
     const stamps = {
-      ideate: 'repo state',
       bay: 'bay exists',
-      refine: 'contract-data.json',
-      contract: 'contract.md',
-      specs: 'tasks.md',
+      ideate: 'contract.md',
+      specify: 'tasks.md',
       execute: 'all tasks ticked',
       // The one stock leg whose stamp asks something outside the repository. `repo state` — the
       // fallback for any booking with no `stampPath` — would contradict both the booking and the
@@ -259,9 +257,11 @@ describe('waybill help', () => {
 
   it('--help stays terse', () => {
     // A literal copy of the usage from before `help` existed, so this cannot agree with a `USAGE`
-    // that quietly reworded a verb's row or an option while the new row was being added.
+    // that quietly reworded a verb's row or an option while the new row was being added. The `new`
+    // row is the one deliberate reword since: `new` is the off-route brainstorm's on-ramp, not
+    // leg 1's waybill, and it ends in a `/waybill:bay` handoff rather than "nothing else".
     const before = [
-      '  new             Begin an effort: the first leg\'s waybill, and nothing else',
+      '  new             Begin an effort: the off-route brainstorm, then a bay handoff',
       '  bay <branch>    Create the branch and its bay, then hand off the next leg',
       '  next [<branch>] Where this docket stands, and the waybill for the next leg',
       '  status          Where this docket stands, without the waybill',

@@ -1,21 +1,19 @@
 waybill — the route, the words, and the verbs
 
 FROM ZERO
-  1. On the trunk:        waybill new         leg 1's waybill; run what it names
+  1. On the trunk:        waybill new         the off-route brainstorm's waybill
   2. Once the idea holds: waybill bay feat/x  create the branch and its bay
   3. Move in:             cd <the path bay printed> — a session skips this step
   4. Every new session:   waybill next        the waybill for the next leg
   5. Run what it names — in a session its /waybill:next <branch>/<leg> moves you
 
 ROUTE
-  1  ideate    /ideation:brainstorm  repo state
-  2  bay       /waybill:bay          bay exists
-  3  refine    /ideation:ideation    contract-data.json
-  4  contract  /ideation:ideation    contract.md
-  5  specs     /spec:propose         tasks.md
-  6  execute   /spec:apply           all tasks ticked
-  7  review    /waybill:review       request open
-  8  cleanup   /waybill:cleanup      merged, bay gone
+  1  bay      /waybill:bay        bay exists
+  2  ideate   /ideation:ideation  contract.md
+  3  specify  /spec:propose       tasks.md
+  4  execute  /spec:apply         all tasks ticked
+  5  review   /waybill:review     request open
+  6  cleanup  /waybill:cleanup    merged, bay gone
 
 WORDS
   trunk    the default branch; efforts begin here, and no docket is open on it
@@ -28,7 +26,7 @@ WORDS
   waybill  the instruction for exactly one leg, issued fresh every session
 
 COMMANDS
-  waybill new              begin an effort: leg 1's waybill, and nothing else
+  waybill new              begin an effort: the brainstorm, then a bay handoff
   waybill bay <branch>     create the branch and its bay, then hand off
   waybill next [<branch>]  where this docket stands, and the next leg's waybill
   waybill status           where it stands, or the whole fleet on the trunk
