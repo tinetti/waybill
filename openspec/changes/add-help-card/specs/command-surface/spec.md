@@ -25,7 +25,8 @@ the four verbs.
 
 #### Scenario: `next` no longer doubles as an entry point
 - **WHEN** `next` is run on the trunk with no dockets open
-- **THEN** it does not issue leg 1's waybill, and instead points the caller at `new`
+- **THEN** it does not issue the off-route brainstorm's waybill, and instead points the caller at
+  `new`
 
 #### Scenario: The reference command is not a fifth verb
 - **WHEN** `help` is run on the trunk, inside a bay, or outside any repository

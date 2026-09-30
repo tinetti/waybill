@@ -445,12 +445,12 @@ describe('waybill next <branch>/<leg>', () => {
   });
 
   it('resolves a branch whose last segment is a leg id as that branch, not as a token', () => {
-    const { repo } = trunkWith('fix/specs');
+    const { repo } = trunkWith('fix/specify');
 
-    const result = cli(['next', '--markdown', 'fix/specs'], repo);
+    const result = cli(['next', '--markdown', 'fix/specify'], repo);
 
     assert.equal(result.code, 0);
-    assert.match(result.out, new RegExp(`^fix\\/specs · leg 2 of ${LEGS.length} \\(ideate\\)$`, 'm'));
+    assert.match(result.out, new RegExp(`^fix\\/specify · leg 2 of ${LEGS.length} \\(ideate\\)$`, 'm'));
     assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
   });
 

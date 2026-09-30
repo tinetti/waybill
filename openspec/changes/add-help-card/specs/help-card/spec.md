@@ -79,9 +79,9 @@ own source. Column widths SHALL be computed from the rows being rendered.
 
 #### Scenario: Stamp phrases for the shipped route
 - **WHEN** the page is rendered with the built-in bookings
-- **THEN** `ideate` shows `repo state`, `bay` shows `bay exists`, `refine` shows
-  `contract-data.json`, `contract` shows `contract.md`, `specs` shows `tasks.md`, `execute` shows
-  `all tasks ticked`, and `cleanup` shows `merged, bay gone`
+- **THEN** `bay` shows `bay exists`, `ideate` shows `contract.md`, `specify` shows `tasks.md`,
+  `execute` shows `all tasks ticked`, `review` shows `request open`, and `cleanup` shows
+  `merged, bay gone`
 
 ### Requirement: The page never fails over its bookings
 

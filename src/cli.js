@@ -102,7 +102,7 @@ const BRAINSTORM = OFF_ROUTE_BOOKINGS[0];
  * Split `next`'s argument into the branch and the leg a pasted `/waybill:next <branch>/<leg>` names.
  *
  * The whole string is tried as a branch first, so a branch whose last segment happens to be a leg
- * id — `fix/specs` — is still that branch. There is never a real collision to break: git refuses
+ * id — `fix/specify` — is still that branch. There is never a real collision to break: git refuses
  * `feat/foo` and `feat/foo/execute` as branches of one repository, so at most one reading names a
  * bay. A trailing segment that is not a leg id stays part of the branch, and the miss then names
  * the whole string, which is what the operator typed.

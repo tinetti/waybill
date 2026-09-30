@@ -184,7 +184,7 @@ export function checkOpenspec() {
     return {
       label,
       verdict: 'fail',
-      detail: 'not on PATH — legs 5 and 6 fall back to parsing tasks.md, silently',
+      detail: 'not on PATH — legs 3 and 4 fall back to parsing tasks.md, silently',
       fix,
     };
   }

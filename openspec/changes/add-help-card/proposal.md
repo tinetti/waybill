@@ -3,7 +3,7 @@
 Waybill fixes re-orientation mid-route, but not at cold start. Standing on the trunk, an operator gets
 the first carrier and nothing else: no leg count, no route, and no vocabulary. That is the one state
 where the author has no memory to fall back on. The command surface just changed underneath them, too.
-new-bay-and-fleet added `new` and renamed `start` to `bay` with no alias. Recovering a seven-leg
+new-bay-and-fleet added `new` and renamed `start` to `bay` with no alias. Recovering a six-leg
 route and a glossary that fit on one screen still means re-reading a 13.8K README.
 
 Source: the approved contract and spec in `docs/ideation/waybill-help/`. Their prerequisite gate,
@@ -12,7 +12,7 @@ new-bay-and-fleet, has landed and is archived: `new` and `bay` both appear in `w
 ## What Changes
 
 - Add a `waybill help` subcommand that prints a fixed reference page of at most 45 lines. The page
-  has four sections: a from-zero walkthrough, the seven-leg route, a glossary, and the four verbs.
+  has four sections: a from-zero walkthrough, the six-leg route, a glossary, and the four verbs.
   It ends with a two-line Why footer and a one-line README pointer.
 - Generate the route section from `LEGS` (`src/legs.js`) joined against `resolveBookings`. Adding a
   leg, or rebooking a carrier through an overlay, changes the page with no edit to the renderer.

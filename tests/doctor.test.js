@@ -281,7 +281,7 @@ describe('waybill doctor — the gaps, each with its remediation', () => {
     });
 
     assert.equal(code, 1);
-    assert.match(out, /legs 5 and 6 fall back to parsing tasks\.md, silently/);
+    assert.match(out, /legs 3 and 4 fall back to parsing tasks\.md, silently/);
     assert.ok(out.includes('npm install -g @fission-ai/openspec'), out);
   });
 
