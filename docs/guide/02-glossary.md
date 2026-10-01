@@ -79,6 +79,15 @@ How the paperwork changes hands between legs.
 the leg carries on in the current session. Any other value is printed as it is, above the
 commands.
 
+### brief
+
+The note the last handler leaves on the dash for the next one.
+
+**Literally:** one self-contained HTML page, written by `/waybill:brief` from the conversation a
+session is about to `/clear`, for the leg that comes next. It lives in the bay at
+`.waybill/handoff/<leg>.html`, named for the leg that reads it, and git ignores it. Only a leg whose
+booking has a `brief` key takes one — `ideate` and `specify`, as shipped.
+
 ### handler
 
 Forgets everything at the end of a shift. On purpose.

@@ -12,6 +12,7 @@ What you can type in a Claude Code session once the plugin is in.
 | `/waybill:bay` | Cuts the branch and its bay, then hands off the next leg | `[<branch>]`; leave it off to pick from a list of branches |
 | `/waybill:next` | Where this docket stands, and the waybill for the next leg. Given a leg, it moves the session into that docket's bay and runs the leg | `[<branch>[/<leg>]]`, e.g. `feat/thing/execute` |
 | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk | none |
+| `/waybill:brief` | Writes the brief the next leg's session will read, from this conversation, to the path the CLI names. Says so and writes nothing when the next leg takes no brief | `[<branch>]`; leave it off inside the bay |
 | `/waybill:doctor` | Every prerequisite the route needs on this machine, each gap with its fix | none |
 | `/waybill:help` | The route, the words and the verbs on one screen | none |
 | `/waybill:review` | Pushes the branch and opens its pull or merge request, then hands it to a reviewer. Needs `gh` or `glab`; neither is mandatory | none |
@@ -39,6 +40,7 @@ repository.
 | `waybill bay --list` | Lists the branches a bay could be cut or reopened for, and changes nothing |
 | `waybill next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg |
 | `waybill status` | Where this docket stands without the waybill, or the whole fleet on the trunk |
+| `waybill brief [<branch>]` | Where the next leg's brief goes, and what it should say. Writes no brief itself |
 | `waybill doctor` | Reports every prerequisite the route needs on this machine; exits 1 if any check failed |
 | `waybill help` | The route, the words and the verbs on one screen |
 
@@ -52,6 +54,48 @@ repository.
 
 `--json` and `--markdown` cannot be combined. `waybill next` exits 0 only when it issued exactly
 one waybill. With no docket open, or more than one to choose from, it exits 2.
+
+### `waybill brief`
+
+Resolves a docket the way `next` does — the bay you are in, the branch you name, or the one docket
+open on the trunk — and answers for that docket's next leg. A `<branch>/<leg>` argument is accepted
+and its leg ignored.
+
+| It prints | When | Exit |
+| --- | --- | --- |
+| `BRIEF FOR: <leg>`, `WRITE TO: <path>`, `GUIDANCE: <text>` | The next leg's booking has a `brief` key | 0 |
+| `NOTHING TO BRIEF: <leg> takes no brief` | It does not | 0 |
+| `NOTHING TO BRIEF: every leg is complete` | There is no next leg | 0 |
+| `waybill: no bay for <branch> — cut one with …` | The branch has no bay | 2 |
+| `waybill: no dockets open — …` | Asked on the trunk with nothing open | 2 |
+| `waybill: more than one docket open — name one with …` | Asked on the trunk with several open; no menu is printed | 2 |
+
+`<path>` is `<bay>/.waybill/handoff/<leg>.html`, named for the leg that *reads* the brief. The first
+time a brief is due, `brief` creates `.waybill/handoff/` with a `.gitignore` holding `*`, so a brief
+never shows in `git status`, never counts toward a stamp, and never blocks `git worktree remove`.
+No other ignore file is touched. Running it again prints the same lines and leaves a brief already
+written alone; `/waybill:brief` is what overwrites one.
+
+### The brief in the markdown waybill
+
+Two things change in `--markdown` output for a leg that takes a brief, and nothing changes for a leg
+that does not. Plain output and `--json` never mention a brief.
+
+| Line | Printed when | What a session does with it |
+| --- | --- | --- |
+| `BRIEF: <leg> <path>` | A waybill with no `RUN:` line, for a docket with a bay, whose next leg takes a brief that has not been written | `/waybill:next` and `/waybill:bay` ask whether to write it, before showing the waybill |
+| `RUN: <command> <suffix>` | `next --markdown <branch>/<leg>`, when `<leg>` is next and takes a brief | `/waybill:next` passes the whole suffix to the command as its argument, then runs `/waybill:brief` once the command has finished |
+
+The suffix is one line, its fields joined by ` · `, in this order:
+
+| Field | Present |
+| --- | --- |
+| `Brief: <path> (read first)`, or `Brief: none written` | always |
+| `branch <branch>` | always |
+| `bay <path>` | always |
+| `ideation <directory>` | when the branch changed exactly one `docs/ideation/*/contract.md` |
+| `skipped <leg>[,<leg>…]` | when a leg was skipped |
+| `next after this session: <leg>` | when a leg follows |
 
 ## Booking keys
 
@@ -67,6 +111,7 @@ Each booking is a markdown file: YAML frontmatter, then the text the waybill pri
 | `argument` | no | What is appended to `command`: `change-id` (the default), `branch` or `none` |
 | `stampPath` | no | A path glob; the leg is stamped when a matching file is part of this branch's changes |
 | `stampCmd` | no | A shell command; the leg is stamped when it exits 0. Exit `125` means *could not answer* — see below |
+| `brief` | no | One line telling the author of this leg's brief what the command needs to know. Its presence is what makes the leg take a brief; an empty value counts as absent |
 
 A booking needs at least one of `stampPath` and `stampCmd`. This is the frontmatter and opening of
 the shipped `bookings/ideation-ideate.md`:
@@ -79,6 +124,7 @@ model: opus
 effort: high
 handover: transfer
 stampPath: docs/ideation/*/contract.md
+brief: What the brainstorm settled — the decision and its concrete problem, the assumptions, each rejected alternative with its reason, and what is explicitly out.
 ---
 Run the ideation interview, then turn it into the contract — one session, one carrier. Push on
 scope, sequencing, and the decisions worth recording as rejected, and keep going until the shape of

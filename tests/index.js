@@ -8,6 +8,7 @@ import './bay.test.js';
 import './booking-swap.test.js';
 import './bookings-overlay.test.js';
 import './bookings.test.js';
+import './brief.test.js';
 import './cli.test.js';
 import './commands.test.js';
 import './doctor.test.js';

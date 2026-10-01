@@ -19,6 +19,10 @@ rather than shows: a pasted `/waybill:next <branch>/<leg>`, which moves this ses
 runs the leg there. `/clear` drops a session back to the main checkout, and this is the only way back
 in that a session can take for itself. Both `Skill` and `SlashCommand`, as in `new.md`, because a
 booking may name either a skill or a slash command.
+
+The brief needs nothing new on the line: asking is `AskUserQuestion`, and `/waybill:brief` is invoked
+through the same `Skill` or `SlashCommand` a `RUN:` line already uses. The file is written by that
+command, under its own `allowed-tools`, not by this one.
 -->
 
 # Waybill: next
@@ -56,9 +60,9 @@ it as markdown, and do not wrap it in a further fence.
 
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
-would spend the context the waybill is trying to hand over. The one thing that overrides this is a
-`RUN:` line, below — and it is the CLI that decides when to print one, never your reading of the
-waybill.
+would spend the context the waybill is trying to hand over. The two things that override this are a
+`RUN:` line and a `BRIEF:` line, below — and it is the CLI that decides when to print either, never
+your reading of the waybill.
 
 If the block ends with a line `waybill: exited N`, the CLI stopped without issuing a waybill and
 that line only records its exit code. Show the block verbatim, as above, and stop — do not run a
@@ -85,16 +89,52 @@ with the path from the line, followed by the rest of the block verbatim, and sto
 a `RUN:` line after a failed move: a leg run from the wrong checkout does its work in the wrong tree.
 
 **`RUN: <command> [<argument>]`** — once any `ENTER BAY:` above it has succeeded, invoke that command
-with that argument through `Skill` (or `SlashCommand`), and follow it. Do not show me the waybill
-first: I pasted the handover, so I have already read it. Never run `/clear`, `/model` or `/effort` —
-they were mine to type, and a session that runs `/model` changes my default for every later session.
-If the command cannot be resolved in this session — the bare `/spec:*` commands, for instance, exist
-only through the user-level links the README describes — say so in one line, naming the command, and
-stop. Do not substitute one with a similar name.
+with that argument through `Skill` (or `SlashCommand`), and follow it. The command is the first word
+after `RUN:`; **everything after it on the line is its argument**, passed whole and unedited. For a
+leg that takes a brief that is a long line — `Brief: <path> (read first) · branch … · bay … ·` and
+so on — and it is one argument, not several: do not trim it, split it on ` · `, or drop the part
+that looks like commentary. Do not show me the waybill first: I pasted the handover, so I have
+already read it. Never run `/clear`, `/model` or `/effort` — they were mine to type, and a session
+that runs `/model` changes my default for every later session. If the command cannot be resolved in
+this session — the bare `/spec:*` commands, for instance, exist only through the user-level links
+the README describes — say so in one line, naming the command, and stop. Do not substitute one with
+a similar name.
+
+**Once the invoked command has finished — and never before —** invoke `/waybill:brief <branch>`
+through `Skill` (or `SlashCommand`), with the branch I named in the argument, and follow it. This is
+the moment the next leg's brief can be written: this session still holds the conversation the leg
+just had, and my next `/clear` discards it. No question first — I pasted the handover, so I have
+already said to carry on. "Finished" means the command's own work is done and it has nothing left
+to ask me; a brief written halfway through a leg summarises half a leg. If `/waybill:brief` answers
+`NOTHING TO BRIEF:`, that is an ordinary answer — the leg now next takes no brief — so relay the
+line and stop. If the `RUN:` command could not be resolved, there is nothing to brief: skip this.
 
 **`NEXT LEG: <leg>`** — the leg I named is not the next one. Say, in one line, which leg I named and
 that `<leg>` is next, then show the block verbatim and stop. Run nothing: a stale paste re-running a
 finished leg is exactly what this line exists to prevent.
+
+### When the next leg is owed a brief: `BRIEF:`
+
+**`BRIEF: <leg> <path>`** — the next leg takes a brief, and none has been written for it yet. The
+line appears only on a waybill that carries no `RUN:` and no `NEXT LEG:`.
+
+**Before showing the block**, ask me with `AskUserQuestion`: "Write the brief for `<leg>` before you
+/clear?", with two options — `Yes — write it now (Recommended)` and `Skip`. Before, not after: once
+the waybill is on screen the instruction is to stop, and the waybill's first block is the `/clear`
+that discards what the brief would have been written from.
+
+- **Yes** — invoke `/waybill:brief <branch>` through `Skill` (or `SlashCommand`) and follow it. The
+  branch is the docket's: the name before the first ` · ` on the first line inside the block's
+  `text` fence. Do not write the file yourself, and do not use the `<path>` from the line — the
+  command asks the CLI again and writes where it says.
+- **Skip** — write nothing.
+
+Either way, then show the block verbatim, as above, and stop. If an `ENTER BAY:` line is above it,
+show that too and do not act on it — nobody asked to move.
+
+Ask when the line is present, and **never otherwise**. Whether a brief is due is the CLI's answer —
+it knows which legs take one and whether the file is already there. Do not offer one because the
+conversation seems worth keeping, and do not skip the question because it seems thin.
 
 ### When I named nothing and the trunk cannot tell: `SELECT A DOCKET:`
 

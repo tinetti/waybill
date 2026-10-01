@@ -1,0 +1,272 @@
+{
+  "projectName": "Next-Leg Brief",
+  "slug": "next-leg-brief",
+  "date": "2026-09-21",
+  "status": "Approved",
+  "gates": {
+    "dimensions": [
+      {
+        "key": "problem",
+        "label": "Problem Clarity",
+        "status": "ready",
+        "evidence": "The ideate leg writes nothing to disk (bookings/ideation-ideate.md:9-15) and the refine handover is /clear then a bare `RUN: /ideation:ideation` (no `argument` key), so the brainstorm conclusion ideation can carry as starting evidence is lost at exactly the boundary it is needed."
+      },
+      {
+        "key": "goals",
+        "label": "Goal Definition",
+        "status": "ready",
+        "evidence": "Goals G1-G4 were drafted as observable output changes (RUN line content, a file at a named path, prompt conditions) and accepted as drafted."
+      },
+      {
+        "key": "criteria",
+        "label": "Success Criteria",
+        "status": "ready",
+        "evidence": "Six command checks against npm test goldens and CLI/commands tests plus one named judgment run; the C4 assumption (ignored files do not block `git worktree remove`) was verified by a scratch repo test during the interview."
+      },
+      {
+        "key": "scope",
+        "label": "Scope Boundaries",
+        "status": "ready",
+        "evidence": "Legs in scope are refine and specs only; the out-of-scope list (nine items, each with a reason) was accepted as drafted."
+      },
+      {
+        "key": "consistency",
+        "label": "Consistency",
+        "status": "ready",
+        "evidence": "The HTML-format request conflicted with inline passing and was resolved by passing the brief's path, with facts inline; brief targeting resolves at run time so a through leg (contract) is skipped over correctly."
+      }
+    ]
+  },
+  "problem": [
+    "`/waybill:next` hands each leg's session a bare command. For refine, the paste list is `/clear`, `/model opus`, `/effort high`, `/waybill:next <branch>/refine`, and the resulting `RUN:` line is `/ideation:ideation` with no argument — the refine booking has no `argument` key, and the only arguments Waybill can ever pass are one closed-enum fact (`change-id`, `branch`, or none).",
+    "The ideate leg deliberately writes nothing to disk, and ideate → bay runs in one session, so the brainstorm conclusion (decision, assumptions, rejected alternatives, exclusions) exists only in that conversation. The `/clear` before refine discards it, and ideation's intake — which is built to carry a brainstorm conclusion as starting evidence — starts from zero. `/spec:propose` in the specs leg has the same shape: free-text input, nothing passed.",
+    "Waybill itself is deterministic Node with no model, so it can assemble facts it infers (branch, bay, slug dir, skipped legs, next leg) but cannot summarise a conversation. The summary has to be written by the session finishing the previous leg, before its `/clear`."
+  ],
+  "goals": [
+    "G1: A pasted `/waybill:next <branch>/refine` emits `RUN: /ideation:ideation` whose argument carries `Brief: <bay>/.waybill/handoff/refine.html (read first)` plus a Waybill context block (branch, bay, ideation slug dir if any, skipped legs, the next leg after this session); with no brief present it carries the context block only and the output prints a no-brief warning line.",
+    "G2: The same holds for the specs leg and `/spec:propose`.",
+    "G3: `/waybill:brief` writes `<bay>/.waybill/handoff/<leg>.html` for the next leg that starts after a `/clear`, resolved at run time; the directory self-ignores via its own `.gitignore` (`*`), `git status` in the bay stays clean, and cleanup still removes the bay.",
+    "G4: The brief is triggered automatically after a run-mode `/waybill:next <branch>/<leg>` finishes its wrapped command, and offered via AskUserQuestion on an end-of-leg display (`/waybill:next` and `/waybill:bay` handovers) only when the next leg takes a brief, the bay exists, and no brief exists for it yet."
+  ],
+  "successCriteria": [
+    {
+      "criterion": "G1/G2 goldens exist with the brief path in the RUN argument (and absent from the no-brief golden), and the whole suite passes",
+      "check": {
+        "cmd": "test -f tests/golden/refine-brief.md && test -f tests/golden/refine-no-brief.md && test -f tests/golden/specs-brief.md && grep -q '.waybill/handoff/refine.html (read first)' tests/golden/refine-brief.md && grep -q '.waybill/handoff/specs.html (read first)' tests/golden/specs-brief.md && ! grep -q 'handoff/refine.html' tests/golden/refine-no-brief.md && npm test",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "The execute leg's handover is unchanged: the existing next-run.md golden test still passes byte-for-byte",
+      "check": {
+        "cmd": "git diff --quiet main -- tests/golden/next-run.md && node --test --test-name-pattern='keyed lines' tests/waybill.test.js",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "`waybill brief <branch>` run from the trunk against a fixture bay creates .waybill/handoff/.gitignore containing `*`, prints BRIEF FOR / WRITE TO, and leaves the bay's `git status --porcelain` empty",
+      "check": {
+        "cmd": "grep -q \"describe('waybill brief'\" tests/cli.test.js && node --test --test-name-pattern='waybill brief' tests/cli.test.js",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "A bay holding a brief written by `waybill brief` is removed by a plain `git worktree remove` (no --force), as commands/cleanup.md runs it",
+      "check": {
+        "cmd": "grep -q \"it('removes a bay holding a brief'\" tests/cli.test.js && node --test --test-name-pattern='removes a bay holding a brief' tests/cli.test.js",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "commands/brief.md exists with Write in allowed-tools; next.md runs /waybill:brief after a wrapped command and keys the prompt on BRIEF:; bay.md keys the prompt on BRIEF: and can invoke the command",
+      "check": {
+        "cmd": "test -f commands/brief.md && grep -qE '^allowed-tools:.*\\bWrite\\b' commands/brief.md && grep -q 'waybill:brief' commands/next.md && grep -q 'BRIEF:' commands/next.md && grep -q 'BRIEF:' commands/bay.md && grep -qE '^allowed-tools:.*\\bSkill\\b' commands/bay.md && node --test tests/commands.test.js",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "User-facing docs and living specs describe /waybill:brief",
+      "check": {
+        "cmd": "for f in README.md docs/guide/02-glossary.md docs/guide/03-reference.md openspec/specs/handover/spec.md openspec/specs/command-surface/spec.md; do grep -q 'waybill:brief' \"$f\" || exit 1; done",
+        "expect": "exits 0"
+      }
+    },
+    {
+      "criterion": "In a real ideate → bay → /clear → refine run, ideation's intake reads the brief and carries the brainstorm conclusion forward",
+      "check": {
+        "judgment": "The repo owner runs one real effort through ideate, bay and refine and confirms ideation prints `Carrying brainstorm conclusion…` from the brief"
+      }
+    }
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "`waybill brief [<branch>]` CLI subcommand: resolves the docket like `next` (fleet()/parseTarget, so it works from the trunk right after /waybill:bay), finds the next post-/clear leg, ensures `<bay>/.waybill/handoff/` with a `*` .gitignore, prints BRIEF FOR / WRITE TO and the booking's brief guidance; listed in USAGE, the COMMANDS map, and the help card within its 45-line budget",
+        "reason": "Keeps path, targeting and ignore logic in tested code; the model only authors content"
+      },
+      {
+        "item": "Booking `brief:` key: a one-line guidance string (the frontmatter parser accepts flat single-line scalars only), added to OPTIONAL and the Booking typedef, set on ideation-refine and openspec-specs, honoured in overlays",
+        "reason": "Tells the brief author what the receiving command needs; marks which legs take a brief"
+      },
+      {
+        "item": "RUN argument assembly for brief-taking legs: brief path line plus Waybill context block; no-brief warning line",
+        "reason": "The deterministic half of the layered design; G1/G2"
+      },
+      {
+        "item": "Display-mode keyed line: `next --markdown` and `bay --markdown` emit an exported `BRIEF:` keyed line when the next post-/clear leg has a `brief:` key, the bay exists, and no brief file exists yet",
+        "reason": "Command files key only on literals the renderer exports (ENTER_BAY/RUN/NEXT_LEG); only the CLI can resolve overlays to know whether a leg takes a brief"
+      },
+      {
+        "item": "New commands/brief.md (`/waybill:brief`) that runs `waybill brief` and writes the HTML with Write",
+        "reason": "The explicit command the user asked for"
+      },
+      {
+        "item": "commands/next.md: run `/waybill:brief` after a run-mode wrapped command; on the `BRIEF:` keyed line, AskUserQuestion before showing the waybill",
+        "reason": "G4 triggers"
+      },
+      {
+        "item": "commands/bay.md: the same `BRIEF:`-keyed AskUserQuestion; allowed-tools gains Skill and SlashCommand so a Yes can actually run /waybill:brief, with the pinned tool list in tests/commands.test.js updated",
+        "reason": "The ideate session reaches refine's waybill through bay, so this is where the brainstorm brief gets written"
+      },
+      {
+        "item": "Goldens and tests for all of the above; README, docs/guide reference/glossary/ride-along, and openspec living specs (handover, command-surface) updated",
+        "reason": "Learning (next-from-anywhere): behaviour prose outside src/ goes stale unless listed"
+      }
+    ],
+    "outOfScope": [
+      {
+        "item": "Storing briefs in the git common dir",
+        "reason": "Rejected: the owner wants the brief visible in the bay"
+      },
+      {
+        "item": "Committing briefs on the branch",
+        "reason": "Would land in every PR diff and in Waybill's diff-based inference"
+      },
+      {
+        "item": "Markdown briefs or a format setting",
+        "reason": "HTML only; add a setting when someone asks"
+      },
+      {
+        "item": "Briefs for execute, ideate, bay, cleanup",
+        "reason": "execute's tasks.md is already its brief and /spec:apply's argument is a change-id; ideate is first; bay and cleanup are through legs"
+      },
+      {
+        "item": "Generating a brief from disk at the start of a leg",
+        "reason": "Cannot recover an unwritten brainstorm; start-of-leg only assembles and passes"
+      },
+      {
+        "item": "HTML-to-text conversion for inline passing",
+        "reason": "Path passing makes it unnecessary"
+      },
+      {
+        "item": "Changes to the ideation plugin",
+        "reason": "Ideation already reads a brain dump argument and carries a conclusion from conversation"
+      },
+      {
+        "item": "Stale-brief detection",
+        "reason": "An explicit /waybill:brief overwrites; the prompt only appears when no brief exists"
+      },
+      {
+        "item": "Auto-opening the brief in a browser",
+        "reason": "The WRITE TO path is printed; opening is the user's choice"
+      }
+    ],
+    "full": [],
+    "stretch": [],
+    "future": []
+  },
+  "decisions": [
+    {
+      "decision": "Layered context: Waybill-inferred facts always, plus a model-written brief when one exists",
+      "rejected": "Brief only, or facts only",
+      "reason": "Facts alone lose the brainstorm at /clear; a brief alone lets a model misstate facts Waybill already knows"
+    },
+    {
+      "decision": "Store the brief as an untracked file in the bay, self-ignored via .waybill/handoff/.gitignore",
+      "rejected": "Git common dir; committed on the branch",
+      "reason": "Owner wants it visible in the worktree; committing pollutes the PR diff and diff-based inference"
+    },
+    {
+      "decision": "Key the file by the reading leg (handoff/refine.html)",
+      "rejected": "Key by the writing leg",
+      "reason": "Exact lookup; no need to resolve the latest done leg across skips"
+    },
+    {
+      "decision": "A separate /waybill:brief command, run automatically after a run-mode leg and offered at end-of-leg display",
+      "rejected": "Display run authors the brief implicitly; each booking body asks for it",
+      "reason": "Owner wants an explicit, nameable step that next orchestrates"
+    },
+    {
+      "decision": "Start-of-leg run assembles and passes; it never generates a brief",
+      "rejected": "Generate a brief from disk when none exists",
+      "reason": "Disk cannot recover an unwritten brainstorm; more model work per leg for little gain"
+    },
+    {
+      "decision": "End-of-leg prompt is an AskUserQuestion",
+      "rejected": "A printed line; a /waybill:brief paste block",
+      "reason": "A printed line is skimmable; a paste block runs even when there is nothing to brief"
+    },
+    {
+      "decision": "Only refine and specs take a brief in this change",
+      "rejected": "refine only; every transfer leg",
+      "reason": "specs has the same gap; execute's /spec:apply argument handling is unverified for extra text"
+    },
+    {
+      "decision": "HTML only, passed by path with facts inline",
+      "rejected": "Inline stripped HTML; HTML plus Markdown twin; a format setting",
+      "reason": "Path passing needs no converter and keeps one source file; no demand for Markdown yet"
+    },
+    {
+      "decision": "The brief targets the next leg that starts after a /clear, resolved when /waybill:brief runs",
+      "reason": "refine continues into contract in the same session, so the brief written afterwards must be for specs"
+    },
+    {
+      "decision": "Display runs emit a `BRIEF:` keyed line the command files key on",
+      "rejected": "Command files decide from prose conditions on their own",
+      "reason": "Critic (hidden-dependency): only the CLI can resolve overlays to know a leg takes a brief, and command files key only on exported literals"
+    },
+    {
+      "decision": "bay.md allowed-tools gains Skill and SlashCommand",
+      "rejected": "Keep bay.md's pinned minimal tool list",
+      "reason": "Critic (hidden-dependency): without them a Yes on bay's prompt silently does nothing, and bay is where the ideate brief is written"
+    },
+    {
+      "decision": "`waybill brief` takes an optional <branch> and resolves like `next`",
+      "reason": "Critic (hidden-dependency): the ideate session is still on the trunk after /waybill:bay"
+    },
+    {
+      "decision": "`brief:` is a one-line guidance string",
+      "rejected": "Multi-line block scalar",
+      "reason": "Critic (hidden-dependency): src/frontmatter.js rejects block scalars"
+    },
+    {
+      "decision": "Success checks guard on test/golden existence before running",
+      "rejected": "Bare `node --test --test-name-pattern` and `npm test` checks",
+      "reason": "Critic (success-criteria): a name filter matching nothing exits 0, so the originals passed before any work"
+    }
+  ],
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      {
+        "title": "CLI: brief subcommand, booking key, RUN assembly",
+        "risk": "medium",
+        "blocking": true,
+        "specPath": "docs/ideation/next-leg-brief/spec-phase-1.md",
+        "notes": "src/bookings.js (OPTIONAL + typedef), src/waybill.js (RUN assembly, BRIEF: keyed line export), src/cli.js (brief verb, USAGE, COMMANDS), src/help.js + tests/golden/help.txt (45-line budget), bookings/ideation-refine.md, bookings/openspec-specs.md, tests (describe('waybill brief'), 'removes a bay holding a brief'), goldens refine-brief/refine-no-brief/specs-brief plus every display golden the BRIEF: line touches. Write each new golden test before the code so it fails first; no-brief for specs is shared code covered by refine-no-brief."
+      },
+      {
+        "title": "Commands and docs: /waybill:brief, next/bay triggers, prose surfaces",
+        "risk": "medium",
+        "blocking": false,
+        "specPath": "docs/ideation/next-leg-brief/spec-phase-2.md",
+        "prereqs": [
+          "CLI: brief subcommand, booking key, RUN assembly"
+        ],
+        "notes": "commands/brief.md (new; add to DECLARED in tests/commands.test.js), commands/next.md, commands/bay.md (allowed-tools + pinned list), commands/help.md, README, docs/guide 01/02/03, openspec/specs/handover + command-surface. External dependency: ideation 0.26.1 carries a brainstorm conclusion only from conversation, so the payoff relies on the receiving session reading the brief path — the '(read first)' wording is the only prompt; judged by the J1 run."
+      }
+    ]
+  },
+  "approvalMode": "express",
+  "branch": "feat/next-leg-brief"
+}

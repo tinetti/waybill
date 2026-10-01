@@ -138,6 +138,36 @@ describe('loadBookings', () => {
       /typo\.md.*`argument`.*change-id.*branch.*none/s,
     );
   });
+
+  it('carries `brief` through verbatim, as one line of guidance', () => {
+    const md = VALID.replace('handover: transfer', 'handover: transfer\nbrief: some guidance');
+    assert.equal(loadBookings(bookingDir({ 'a.md': md })).get('contract').brief, 'some guidance');
+  });
+
+  it('leaves `brief` unset when the booking declares none', () => {
+    assert.equal(loadBookings(bookingDir({ 'a.md': VALID })).get('contract').brief, undefined);
+  });
+
+  it('treats an empty `brief:` as absent, so a blank line cannot mark a leg brief-taking', () => {
+    const md = VALID.replace('handover: transfer', 'handover: transfer\nbrief:');
+    assert.equal(loadBookings(bookingDir({ 'a.md': md })).get('contract').brief, undefined);
+  });
+});
+
+describe('the stock `brief` keys', () => {
+  const shipped = () => loadBookings(BUILTIN_BOOKINGS, { knownLegs: BOOKABLE_IDS });
+
+  for (const leg of ['ideate', 'specify']) {
+    it(`\`${leg}\` takes a brief`, () => {
+      assert.ok(shipped().get(leg).brief);
+    });
+  }
+
+  for (const leg of ['bay', 'execute', 'review', 'cleanup', 'brainstorm']) {
+    it(`\`${leg}\` takes none`, () => {
+      assert.equal(shipped().get(leg).brief, undefined);
+    });
+  }
 });
 
 describe('stampedByPath', () => {

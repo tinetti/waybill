@@ -206,6 +206,27 @@ describe('the WAYBILL_BOOKINGS_DIR tier', () => {
     assert.equal(overlaid.stampPath, 'docs/SHIPPED.md');
   });
 
+  it('drops `brief` when an overlay rebooks `ideate` without it', () => {
+    const repo = createRepo();
+    const md = WORK_SPECIFY.replace('leg: specify', 'leg: ideate');
+    const dir = overlayDir({ 'ideate.md': md });
+
+    const shipped = isolated({ WAYBILL_BOOKINGS_DIR: undefined }, () => resolve(repo)).get('ideate');
+    assert.ok(shipped.brief, 'the shipped booking must carry the key the overlay omits');
+
+    const overlaid = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () => resolve(repo)).get('ideate');
+    assert.equal(overlaid.brief, undefined);
+  });
+
+  it('makes any leg brief-taking when an overlay adds `brief` to it', () => {
+    const repo = createRepo();
+    const md = WORK_EXECUTE.replace('argument: none', 'argument: none\nbrief: what the proposal left open');
+    const dir = overlayDir({ 'execute.md': md });
+
+    const overlaid = isolated({ WAYBILL_BOOKINGS_DIR: dir }, () => resolve(repo)).get('execute');
+    assert.equal(overlaid.brief, 'what the proposal left open');
+  });
+
   it('is not an answer when blank, so an exported empty variable falls through', () => {
     const repo = createRepo();
     const bookings = isolated({ WAYBILL_BOOKINGS_DIR: '  ' }, () => resolve(repo));

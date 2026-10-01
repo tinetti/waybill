@@ -15,6 +15,7 @@ import { resolveLeg } from './inference.js';
 import { fleet } from './fleet.js';
 import { paperPaths, checkIgnored } from './inspection.js';
 import { resolveBookings } from './bookings.js';
+import { briefContext, briefTarget, ensureHandoff } from './brief.js';
 import { checkoutRoot, defaultBranch, inBay, isValidBranch, mainCheckout, superprojectRoot } from './repo.js';
 import { BayError, isInside, openBay } from './bay.js';
 import { renderHelp } from './help.js';
@@ -39,6 +40,8 @@ const USAGE = [
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
+  // One column wider than the rest, rather than re-spacing rows `tests/help.test.js` pins verbatim.
+  '  brief [<branch>] Where the next leg\'s brief goes, and what it should say',
   '  doctor          Can this machine run the route: every prerequisite, with its fix',
   '  help            This page: the route, the words, and the verbs',
   '',
@@ -174,7 +177,8 @@ function issueWaybill(docket, cwd, json, markdown, io, target = {}) {
   // Never into a bay the cleanup leg is about to remove: the session would be left standing in a
   // directory that no longer exists, and cleanup runs from anywhere by branch name anyway.
   const enter = Boolean(target.named) && !alreadyThere && token !== 'cleanup';
-  io.out(renderWaybillMarkdown(state, inspection, { bay: docket.path, enter, token }));
+  const context = briefContext(docket.path, state);
+  io.out(renderWaybillMarkdown(state, inspection, { bay: docket.path, enter, token, context }));
   return 0;
 }
 
@@ -307,8 +311,105 @@ function next(cwd, args, io) {
   const inspection = checkIgnored(root, paperPaths(bookings));
   // `inBay` rather than `docketOpen`: a feature branch checked out in the main checkout carries a
   // docket too, but no bay a pasted `/waybill:next <branch>/<leg>` could find its way back into.
-  const route = inBay(cwd) ? { bay: root } : {};
-  io.out(markdown ? renderWaybillMarkdown(state, inspection, route) : renderWaybill(state, inspection));
+  // The brief follows the bay for the same reason: with no bay there is nowhere to keep one.
+  if (markdown) {
+    const route = inBay(cwd) ? { bay: root, context: briefContext(root, state) } : {};
+    io.out(renderWaybillMarkdown(state, inspection, route));
+    return 0;
+  }
+  io.out(renderWaybill(state, inspection));
+  return 0;
+}
+
+/**
+ * `waybill brief [<branch>]` — where the brief for this docket's next leg goes, and what it should
+ * say. It writes no brief: only the session still holding the conversation can, and this is the
+ * part of the job that needs no model — the path, the target, and the directory that keeps the
+ * file out of git.
+ *
+ * Resolved like `next`, because the flagship caller is the brainstorm session, still standing on
+ * the trunk after `/waybill:bay`. Unlike `next` it never prints the selection menu: every session
+ * caller got its branch from a `BRIEF:` or `RUN:` line, so a menu would be a prompt nobody should
+ * reach, and several dockets with none named is one line and exit 2 instead.
+ *
+ * **Exit 0 for both `NOTHING TO BRIEF:` answers.** `/waybill:next` asks after every run-mode leg,
+ * so a leg that takes no brief is the ordinary case rather than a failure, and the `` ! ``
+ * invocation would mark a non-zero exit as one.
+ *
+ * A `<branch>/<leg>` argument is accepted and its leg ignored — the leg briefed is always the next
+ * one, as the bay reports it now. Bookings and leg are resolved from the bay, as
+ * {@link issueWaybill} does, so an overlay is honoured.
+ *
+ * @param {string} cwd
+ * @param {string[]} args
+ * @param {{out:(text:string)=>void, err:(text:string)=>void}} io
+ * @returns {number} exit code
+ */
+function brief(cwd, args, io) {
+  // `--help` is answered by `run` before dispatch, so no option here is one we know.
+  const option = args.find((arg) => arg.startsWith('-'));
+  if (option !== undefined) {
+    io.err(`waybill: unknown option \`${option}\` for \`brief\`\n${USAGE}\n`);
+    return 2;
+  }
+  const [named, ...extra] = args;
+  if (extra.length > 0) {
+    io.err(`waybill: \`brief\` takes at most one branch name\n${USAGE}\n`);
+    return 2;
+  }
+
+  const root = repoRoot(cwd, io);
+  if (root === null) return 2;
+
+  const here = resolveBookings(cwd, KNOWN_LEGS);
+  const noBay = (branch) => `no bay for ${branch} — cut one with \`waybill bay ${branch}\``;
+
+  /** @type {string} */
+  let bay;
+  if (named !== undefined) {
+    const dockets = fleet(root, here);
+    const { branch } = parseTarget(
+      named,
+      dockets.map((candidate) => candidate.branch),
+      LEG_IDS,
+    );
+    const docket = dockets.find((candidate) => candidate.branch === branch);
+    if (docket === undefined) return noWaybill(noBay(branch), dockets, false, io);
+    bay = docket.path;
+  } else {
+    const standing = resolveLeg(cwd, here);
+    if (standing.docketOpen) {
+      // A feature branch in the main checkout carries a docket and no bay — see `next`.
+      if (!inBay(cwd)) return noWaybill(noBay(standing.branch), [], false, io);
+      bay = root;
+    } else {
+      const dockets = fleet(root, here);
+      if (dockets.length === 0) {
+        return noWaybill('no dockets open — begin one with `waybill new`', dockets, false, io);
+      }
+      if (dockets.length > 1) {
+        const remedy = 'more than one docket open — name one with `waybill brief <branch>`';
+        return noWaybill(remedy, dockets, false, io);
+      }
+      bay = dockets[0].path;
+    }
+  }
+
+  const bookings = resolveBookings(bay, KNOWN_LEGS);
+  const state = resolveLeg(bay, bookings);
+  if (state.leg === null) {
+    io.out('NOTHING TO BRIEF: every leg is complete\n');
+    return 0;
+  }
+  const leg = briefTarget(state);
+  if (leg === null) {
+    io.out(`NOTHING TO BRIEF: ${state.leg} takes no brief\n`);
+    return 0;
+  }
+
+  // Only now, so a bay whose legs never take a brief never grows the directory.
+  const target = ensureHandoff(bay, leg);
+  io.out(`BRIEF FOR: ${leg}\nWRITE TO: ${target}\nGUIDANCE: ${state.booking.brief}\n`);
   return 0;
 }
 
@@ -651,7 +752,8 @@ function bay(cwd, args, io) {
   // session into this bay after `/clear` — the one move a session can make for itself.
   if (markdown) {
     io.out(`${heading}\n\n`);
-    io.out(renderWaybillMarkdown(state, inspection, { bay: result.path }));
+    const context = briefContext(result.path, state);
+    io.out(renderWaybillMarkdown(state, inspection, { bay: result.path, context }));
     return 0;
   }
 
@@ -671,6 +773,7 @@ const COMMANDS = new Map([
   ['bay', bay],
   ['next', next],
   ['status', status],
+  ['brief', brief],
   ['doctor', doctor],
   ['help', help],
 ]);
