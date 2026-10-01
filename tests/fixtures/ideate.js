@@ -1,21 +1,19 @@
-import { createRepo } from '../helpers/repo-fixture.js';
+import { addWorktree, createRepo } from '../helpers/repo-fixture.js';
 
 /**
- * @typedef {{ dir:string, repo:string, branch:string }} LegFixture
- *   `dir` is where inference should be run; `repo` is always the main checkout.
- */
-
-/**
- * A repository frozen at the `ideate` leg: the default branch is checked out, nothing has been
- * written, and no later leg is complete.
+ * A repository frozen at the `ideate` leg: the feature bay exists and is where work happens, but
+ * the interview has not produced the contract yet.
  *
- * `remote` and `originHead` are set so `defaultBranch` comes from `origin/HEAD` rather than falling
- * back to the current branch — otherwise the "a branch other than the default" half of the ideate
- * rule could never be false for the right reason.
+ * Nothing is written here on purpose. The leg's stamp is `docs/ideation/*\/contract.md`, so the one
+ * thing that must be absent is the contract — and the interview data behind it (`contract-data.json`)
+ * is no longer stamped by anything, which is exactly why the two legs this fixture replaces became
+ * one.
  *
- * @returns {LegFixture}
+ * @param {string} [branch]
+ * @returns {import('../helpers/repo-fixture.js').LegFixture}
  */
-export function ideateFixture() {
+export function ideateFixture(branch = 'feat/thing') {
   const repo = createRepo({ remote: true, originHead: true });
-  return { dir: repo, repo, branch: 'main' };
+  const dir = addWorktree(repo, branch);
+  return { dir, repo, branch };
 }

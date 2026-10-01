@@ -1,6 +1,5 @@
 ```text
-feat/thing · leg 2 of 8 (bay)
-  ✓ ideate
+feat/thing · leg 1 of 6 (bay)
   ▶ bay
 ```
 
@@ -23,6 +22,6 @@ in the new bay. Pass the branch name as the argument (`feat/<short-name>`). In a
 handover it prints ends in `/waybill:next <branch>/<leg>`, which moves the next session into the bay
 after `/clear`; in a terminal, read the `cd` line it prints instead.
 
-This leg's `stampCmd` never succeeds on purpose, exactly as the ideate leg's does not: Waybill takes
+This leg's `stampCmd` never succeeds on purpose, exactly as the cleanup leg's does not: Waybill takes
 the bay's stamp from repository state — `git worktree list` and the configured bay path — never from a
 booking. This one exists to supply the waybill: the command, the model, and this text.

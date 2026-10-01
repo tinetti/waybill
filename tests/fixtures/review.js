@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { writeFile } from '../helpers/repo-fixture.js';
-import { specsFixture } from './specs.js';
+import { specifyFixture } from './specify.js';
 import { CHANGE_ID } from './execute.js';
 
 const TASKS = ['# Tasks', '', '- [x] 1.1 Scaffold', '- [x] 1.2 Implement', '  - [X] 1.3 Test', ''].join('\n');
@@ -16,10 +16,10 @@ const TASKS = ['# Tasks', '', '- [x] 1.1 Scaffold', '- [x] 1.2 Implement', '  - 
  * all — see `tests/fixtures/cleanup.js`.
  *
  * @param {string} [branch]
- * @returns {import('./ideate.js').LegFixture}
+ * @returns {import('../helpers/repo-fixture.js').LegFixture}
  */
 export function reviewFixture(branch = 'feat/thing') {
-  const fixture = specsFixture(branch);
+  const fixture = specifyFixture(branch);
   writeFile(path.join(fixture.dir, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), TASKS);
   return fixture;
 }

@@ -1,7 +1,7 @@
 ```text
-feat/thing · leg 5 of 8 (specs)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
-  ▶ specs
+feat/thing · leg 3 of 6 (specify)
+  ✓ bay  ✓ ideate
+  ▶ specify
 ```
 
 **NEXT** — paste each block on its own, in order:

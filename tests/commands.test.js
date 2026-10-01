@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
 import { ENTER_BAY, NEXT_LEG, RUN, renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
 import { parseFrontmatter } from '../src/frontmatter.js';
 import { loadBookings } from '../src/bookings.js';
@@ -201,17 +201,18 @@ describe('the shipped command set', () => {
     }
   });
 
-  it('runs `new` at the model and effort the ideate booking names, and nothing else at any', () => {
+  it('runs `new` at the model and effort the brainstorm booking names, and nothing else at any', () => {
     // `new` is the one command whose waybill is for *this* session, and a session cannot switch its
-    // own model — so it declares one, and the value has to be the booking's. Asserted against the
-    // booking's parsed frontmatter rather than against `opus`/`high`: rebook ideate to sonnet and
-    // this reports that the command disagrees, which is the failure worth having. A literal would
-    // simply be a second place to state the same routing, free to drift from the first.
+    // own model — so it declares one, and the value has to be the booking's. The booking is the
+    // off-route brainstorm, not a leg: `new` runs the brainstorm in-session. Asserted against the
+    // booking's parsed frontmatter rather than against `opus`/`high`: rebook the brainstorm to
+    // sonnet and this reports that the command disagrees, which is the failure worth having. A
+    // literal would simply be a second place to state the same routing, free to drift from it.
     const meta = (dir, rel) =>
       parseFrontmatter(fs.readFileSync(path.join(dir, ...rel.split('/')), 'utf8'), rel).meta;
 
-    const booking = meta(BOOKINGS, 'ideation-ideate.md');
-    assert.ok(booking.model, 'the ideate booking names no model, so the pin below asserts nothing');
+    const booking = meta(BOOKINGS, 'ideation-brainstorm.md');
+    assert.ok(booking.model, 'the brainstorm booking names no model, so the pin below asserts nothing');
     assert.equal(meta(COMMANDS, 'new.md').model, booking.model);
     assert.equal(meta(COMMANDS, 'new.md').effort, booking.effort);
 
@@ -303,6 +304,27 @@ describe('the shipped command set', () => {
     }
   });
 
+  it('tells `new` the /waybill:bay handoff is for after the brainstorm, not to be run now', () => {
+    // The handoff renders outside the `NEXT:` block precisely so "run only the last of them"
+    // cannot reach it, but the Task text is the other half of that guard: a session that reads
+    // the block bottom-up and cuts the branch first skips the conversation the branch is named
+    // after, and no assertion on the CLI's output can catch that.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    assert.match(source, /AFTER THE BRAINSTORM/);
+    assert.ok(source.includes('`/waybill:bay`'), 'new.md never names the handoff command');
+  });
+
+  it('records in `new.md` that proposing a branch name inverts the rule `bay.md` states', () => {
+    // The Full tier has `new` propose a concrete name; `commands/bay.md` tells the model never to
+    // invent one. Both are deliberate, and the only thing stopping a later reader from "fixing"
+    // the inversion as a bug is this note — so the note is pinned, not merely written.
+    const source = fs.readFileSync(path.join(COMMANDS, 'new.md'), 'utf8');
+    const rule = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.match(rule, /Do not invent a branch/, 'the rule `new.md` claims to invert moved');
+    assert.match(source, /commands\/bay\.md/, 'new.md does not point at the rule it inverts');
+    assert.match(source, /<branch>/, 'new.md does not name the placeholder it falls back to');
+  });
+
   it('points no command file at the removed "then run:" handover line', () => {
     for (const rel of ['new.md', 'next.md', 'bay.md']) {
       const source = fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
@@ -375,15 +397,15 @@ describe('`/waybill:next` with and without an argument', () => {
     const result = runBang('next.md', '', repo);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, new RegExp(`^\`\`\`text\\nfeat\\/thing · leg 3 of ${LEGS.length} \\(refine\\)$`, 'm'));
+    assert.match(result.stdout, new RegExp(`^\`\`\`text\\nfeat\\/thing · leg 2 of ${LEGS.length} \\(ideate\\)$`, 'm'));
     assert.equal(result.stdout.includes(ENTER_BAY), false);
   });
 
-  it('actually runs: a pasted `feat/thing/refine` enters the bay and runs the leg', () => {
+  it('actually runs: a pasted `feat/thing/ideate` enters the bay and runs the leg', () => {
     const repo = createRepo();
     const bay = addWorktree(repo, 'feat/thing');
 
-    const result = runBang('next.md', 'feat/thing/refine', repo);
+    const result = runBang('next.md', 'feat/thing/ideate', repo);
 
     assert.equal(result.status, 0, result.stderr);
     assert.ok(result.stdout.startsWith(`${ENTER_BAY} ${bay}\n\n${RUN} /ideation:ideation`), result.stdout);
@@ -506,7 +528,7 @@ describe('the worked alternative binding in examples/', () => {
       path.join(dir, 'openspec-execute.md'),
     );
 
-    const bookings = loadBookings(dir, { knownLegs: LEGS.map((leg) => leg.id) });
+    const bookings = loadBookings(dir, { knownLegs: BOOKABLE_IDS });
     const booking = bookings.get('execute');
     assert.ok(booking, 'the swapped booking does not bind the execute leg');
     assert.equal(booking.command, 'superpowers:subagent-driven-development');
@@ -519,14 +541,14 @@ describe('the worked alternative binding in examples/', () => {
       path.join(ROOT, 'examples', 'superpowers-execute.md'),
       path.join(dir, 'openspec-execute.md'),
     );
-    const booking = loadBookings(dir, { knownLegs: LEGS.map((leg) => leg.id) }).get('execute');
+    const booking = loadBookings(dir, { knownLegs: BOOKABLE_IDS }).get('execute');
 
     // `changeId` is deliberately non-null: `argument: none` is the only thing keeping it off the
     // end of a skill name that takes no argument.
     const waybill = renderWaybill({
       leg: 'execute',
-      index: 6,
-      completed: ['ideate', 'bay', 'refine', 'contract', 'specs'],
+      index: 4,
+      completed: ['bay', 'ideate', 'specify'],
       skipped: [],
       booking,
       branch: 'feat/thing',

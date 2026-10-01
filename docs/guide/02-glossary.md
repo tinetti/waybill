@@ -29,14 +29,15 @@ lives at `.claude/worktrees/<checkout>-<branch>` inside the main checkout.
 
 One stretch of road, one driver.
 
-**Literally:** one stage of the route, run in one Claude Code session. There are eight: `ideate`,
-`bay`, `refine`, `contract`, `specs`, `execute`, `review`, `cleanup`.
+**Literally:** one stage of the route, run in one Claude Code session. There are six: `bay`,
+`ideate`, `specify`, `execute`, `review`, `cleanup`. Talking the idea through comes before them and
+is not one: a conversation leaves no papers, so there is nothing to stamp it by.
 
 ### route
 
 Same road every time. Only the freight changes.
 
-**Literally:** all eight legs, in their fixed order, from `ideate` to `cleanup`.
+**Literally:** all six legs, in their fixed order, from `bay` to `cleanup`.
 
 ### stamp
 

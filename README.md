@@ -1,6 +1,6 @@
 # Waybill
 
-A single change moves through eight legs, three tool ecosystems, and at least four sessions. No tool
+A single change moves through six legs, three tool ecosystems, and at least four sessions. No tool
 models the route, so every session boundary costs a manual re-orientation: which leg is this, which
 command comes next, which model does it want, and does the work live in the main checkout or a bay.
 
@@ -9,9 +9,9 @@ next, names the carrier that runs it, and hands over the paperwork. One command 
 questions:
 
 ```
-feat/session-handover · leg 5 of 8 (specs)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
-  ▶ specs
+feat/session-handover · leg 3 of 6 (specify)
+  ✓ bay  ✓ ideate
+  ▶ specify
 
 NEXT:
 /clear
@@ -27,7 +27,7 @@ line, to be pasted on its own, in order. They cannot share one paste — Claude 
 multi-line paste as a single input, so `/model` would take the lines after it as its argument.
 
 That is the terminal's waybill. Inside a session, `/waybill:next` ends a `/clear` handover in
-`/waybill:next <branch>/<leg>` instead — here, `/waybill:next feat/session-handover/specs` — because
+`/waybill:next <branch>/<leg>` instead — here, `/waybill:next feat/session-handover/specify` — because
 `/clear` drops the session back to the main checkout. Pasted from anywhere, that line moves the
 session into the docket's bay and runs the leg there.
 
@@ -44,31 +44,35 @@ reference.
 
 | # | Leg | Stamped by | Booked to |
 | --- | --- | --- | --- |
-| 1 | `ideate` | the docket being open, or any later leg being stamped | `bookings/ideation-ideate.md` |
-| 2 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
-| 3 | `refine` | `docs/ideation/*/contract-data.json` | `bookings/ideation-refine.md` |
-| 4 | `contract` | `docs/ideation/*/contract.md` | `bookings/ideation-contract.md` |
-| 5 | `specs` | `openspec/changes/**/tasks.md` — active or archived | `bookings/openspec-specs.md` |
-| 6 | `execute` | as row 5, **and** every checkbox in this branch's active change ticked | `bookings/openspec-execute.md` |
-| 7 | `review` | an open pull or merge request for this branch, read through `gh` or `glab` | `bookings/waybill-review.md` |
-| 8 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
+| 1 | `bay` | the bay at the configured path — see *Where bays live* | `bookings/waybill-bay.md` |
+| 2 | `ideate` | `docs/ideation/*/contract.md` | `bookings/ideation-ideate.md` |
+| 3 | `specify` | `openspec/changes/**/tasks.md` — active or archived | `bookings/openspec-specify.md` |
+| 4 | `execute` | as row 3, **and** every checkbox in this branch's active change ticked | `bookings/openspec-execute.md` |
+| 5 | `review` | an open pull or merge request for this branch, read through `gh` or `glab` | `bookings/waybill-review.md` |
+| 6 | `cleanup` | branch merged into the default branch **and** no bay left | `bookings/waybill-cleanup.md` |
 
-Legs 2 and 8 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
+The route starts at `bay`, which is the first thing a change leaves on disk. Talking the idea
+through comes before that, and it is deliberately **not** a leg: a conversation writes nothing, so
+there is no stamp to judge it by. `/waybill:new` runs it off the route from
+`bookings/ideation-brainstorm.md` and ends by handing you the `/waybill:bay <branch>` line that
+opens the docket.
+
+Legs 1 and 6 are wrapper-owned: Waybill stamps them from git rather than from a booking, because the
 anchor and the terminus have to be relied on while everything they hand to is swappable. They still
 take their command, model, and prose from a booking like every other leg.
 
-Row 7 is the one stock leg whose stamp asks something **outside** the repository — "has anybody been
+Row 5 is the one stock leg whose stamp asks something **outside** the repository — "has anybody been
 asked to look at this yet?" is not written anywhere in the repository, so it has to ask the forge. It
 needs `gh` **or** `glab` and neither is mandatory; with neither able to answer, the leg stays current
 and says why under `WARNINGS:` rather than reading as "no request yet". See *Prerequisites*.
 
-Every path glob above — rows 3 to 6 — is scoped to the docket. A file only stamps its leg when
+Every path glob above — rows 2 to 4 — is scoped to the docket. A file only stamps its leg when
 it is also part of what this branch changed against the default branch: committed on the branch,
 staged, unstaged, or untracked. Papers that shipped with an earlier change are on disk in every
 worktree and stamp nothing. When Waybill cannot work out that diff at all it stamps nothing either,
 and says so under `WARNINGS:` — visibly unable to tell beats invisibly wrong.
 
-Row 6 is also held to the progress count the waybill prints, for the change this branch touches:
+Row 4 is also held to the progress count the waybill prints, for the change this branch touches:
 a change still in flight keeps the leg open, and `0 of 0` is not finished. An archived change has
 no active change left to count, so its `tasks.md` under `openspec/changes/archive/` is the stamp.
 Checkboxes in changes inherited from the trunk count for nothing.
@@ -94,11 +98,11 @@ That gives you `/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status
 under the plugin name, and a `commands/` subdirectory becomes one more segment — measured against a
 scratch install, `/waybill:spec:propose` resolves and `/waybill:propose` is an unknown command.
 
-The waybills for legs 5 and 6 name the **bare** `/spec:propose` and `/spec:apply`. Those names come
+The waybills for legs 3 and 4 name the **bare** `/spec:propose` and `/spec:apply`. Those names come
 from `~/.claude/commands/spec/`, not from the plugin — the symlink step under *The vendored
-`/spec:*` commands* is what supplies them. Install the plugin alone and legs 5 and 6 hand you a
+`/spec:*` commands* is what supplies them. Install the plugin alone and legs 3 and 4 hand you a
 command your session cannot resolve. If you would rather not touch `~/.claude`, the other way out is
-a one-line `command:` edit in `bookings/openspec-specs.md` and `bookings/openspec-execute.md`
+a one-line `command:` edit in `bookings/openspec-specify.md` and `bookings/openspec-execute.md`
 pointing them at the `/waybill:spec:*` names instead.
 
 The plugin does **not** give you the `waybill` command: Claude Code clones the plugin into its own
@@ -119,7 +123,7 @@ step.
 
 | Command | Slash command | Answers |
 | --- | --- | --- |
-| `waybill new` | `/waybill:new` | Begin an effort: the first leg's waybill, and nothing else |
+| `waybill new` | `/waybill:new` | Begin an effort: the off-route brainstorm's waybill, then the `/waybill:bay` line that opens the docket |
 | `waybill bay <branch>` | `/waybill:bay [<branch>]` | Cut the branch and its bay, then hand off the leg that follows |
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
@@ -135,17 +139,19 @@ needs, and nothing that outlives that session. `waybill next` prints a waybill; 
 already in the repository.
 
 `waybill new` is the entry point, and the one verb asked before there is a docket to be about: it
-prints the first leg's waybill and stops, because a terminal has no session to run anything in.
-`/waybill:new` shows that same block and then runs the command it names, in that session and at the
-model and effort the booking asked for — a session cannot switch its own model, so the command file
-declares them and the test suite pins them against the booking.
+prints the off-route brainstorm's waybill and stops, because a terminal has no session to run
+anything in. `/waybill:new` shows that same block and then runs the command it names, in that
+session and at the model and effort the booking asked for — a session cannot switch its own model,
+so the command file declares them and the test suite pins them against the booking. It reports no
+leg position, because the brainstorm is not on the route; what it ends with is the
+`/waybill:bay <branch>` line that starts it.
 
 Standing on the default branch, no docket is open — so both commands answer for the repository
 instead of for the branch you are on. A **docket in flight is a bay on disk**: that is already the
-tool's own definition, since the bay is cut at leg 2 and removed at leg 8, and it is the definition
+tool's own definition, since the bay is cut at leg 1 and removed at leg 6, and it is the definition
 that gives every docket a directory, so each one's position is read from its own working tree.
-Ideating comes before the docket exists — the papers it produces travel as the branch's first diff
-once `waybill bay <branch>` cuts the bay.
+The brainstorm comes before the docket exists, and by design leaves nothing behind for the branch
+to carry.
 
 `waybill status` on the trunk lists them:
 
@@ -153,8 +159,8 @@ once `waybill bay <branch>` cuts the bay.
 main · 2 dockets open
 
 DOCKETS:
-  feat/session-handover · leg 5 of 8 (specs)
-  fix/stamp-scoping     · leg 6 of 8 (execute, 4 of 9 tasks)
+  feat/session-handover · leg 3 of 6 (specify)
+  fix/stamp-scoping     · leg 4 of 6 (execute, 4 of 9 tasks)
 ```
 
 **`waybill next` exits 0 if and only if it issued exactly one waybill.** With one bay open it
@@ -217,7 +223,7 @@ permission prompt and answers for the frontmost window rather than yours. `/wayb
 argument runs `--list`, offers the first four rows as a menu, and cuts the one you choose.
 
 All four warn when a paper directory is git-ignored in the host repository — `next` and `status`
-before their position block, `new` in the leg-1 waybill it prints, and `bay` in the waybill it
+before their position block, `new` in the brainstorm waybill it prints, and `bay` in the waybill it
 prints after cutting the bay. That matters more than it sounds: untracked papers are destroyed when
 the bay is removed at the cleanup leg. In the fleet view each warning is prefixed with the branch it
 came from, so a docket that cannot read its own diff is named rather than blamed on the repository
@@ -253,11 +259,11 @@ see *Swapping a carrier* — but a waybill pointing at a command you do not have
 
 | Leg | Needs | Where it comes from |
 | --- | --- | --- |
-| 1, 3, 4 | the `ideation` plugin | `/plugin install ideation@tinetti` |
-| 5, 6 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
-| 5, 6 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
-| 7 | `gh` **or** `glab` — neither mandatory | `/waybill:review` ships with Waybill and runs with neither installed; it offers the browser instead. But the *stamp* asks the forge, so with neither able to answer the leg stays current with a warning naming which of the two it is: nothing on `PATH`, or something on `PATH` that cannot speak for this host. `gh auth login`; `glab auth login --hostname <host>` |
-| 8 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
+| the off-route brainstorm, 2 | the `ideation` plugin | `/plugin install ideation@tinetti` |
+| 3, 4 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
+| 3, 4 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
+| 5 | `gh` **or** `glab` — neither mandatory | `/waybill:review` ships with Waybill and runs with neither installed; it offers the browser instead. But the *stamp* asks the forge, so with neither able to answer the leg stays current with a warning naming which of the two it is: nothing on `PATH`, or something on `PATH` that cannot speak for this host. `gh auth login`; `glab auth login --hostname <host>` |
+| 6 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
 
 ### `waybill doctor`
 
@@ -272,7 +278,7 @@ waybill doctor — 0.8.0
 
   ok    node           v26.7.0 (engines: >=22.0.0)
   ok    git            git version 2.51.0
-  FAIL  openspec       not on PATH — legs 5 and 6 fall back to parsing tasks.md, silently
+  FAIL  openspec       not on PATH — legs 3 and 4 fall back to parsing tasks.md, silently
         fix: npm install -g @fission-ai/openspec
   ok    spec commands  4 of 4 present in /Users/you/.claude/commands/spec/
   ok    gh             authenticated
@@ -291,7 +297,7 @@ Every `FAIL` and every `WARN` carries the command that closes it; `ok` and `info
 exits 1 if and only if some check is `FAIL`, so a script has one condition to test. `info` rows are
 not problems — an absent bookings overlay is the steady state on a personal machine.
 
-Leg 8 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
+Leg 6 is the one most likely to be wrong for you anyway. `/waybill:cleanup` never merges — it
 retires a branch someone else already merged. If your habit is to merge from the terminal, rebook
 that leg; the overlay below is how, and `examples/mar-cleanup.md` is a worked one.
 

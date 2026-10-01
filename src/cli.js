@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from './legs.js';
+import { BOOKABLE_IDS, LEGS, OFF_ROUTE_BOOKINGS } from './legs.js';
 import {
   cdLines,
   renderBaySelect,
@@ -35,7 +35,7 @@ const USAGE = [
   'Commands:',
   // Route-table order rather than alphabetical, matching the order an effort actually goes through:
   // begin it, cut its bay, ask what comes next, ask where it stands.
-  '  new             Begin an effort: the first leg\'s waybill, and nothing else',
+  '  new             Begin an effort: the off-route brainstorm, then a bay handoff',
   '  bay <branch>    Create the branch and its bay, then hand off the next leg',
   '  next [<branch>] Where this docket stands, and the waybill for the next leg',
   '  status          Where this docket stands, without the waybill',
@@ -64,7 +64,7 @@ const NEXT_FLAGS = new Set(['--json', '--markdown']);
  * none.
  *
  * `resolveLeg` deliberately never throws outside a repository — it returns a plausible-looking
- * `ideate` leg plus a warning — so the no-git case has to be caught before it, not around it. The
+ * `bay` leg plus a warning — so the no-git case has to be caught before it, not around it. The
  * submodule redirect is applied first so the inspection, the resolved state, and any bay created
  * here all answer for one repository.
  *
@@ -83,14 +83,26 @@ function repoRoot(cwd, io) {
   return root;
 }
 
-/** The legs a booking may be declared for, resolved once per command rather than per lookup. */
-const KNOWN_LEGS = { knownLegs: LEGS.map((leg) => leg.id) };
+/** The ids a booking may be declared for, resolved once per command rather than per lookup. */
+const KNOWN_LEGS = { knownLegs: BOOKABLE_IDS };
+
+/**
+ * The route's own ids, which is a narrower set than {@link KNOWN_LEGS}: an off-route booking is
+ * loadable but is not a position, so `<branch>/brainstorm` is a branch name, not a leg token.
+ */
+const LEG_IDS = LEGS.map((leg) => leg.id);
+
+/**
+ * The booking `waybill new` hands off, named through {@link OFF_ROUTE_BOOKINGS} rather than as a
+ * bare string so the id lives in exactly one place — the reason `BOOKABLE_IDS` is derived there too.
+ */
+const BRAINSTORM = OFF_ROUTE_BOOKINGS[0];
 
 /**
  * Split `next`'s argument into the branch and the leg a pasted `/waybill:next <branch>/<leg>` names.
  *
  * The whole string is tried as a branch first, so a branch whose last segment happens to be a leg
- * id — `fix/specs` — is still that branch. There is never a real collision to break: git refuses
+ * id — `fix/specify` — is still that branch. There is never a real collision to break: git refuses
  * `feat/foo` and `feat/foo/execute` as branches of one repository, so at most one reading names a
  * bay. A trailing segment that is not a leg id stays part of the branch, and the miss then names
  * the whole string, which is what the operator typed.
@@ -259,7 +271,7 @@ function next(cwd, args, io) {
     const { branch, token } = parseTarget(
       named,
       dockets.map((candidate) => candidate.branch),
-      KNOWN_LEGS.knownLegs,
+      LEG_IDS,
     );
     const docket = dockets.find((candidate) => candidate.branch === branch);
     if (docket === undefined) {
@@ -394,19 +406,23 @@ function doctor(cwd, args, io) {
 }
 
 /**
- * Leg 1's state, whichever tree the question was asked from.
+ * The on-ramp's state: the brainstorm, whichever tree the question was asked from.
  *
- * On the trunk `resolveLeg` already answers leg 1 — nothing stamps from history alone there — so its
- * result is passed through untouched, and the block stays byte-for-byte what the trunk used to print
- * in reply to `next`. Inside a bay it answers for that bay's docket instead, which is a different
- * question, so the first leg is rebuilt here.
+ * Built rather than resolved, and unconditionally so. The brainstorm is not on the route, so there
+ * is nothing on disk for `resolveLeg` to infer it from — on a clean trunk the walk honestly answers
+ * `bay`, which is the leg that comes *after* this conversation, and handing that off would skip the
+ * conversation entirely. `resolveLeg` is still called, for the two facts only it knows: whether the
+ * tree already carries a docket, and the warnings it collected on the way.
  *
- * Rebuilt rather than resolved: `src/inference.js` is deliberately not opened by this change, and a
- * `resolveFirstLeg` exported from it would be one more caller of a module whose whole contract is
- * "infer from the repository". Nothing about leg 1 is inferred — it is where every effort starts.
+ * Built here rather than exported from `src/inference.js`, which would be one more caller of a
+ * module whose whole contract is "infer from the repository". Nothing about the brainstorm is
+ * inferred — it is what happens before there is a repository state to infer from.
+ *
+ * No `index`: an off-route booking has no position, and {@link renderWaybill} never asks for one
+ * because `docketOpen` is false. Claiming `leg 1 of 6` here would name `bay`.
  *
  * The branch is the *trunk's*, not the bay's. `feat/x · no docket open` would be a false claim about
- * a branch that plainly carries one, and `feat/x · leg 1 of 8 (ideate)` a false claim about where
+ * a branch that plainly carries one, and `feat/x · leg 2 of 6 (ideate)` a false claim about where
  * that docket stands; this waybill belongs to the trunk, and the warning says why it was printed
  * here anyway. The warning rides in `state.warnings` rather than going to stderr so it lands in the
  * block's own `WARNINGS:` section, where the Task reads it, rather than wherever stderr falls.
@@ -416,33 +432,60 @@ function doctor(cwd, args, io) {
  * @param {Map<string, import('./bookings.js').Booking>} bookings
  * @returns {import('./inference.js').Inference}
  */
-function firstLeg(cwd, root, bookings) {
+function onRamp(cwd, root, bookings) {
   const state = resolveLeg(cwd, bookings);
-  if (!state.docketOpen) return state;
 
   return {
-    leg: LEGS[0].id,
-    index: 1,
+    leg: BRAINSTORM,
     completed: [],
     skipped: [],
-    booking: bookings.get(LEGS[0].id),
+    booking: bookings.get(BRAINSTORM),
     branch: defaultBranch(root),
     docketOpen: false,
     changeId: null,
-    warnings: [
-      ...state.warnings,
-      `new efforts begin on the trunk, and ${state.branch} already carries a docket — this is ` +
-        'still leg 1\'s waybill, and the ideate leg writes nothing to disk wherever it is run',
-    ],
+    warnings: state.docketOpen
+      ? [
+          ...state.warnings,
+          `new efforts begin on the trunk, and ${state.branch} already carries a docket — the ` +
+            'brainstorm writes nothing to disk wherever it is run, but it begins a fresh effort ' +
+            'rather than moving this bay\'s docket on',
+        ]
+      : state.warnings,
   };
 }
 
 /**
- * `waybill new` — begin an effort: leg 1's waybill, and nothing else.
+ * How to open a docket once the brainstorm has decided there should be one.
  *
- * The block is the one the trunk used to answer `next` with, moved to the verb that means it. In a
- * terminal that is the whole command: printing a waybill is all a CLI can do, because it has no
- * session to invoke anything in. `/waybill:new` shows the same block and then runs what it names.
+ * Its own section rather than another line in `NEXT:`, and that placement is load-bearing:
+ * `commands/new.md` tells the session to run only the last line of the `NEXT:` block, so a
+ * `/waybill:bay` folded in there would cut the branch immediately and skip the conversation the
+ * branch is supposed to be named after.
+ *
+ * Always the `<branch>` placeholder. Deriving a name from what was just discussed is the Full-tier
+ * behaviour, and it belongs to `commands/new.md`: this process is pure and stateless, with no
+ * access to the session's conversation, so anything it invented here would be a guess dressed as a
+ * suggestion. The placeholder is also the honest fallback when nothing was discussed at all.
+ *
+ * @returns {string} the section, without a trailing newline
+ */
+function bayHandoff() {
+  // Two-space indent on the prose and none on the command, matching every other section: a line
+  // the operator copies must carry no indent, or the indent rides along into the paste.
+  return [
+    'AFTER THE BRAINSTORM:',
+    '  if the answer is to build, open the docket by naming its branch — replace <branch> with',
+    '  a name drawn from what was just decided, or paste the line as it stands',
+    '/waybill:bay <branch>',
+  ].join('\n');
+}
+
+/**
+ * `waybill new` — begin an effort: the brainstorm that decides whether to, and how to start if so.
+ *
+ * The one Waybill verb whose waybill is for *this* session. In a terminal that distinction is
+ * invisible — printing a block is all a CLI can do, because it has no session to invoke anything
+ * in — but `/waybill:new` shows the same block and then runs the brainstorm it names.
  *
  * No exit contract of its own, and no branch to take: the fleet cannot change the answer, because
  * `new` is asked before there is a docket to be ambiguous about. Every argument is rejected for the
@@ -465,9 +508,13 @@ function begin(cwd, args, io) {
   if (root === null) return 2;
 
   const bookings = resolveBookings(cwd, KNOWN_LEGS);
-  const state = firstLeg(cwd, root, bookings);
+  const state = onRamp(cwd, root, bookings);
 
-  io.out(renderWaybill(state, checkIgnored(root, paperPaths(bookings))));
+  // Concatenated rather than passed to the renderer: `renderWaybill` answers for a docket, and the
+  // handoff is about the docket that does not exist yet. It lands after `WARNINGS:`, which is where
+  // the last thing to do belongs. The rendered block ends in exactly one newline, so the blank line
+  // between the two sections is the one added here, and the result still ends in exactly one.
+  io.out(`${renderWaybill(state, checkIgnored(root, paperPaths(bookings)))}\n${bayHandoff()}\n`);
   return 0;
 }
 

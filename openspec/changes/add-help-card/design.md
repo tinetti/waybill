@@ -22,9 +22,9 @@ Facts about the current code that shape the approach:
   - It throws on a malformed booking in either the built-ins or the overlay.
   - Outside a repository it does not throw: `configPath` returns `null`, and `checkoutRoot(cwd) ?? cwd`
     anchors the overlay.
-  - Built-in `stampPath` values: `refine` has `docs/ideation/*/contract-data.json`, `contract` has
-    `docs/ideation/*/contract.md`, and `specs` has `openspec/changes/*/tasks.md`.
-  - `ideate`, `bay` and `cleanup` have `stampCmd: false`; `execute` has a multi-line `stampCmd`.
+  - Built-in `stampPath` values: `ideate` has `docs/ideation/*/contract.md`, and `specify` has
+    `openspec/changes/**/tasks.md`.
+  - `bay` and `cleanup` have `stampCmd: false`; `execute` has a multi-line `stampCmd`.
 - Test harness
   - `tests/waybill.test.js:41-48` holds the only `assertGolden`.
   - `tests/bookings-overlay.test.js` neutralises the environment with
@@ -185,20 +185,19 @@ tune. 38 lines and at most 80 columns, which leaves room for D3's error line.
 waybill — the route, the words, and the four verbs
 
 FROM ZERO
-  1. On the trunk:        waybill new         leg 1's waybill; run what it names
+  1. On the trunk:        waybill new         the off-route brainstorm's waybill
   2. Once the idea holds: waybill bay feat/x  cut the branch and its bay
   3. Move in:             cd <the path bay printed>
   4. Every new session:   waybill next        the waybill for the next leg
   5. Run what it names, /clear, and ask again — until cleanup retires the bay.
 
 ROUTE
-  1  ideate    /ideation:brainstorm  repo state
-  2  bay       /waybill:bay          bay exists
-  3  refine    /ideation:ideation    contract-data.json
-  4  contract  /ideation:ideation    contract.md
-  5  specs     /spec:propose         tasks.md
-  6  execute   /spec:apply           all tasks ticked
-  7  cleanup   /waybill:cleanup      merged, bay gone
+  1  bay      /waybill:bay        bay exists
+  2  ideate   /ideation:ideation  contract.md
+  3  specify  /spec:propose       tasks.md
+  4  execute  /spec:apply         all tasks ticked
+  5  review   /waybill:review     request open
+  6  cleanup  /waybill:cleanup    merged, bay gone
 
 WORDS
   trunk    the default branch; efforts begin here, and no docket is open on it
@@ -211,7 +210,7 @@ WORDS
   waybill  the instruction for exactly one leg, issued fresh every session
 
 COMMANDS
-  waybill new              begin an effort: leg 1's waybill, and nothing else
+  waybill new              begin an effort: the brainstorm, then a bay handoff
   waybill bay <branch>     cut the branch and its bay, then hand off
   waybill next [<branch>]  where this docket stands, and the next leg's waybill
   waybill status           where it stands, or the whole fleet on the trunk
@@ -239,10 +238,10 @@ Ride-along, glossary and reference: docs/guide/ in the waybill repo
   row past 80 and fail the test. That failure is intended: it is visible and names the row.
 - **The 45-line cap squeezes future content.** → Intended. The README remains the long form, and the
   last line points at it.
-- **The `bay` step in the walkthrough could mislead.** In practice leg 2 runs through
-  `/waybill:bay`, which leg 1's waybill names, rather than being typed by hand. → Both routes end in
-  the same `bay` command. The walkthrough teaches the CLI verb because the page is the CLI's
-  reference.
+- **The `bay` step in the walkthrough could mislead.** In practice leg 1 runs through
+  `/waybill:bay`, which the brainstorm waybill's `AFTER THE BRAINSTORM:` block names, rather than
+  being typed by hand. → Both routes end in the same `bay` command. The walkthrough teaches the CLI
+  verb because the page is the CLI's reference.
 
 ## Migration Plan
 

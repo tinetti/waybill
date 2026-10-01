@@ -28,7 +28,7 @@
 - [x] 2.4 Add the test named verbatim `lists every leg`. Every `LEGS` id appears in the ROUTE section
   (the text between the `ROUTE` and `WORDS` headings), at strictly increasing offsets, each on a line
   prefixed by its 1-based index. Verify: `grep -q 'lists every leg' tests/help.test.js`.
-- [x] 2.5 Add a test named `names the stamp for each shipped leg`. It asserts the seven stamp phrases
+- [x] 2.5 Add a test named `names the stamp for each shipped leg`. It asserts the six stamp phrases
   from the spec's "Stamp phrases for the shipped route" scenario, each on its own leg's row. Verify:
   the name is present in the file.
 - [x] 2.6 Add the test named verbatim `reflects a rebooked carrier`. In a temp overlay dir, write a

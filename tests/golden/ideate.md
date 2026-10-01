@@ -1,5 +1,7 @@
 ```text
-main · no docket open
+feat/thing · leg 2 of 6 (ideate)
+  ✓ bay
+  ▶ ideate
 ```
 
 **NEXT** — paste each block on its own, in order:
@@ -17,13 +19,19 @@ main · no docket open
 ```
 
 ```
-/ideation:brainstorm
+/waybill:next feat/thing/ideate
 ```
 
-Talk the idea through before committing to it. Name the problem, argue for the smallest version
-that could work, and surface the assumptions you have not tested yet. Nothing is written to disk
-at this leg by design — the output is a decision to build, or a decision not to.
+→ runs `/ideation:ideation`
 
-This leg's `stampCmd` never succeeds on purpose: rough ideation leaves no papers, so Waybill takes
-its stamp from repository state (a later leg is already done, or a feature branch is checked out)
-rather than from this booking.
+Run the ideation interview, then turn it into the contract — one session, one carrier. Push on
+scope, sequencing, and the decisions worth recording as rejected, and keep going until the shape of
+the work is settled rather than merely described.
+
+The contract is what every later leg is checked against: goals, success criteria, phase breakdown,
+and the decision log of what was considered and rejected. State the criteria as commands that can
+be run, not as adjectives.
+
+The stamp is the contract itself rather than the interview data behind it, because the contract is
+downstream of that data — a written contract proves the interview happened, and no coverage is lost
+by asking for the stronger paper.

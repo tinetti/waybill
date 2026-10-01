@@ -30,15 +30,37 @@ import { inBay, isMerged, resolveBayPath } from './repo.js';
  * @type {Leg[]}
  */
 export const LEGS = [
-  { id: 'ideate', owner: 'booking' },
   { id: 'bay', owner: 'wrapper' },
-  { id: 'refine', owner: 'booking' },
-  { id: 'contract', owner: 'booking' },
-  { id: 'specs', owner: 'booking' },
+  { id: 'ideate', owner: 'booking' },
+  { id: 'specify', owner: 'booking' },
   { id: 'execute', owner: 'booking', progress: true },
   { id: 'review', owner: 'booking' },
   { id: 'cleanup', owner: 'wrapper' },
 ];
+
+/**
+ * Bookings that ship with Waybill but are not legs: the conversation that decides whether to build
+ * happens before the route starts, leaves nothing on disk, and so cannot be a leg without a stamp
+ * that judges it backwards.
+ *
+ * A plain list of ids, not a category with behaviour. Nothing reads it today but
+ * {@link BOOKABLE_IDS}, which is what keeps the loader from rejecting the binding.
+ *
+ * @type {string[]}
+ */
+export const OFF_ROUTE_BOOKINGS = ['brainstorm'];
+
+/**
+ * Every id a shipped or overlaid booking may legitimately bind — the route, plus the off-route
+ * bookings. This is the set `loadBookings` is given: a booking naming anything else is a typo or a
+ * retired id, and is rejected with the offending file named.
+ *
+ * Derived here rather than concatenated at each call site, so the route and the off-route list
+ * cannot drift apart between one caller and the next.
+ *
+ * @type {string[]}
+ */
+export const BOOKABLE_IDS = [...LEGS.map((leg) => leg.id), ...OFF_ROUTE_BOOKINGS];
 
 /**
  * Where the current branch's bay would live, or `null` when there is no branch to derive it
@@ -73,8 +95,8 @@ export function bayIsDone(state) {
  * The `cleanup` leg is done once the work has landed and its tree is gone.
  *
  * Standing on the default branch is explicitly *not* done: there is no feature branch to fold back
- * in yet, and treating that as a completed cleanup would make the `ideate` rule below fire in every
- * untouched repository.
+ * in yet, and treating that as a completed cleanup would report every untouched repository as
+ * having finished the route.
  *
  * "No bay remains" is judged against the resolved bay path only, deliberately matching
  * {@link bayIsDone}: a bay the operator registered somewhere else reads as cleaned up while it
@@ -118,16 +140,3 @@ export const WRAPPER_STAMPS = new Map([
   ['bay', bayIsDone],
   ['cleanup', cleanupIsDone],
 ]);
-
-/**
- * The `ideate` leg leaves no papers by design — a rough-ideation conversation writes nothing —
- * so it is judged by what it must have preceded: any later leg being complete, or a docket being
- * open at all.
- *
- * @param {RepoState} state
- * @param {boolean} laterComplete whether any leg after this one is complete
- * @returns {boolean}
- */
-export function ideateIsDone(state, laterComplete) {
-  return laterComplete || state.docketOpen;
-}

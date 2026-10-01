@@ -1,8 +1,8 @@
 ENTER BAY: /repo/.claude/worktrees/waybill-feat-thing
 
 ```text
-feat/thing · leg 6 of 8 (execute)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract  ✓ specs
+feat/thing · leg 4 of 6 (execute)
+  ✓ bay  ✓ ideate  ✓ specify
   ▶ execute
 ```
 

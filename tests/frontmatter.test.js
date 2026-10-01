@@ -6,10 +6,10 @@ import { parseFrontmatter } from '../src/frontmatter.js';
 describe('parseFrontmatter — accepted syntax', () => {
   it('parses flat key: value scalars and returns the body verbatim', () => {
     const { meta, body } = parseFrontmatter(
-      ['---', 'leg: contract', 'command: /ideation:ideation', 'model: opus', '---', 'Waybill text.', ''].join('\n'),
+      ['---', 'leg: ideate', 'command: /ideation:ideation', 'model: opus', '---', 'Waybill text.', ''].join('\n'),
     );
     assert.deepEqual(meta, {
-      leg: 'contract',
+      leg: 'ideate',
       command: '/ideation:ideation',
       model: 'opus',
     });
@@ -33,8 +33,8 @@ describe('parseFrontmatter — accepted syntax', () => {
   });
 
   it('accepts a booking with one key and an empty body', () => {
-    const { meta, body } = parseFrontmatter('---\nleg: specs\n---\n');
-    assert.deepEqual(meta, { leg: 'specs' });
+    const { meta, body } = parseFrontmatter('---\nleg: specify\n---\n');
+    assert.deepEqual(meta, { leg: 'specify' });
     assert.equal(body, '');
   });
 
@@ -52,8 +52,8 @@ describe('parseFrontmatter — accepted syntax', () => {
   });
 
   it('trims values and blank frontmatter lines', () => {
-    const { meta } = parseFrontmatter('---\n\nleg:   contract   \n\nmodel: opus\n---\n');
-    assert.deepEqual(meta, { leg: 'contract', model: 'opus' });
+    const { meta } = parseFrontmatter('---\n\nleg:   ideate   \n\nmodel: opus\n---\n');
+    assert.deepEqual(meta, { leg: 'ideate', model: 'opus' });
   });
 
   it('keeps an empty value as an empty string', () => {
@@ -72,8 +72,8 @@ describe('parseFrontmatter — accepted syntax', () => {
   });
 
   it('tolerates CRLF line endings', () => {
-    const { meta, body } = parseFrontmatter('---\r\nleg: specs\r\n---\r\nwaybill\r\n');
-    assert.deepEqual(meta, { leg: 'specs' });
+    const { meta, body } = parseFrontmatter('---\r\nleg: specify\r\n---\r\nwaybill\r\n');
+    assert.deepEqual(meta, { leg: 'specify' });
     assert.equal(body, 'waybill\n');
   });
 
@@ -90,15 +90,15 @@ describe('parseFrontmatter — rejected syntax', () => {
   };
 
   it('rejects an unterminated fence, naming the path and line', () => {
-    rejects('---\nleg: contract\nbody with no closing fence\n', /\/tmp\/x\.md:1:.*closing/i);
+    rejects('---\nleg: ideate\nbody with no closing fence\n', /\/tmp\/x\.md:1:.*closing/i);
   });
 
   it('rejects a list item', () => {
-    rejects('---\nleg: contract\n- one\n---\n', /\/tmp\/x\.md:3:.*list/i);
+    rejects('---\nleg: ideate\n- one\n---\n', /\/tmp\/x\.md:3:.*list/i);
   });
 
   it('rejects a nested indent', () => {
-    rejects('---\nleg: contract\n  nested: value\n---\n', /\/tmp\/x\.md:3:.*(indent|nest)/i);
+    rejects('---\nleg: ideate\n  nested: value\n---\n', /\/tmp\/x\.md:3:.*(indent|nest)/i);
   });
 
   it('rejects a | block scalar', () => {
@@ -110,7 +110,7 @@ describe('parseFrontmatter — rejected syntax', () => {
   });
 
   it('rejects a duplicate key', () => {
-    rejects('---\nleg: contract\nleg: specs\n---\n', /\/tmp\/x\.md:3:.*duplicate/i);
+    rejects('---\nleg: ideate\nleg: specify\n---\n', /\/tmp\/x\.md:3:.*duplicate/i);
   });
 
   it('rejects a line with no colon', () => {

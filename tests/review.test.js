@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS } from '../src/legs.js';
 import { STAMP_UNKNOWN, evaluateBooking, loadBookings, stampedByCmd } from '../src/bookings.js';
 import {
   cleanupAll,
@@ -86,7 +86,7 @@ describe('the stampCmd exit-code contract', () => {
 });
 
 describe('the review booking', () => {
-  const booking = loadBookings(BOOKINGS, { knownLegs: LEGS.map((leg) => leg.id) }).get('review');
+  const booking = loadBookings(BOOKINGS, { knownLegs: BOOKABLE_IDS }).get('review');
 
   it('binds the review leg to the carrier Waybill ships', () => {
     assert.ok(booking, 'no shipped booking binds `review`');

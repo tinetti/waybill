@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LEGS } from '../src/legs.js';
+import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
 import { resolveLeg } from '../src/inference.js';
 import { executeProgress } from '../src/progress.js';
 import { BUILTIN_BOOKINGS, loadBookings } from '../src/bookings.js';
@@ -23,11 +23,9 @@ import {
   withPath,
   writeFile,
 } from './helpers/repo-fixture.js';
-import { ideateFixture } from './fixtures/ideate.js';
 import { bayFixture } from './fixtures/bay.js';
-import { refineFixture } from './fixtures/refine.js';
-import { contractFixture } from './fixtures/contract.js';
-import { specsFixture } from './fixtures/specs.js';
+import { ideateFixture } from './fixtures/ideate.js';
+import { specifyFixture } from './fixtures/specify.js';
 import { CHANGE_ID, executeFixture } from './fixtures/execute.js';
 import { reviewFixture } from './fixtures/review.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
@@ -63,7 +61,7 @@ function bookingMap(files) {
   const dir = path.join(tempRoot(), 'bookings');
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, contents] of Object.entries(files)) writeFile(path.join(dir, name), contents);
-  return loadBookings(dir, { knownLegs: KNOWN_LEGS });
+  return loadBookings(dir, { knownLegs: BOOKABLE_IDS });
 }
 
 /**
@@ -75,43 +73,35 @@ function bookingMap(files) {
  * @returns {Map<string, import('../src/bookings.js').Booking>}
  */
 function bookingsWith(files) {
-  const base = loadBookings(BUILTIN_BOOKINGS, { knownLegs: KNOWN_LEGS });
+  const base = loadBookings(BUILTIN_BOOKINGS, { knownLegs: BOOKABLE_IDS });
   for (const [leg, booking] of bookingMap(files)) base.set(leg, booking);
   return base;
 }
 
 describe('LEGS', () => {
-  it('is the fixed leg model, in order', () => {
-    assert.deepEqual(KNOWN_LEGS, [
-      'ideate',
-      'bay',
-      'refine',
-      'contract',
-      'specs',
-      'execute',
-      'review',
-      'cleanup',
-    ]);
-  });
+  // The route's ids are pinned in `tests/legs.test.js`, which owns the leg model outright. Pinning
+  // them here as well would make a rename fail twice and say nothing the first failure did not.
 
-  it('has one fixture per leg, plus no-docket for the trunk, and no strays', () => {
-    // Criterion 1 counts this directory; no-docket.js is the one deliberate exception, since the
-    // state it covers — standing on the base branch — is not one of the legs.
-    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 1);
+  it('has one fixture per leg, plus the two off-route states, and no strays', () => {
+    // Criterion 1 counts this directory. Two deliberate exceptions, for the same reason: the states
+    // they cover are not legs. `no-docket.js` is standing on the base branch, and `brainstorm.js`
+    // is the off-route conversation that happens before the route starts.
+    assert.equal(fs.readdirSync(FIXTURES).length, LEGS.length + 2);
   });
 });
 
 describe('the shipped bookings', () => {
   const bookings = loadBookings(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings'),
-    { knownLegs: KNOWN_LEGS },
+    { knownLegs: BOOKABLE_IDS },
   );
 
-  it('binds a waybill to every leg — the loop is closed', () => {
+  it('binds a waybill to every leg, and to the off-route brainstorm — the loop is closed', () => {
     // `bay` and `cleanup` are wrapper-owned for *stamping* and booking-bound for their
     // waybills: `owner` in LEGS says who supplies the stamp, not who supplies the command and
-    // the prose.
-    assert.deepEqual([...bookings.keys()].sort(), [...KNOWN_LEGS].sort());
+    // the prose. Compared against `BOOKABLE_IDS` rather than the route, because the shipped set
+    // legitimately holds one booking more than there are legs.
+    assert.deepEqual([...bookings.keys()].sort(), [...BOOKABLE_IDS].sort());
   });
 
   it('names a model and an effort on every booking, so no leg can leave one unsourced', () => {
@@ -121,32 +111,29 @@ describe('the shipped bookings', () => {
     }
   });
 
-  it('keeps refine and contract on one command, separated only by stamp', () => {
-    assert.equal(bookings.get('refine').command, bookings.get('contract').command);
-    assert.notEqual(
-      bookings.get('refine').stampPath,
-      bookings.get('contract').stampPath,
-    );
+  it('enters the ideate leg on a transfer, because the interview wants a session of its own', () => {
+    // `handover` describes how to *enter* a leg. The interview and the contract it produces are
+    // one long session's work, so the leg is entered fresh rather than carried into off the back
+    // of the bay leg.
+    assert.equal(bookings.get('ideate').handover, 'transfer');
   });
 
-  it('enters the contract leg through, because the refine waybill promises one unbroken session', () => {
-    // `handover` describes how to *enter* a leg. The refine body tells the operator to carry
-    // straight on into the contract, so a `transfer` here would discard the interview that the
-    // contract is written from — the two bookings would be giving opposite instructions.
-    assert.equal(bookings.get('contract').handover, 'through');
+  it('keeps the brainstorm bookable without putting it on the route', () => {
+    // The whole off-route mechanism: the loader accepts the binding because `BOOKABLE_IDS` names
+    // it, and nothing else does — so it never appears in a tick strip or a `leg N of M`.
+    assert.equal(bookings.get('brainstorm').command, '/ideation:brainstorm');
+    assert.equal(LEGS.some((leg) => leg.id === 'brainstorm'), false);
   });
 });
 
 describe('resolveLeg', () => {
   // The third column is what the stub forge is told to answer. `review` and `cleanup` share a
   // fixture — they are identical on disk — so it is the forge, not a file, that separates them.
-  /** @type {[string, (branch?: string) => import('./fixtures/ideate.js').LegFixture, ('none'|'open')?][]} */
+  /** @type {[string, (branch?: string) => import('./helpers/repo-fixture.js').LegFixture, ('none'|'open')?][]} */
   const cases = [
-    ['ideate', ideateFixture],
     ['bay', bayFixture],
-    ['refine', refineFixture],
-    ['contract', contractFixture],
-    ['specs', specsFixture],
+    ['ideate', ideateFixture],
+    ['specify', specifyFixture],
     ['execute', executeFixture],
     ['review', reviewFixture],
     ['cleanup', cleanupFixture, 'open'],
@@ -167,9 +154,9 @@ describe('resolveLeg', () => {
   }
 
   it('carries the booking for the current leg', () => {
-    const result = resolve(specsFixture().dir);
+    const result = resolve(specifyFixture().dir);
     assert.equal(result.booking.command, '/spec:propose');
-    assert.match(result.booking.path, /openspec-specs\.md$/);
+    assert.match(result.booking.path, /openspec-specify\.md$/);
   });
 
   it('carries the booking for a wrapper-owned leg too, since the waybill is not the stamp', () => {
@@ -212,9 +199,9 @@ describe('resolveLeg', () => {
     // review stamp is the route's only subprocess, and the walk runs every leg to find the holes
     // behind the current one — so without deferral a machine carrying neither CLI prints that
     // same warning under every command at every leg, where it is not yet actionable.
-    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(refineFixture().dir));
+    const result = withPath(pathWithout('openspec', 'gh', 'glab'), () => resolveLeg(ideateFixture().dir));
 
-    assert.equal(result.leg, 'refine');
+    assert.equal(result.leg, 'ideate');
     assert.deepEqual(result.warnings, []);
   });
 
@@ -231,12 +218,12 @@ describe('resolveLeg', () => {
       source: 'tasks-md',
       changeId: CHANGE_ID,
     });
-    assert.equal(resolve(specsFixture().dir).progress, undefined);
+    assert.equal(resolve(specifyFixture().dir).progress, undefined);
   });
 
   it('names the change id once one has been scaffolded', () => {
     assert.equal(resolve(executeFixture().dir).changeId, CHANGE_ID);
-    assert.equal(resolve(specsFixture().dir).changeId, null);
+    assert.equal(resolve(specifyFixture().dir).changeId, null);
   });
 
   it('adopts the CLI change id when the filesystem walk found none', () => {
@@ -244,7 +231,7 @@ describe('resolveLeg', () => {
     // specs stamp's `openspec/changes/**/tasks.md` still matches it, so the leg is `execute`
     // with no id from disk. Phase 3 interpolates this id into the waybill command. The change is the
     // branch's own through its proposal alone, which the walk cannot see and the CLI can.
-    const { dir } = specsFixture();
+    const { dir } = specifyFixture();
     writeFile(path.join(dir, 'openspec', 'changes', 'archive', '2026-01-01-old', 'tasks.md'), '- [x] a\n');
     writeFile(path.join(dir, 'openspec', 'changes', CHANGE_ID, 'proposal.md'), '# Proposal\n');
 
@@ -265,24 +252,22 @@ describe('resolveLeg', () => {
 
   it('never names the current leg as skipped, even with later legs complete', () => {
     const { dir } = bayFixture();
-    writeFile(path.join(dir, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
     writeFile(path.join(dir, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
 
     const result = resolve(dir);
     assert.equal(result.leg, 'bay');
-    assert.deepEqual(result.completed, ['ideate', 'refine', 'contract']);
+    assert.deepEqual(result.completed, ['ideate']);
     assert.deepEqual(result.skipped, []);
   });
 
   it('names the hole a leg done by hand out of order leaves behind', () => {
     const { dir } = bayFixture();
-    writeFile(path.join(dir, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(dir, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [ ] a\n');
 
     const result = resolve(dir);
     assert.equal(result.leg, 'bay');
-    assert.deepEqual(result.completed, ['ideate', 'contract', 'specs']);
-    assert.deepEqual(result.skipped, ['refine']);
+    assert.deepEqual(result.completed, ['specify']);
+    assert.deepEqual(result.skipped, ['ideate']);
   });
 
   it('falls off the end of the walk when every leg passes', () => {
@@ -299,7 +284,6 @@ describe('resolveLeg', () => {
     // working tree keeps the branch ref identical to base (trivially merged) while still landing
     // in `changedPaths`' untracked-file half — the one way a fully "landed" docket can still carry
     // a diff worth stamping.
-    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
     writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     writeFile(path.join(elsewhere, 'openspec', 'changes', CHANGE_ID, 'tasks.md'), '- [x] a\n- [x] b\n');
 
@@ -317,11 +301,11 @@ describe('resolveLeg', () => {
   });
 
   it('resolves against the superproject when called from inside a submodule', () => {
-    const fixture = specsFixture();
+    const fixture = specifyFixture();
     const sub = addSubmodule(fixture.dir, createRepo({ name: 'child' }));
 
     const result = resolve(sub);
-    assert.equal(result.leg, 'specs');
+    assert.equal(result.leg, 'specify');
     assert.equal(result.branch, fixture.branch);
     assert.equal(result.warnings.length, 1);
     assert.match(result.warnings[0], /submodule/);
@@ -329,16 +313,16 @@ describe('resolveLeg', () => {
   });
 
   it('does not mark a leg skipped when nothing after it is complete', () => {
-    assert.deepEqual(resolve(contractFixture().dir).skipped, []);
+    assert.deepEqual(resolve(ideateFixture().dir).skipped, []);
   });
 
   it('degrades a stamp that cannot run to a warning rather than a throw', () => {
-    // Overlaid on the shipped set rather than standing alone: `specs` has to be the leg in hand for
-    // its stamp to be run at all, and an unbooked leg ahead of it would defer the stamp instead.
+    // Overlaid on the shipped set rather than standing alone: `specify` has to be the leg in hand
+    // for its stamp to be run at all, and an unbooked leg ahead of it would defer the stamp instead.
     const bookings = bookingsWith({
-      'broken-specs.md': [
+      'broken-specify.md': [
         '---',
-        'leg: specs',
+        'leg: specify',
         'command: /spec:propose',
         'model: placeholder',
         'stampCmd: waybill-no-such-binary-xyz',
@@ -347,21 +331,22 @@ describe('resolveLeg', () => {
       ].join('\n'),
     });
 
-    const result = resolve(specsFixture().dir, bookings);
+    const result = resolve(specifyFixture().dir, bookings);
     assert.equal(result.warnings.length, 1);
-    assert.match(result.warnings[0], /broken-specs\.md/);
+    assert.match(result.warnings[0], /broken-specify\.md/);
     assert.match(result.warnings[0], /waybill-no-such-binary-xyz/);
-    assert.equal(result.completed.includes('specs'), false);
+    assert.equal(result.completed.includes('specify'), false);
   });
 
   it('judges a booking-owned leg by its stamp alone, with nothing in the walk keyed to its id', () => {
     // No `stampPath` and no leg named in `legIsDone`, so the only thing that can be deciding is the
-    // generic fallthrough. Only `refine` is booked; every leg after it is not done for want of one.
+    // generic fallthrough. Only `ideate` is booked; every leg after it is not done for want of one,
+    // and `bay` ahead of it is wrapper-stamped, so it does not need one.
     const booked = (stampCmd) =>
       bookingMap({
-        'refine.md': [
+        'ideate.md': [
           '---',
-          'leg: refine',
+          'leg: ideate',
           'command: /spec:explore',
           'model: placeholder',
           `stampCmd: ${stampCmd}`,
@@ -370,18 +355,18 @@ describe('resolveLeg', () => {
         ].join('\n'),
       });
 
-    const open = resolve(refineFixture().dir, booked('exit 1'));
-    assert.equal(open.leg, 'refine');
-    assert.deepEqual(open.completed, ['ideate', 'bay']);
+    const open = resolve(ideateFixture().dir, booked('exit 1'));
+    assert.equal(open.leg, 'ideate');
+    assert.deepEqual(open.completed, ['bay']);
 
-    const stamped = resolve(refineFixture().dir, booked('exit 0'));
-    assert.equal(stamped.leg, 'contract');
-    assert.deepEqual(stamped.completed, ['ideate', 'bay', 'refine']);
+    const stamped = resolve(ideateFixture().dir, booked('exit 0'));
+    assert.equal(stamped.leg, 'specify');
+    assert.deepEqual(stamped.completed, ['bay', 'ideate']);
   });
 
   it('never throws outside a git repository', () => {
     const result = resolve(tempRoot());
-    assert.equal(result.leg, 'ideate');
+    assert.equal(result.leg, 'bay');
     assert.equal(result.branch, null);
     assert.match(result.warnings[0], /not a git repository/);
   });
@@ -391,11 +376,11 @@ describe('resolveLeg', () => {
     git(repo, ['checkout', '--detach', 'HEAD']);
     const result = resolve(repo);
     assert.equal(result.branch, null);
-    assert.equal(result.leg, 'ideate');
+    assert.equal(result.leg, 'bay');
   });
 
   it('never throws in a repository with no commits', () => {
-    assert.equal(resolve(createRepo({ commit: false })).leg, 'ideate');
+    assert.equal(resolve(createRepo({ commit: false })).leg, 'bay');
   });
 
   describe('docketOpen', () => {
@@ -439,11 +424,11 @@ describe('shipped papers do not stamp a docket', () => {
 
     const state = resolveLeg(repo);
     assert.equal(state.docketOpen, false);
-    assert.equal(state.leg, 'ideate');
+    assert.equal(state.leg, 'bay');
     assert.deepEqual(state.completed, []);
   });
 
-  it('reports refine in a fresh bay, not specs', () => {
+  it('reports ideate in a fresh bay, not specify', () => {
     const repo = createRepo({ remote: true, originHead: true });
     commitPapers(repo, {
       'docs/ideation/shipped/contract.md': '# shipped\n',
@@ -453,31 +438,30 @@ describe('shipped papers do not stamp a docket', () => {
 
     const state = resolveLeg(bay);
     assert.equal(state.docketOpen, true);
-    assert.equal(state.leg, 'refine');
-    assert.deepEqual(state.completed, ['ideate', 'bay']);
+    assert.equal(state.leg, 'ideate');
+    assert.deepEqual(state.completed, ['bay']);
   });
 
-  it('pins the trunk to ideate even when an unscoped stampCmd matches history', () => {
+  it('pins the trunk to bay even when an unscoped stampCmd matches history', () => {
     // `stampCmd` is unscoped by design, so a completed-but-unarchived change left in history stamps
-    // `execute`, which back-stamps `ideate` through `laterComplete` and walks the position to the
-    // first genuinely incomplete leg — `bay`. The render then hands the operator
+    // `execute` and walks the position past every leg before it. The render then hands the operator
     // `/waybill:start <change-id>`, a command that cannot succeed. The base branch has no docket, so
-    // it has no position: it reports ideate, with nothing behind it.
+    // it has no position: it reports the first leg, with nothing behind it.
     const repo = createRepo({ remote: true, originHead: true });
     commitPapers(repo, { 'openspec/changes/add-thing/tasks.md': '- [x] a\n- [x] b\n' });
 
     const state = resolveLeg(repo);
     assert.equal(state.docketOpen, false);
-    assert.equal(state.leg, 'ideate');
+    assert.equal(state.leg, 'bay');
     assert.equal(state.index, 1);
-    assert.match(state.booking.path, /ideation-ideate\.md$/);
+    assert.match(state.booking.path, /waybill-bay\.md$/);
     // A docket that does not exist cannot report progress: `next --json` would otherwise print
     // `docketOpen: false` beside a list of completed legs.
     assert.deepEqual(state.completed, []);
     assert.deepEqual(state.skipped, []);
     // Nor can it name a change in flight. `discoverChangeId` walks the whole `openspec/changes`
-    // directory, so a shipped change would otherwise be interpolated into the ideate waybill as
-    // `/ideation:brainstorm add-thing` — the same operator-hostile handoff, one leg over.
+    // directory, so a shipped change would otherwise be interpolated into the waybill as the
+    // docket's own — an operator-hostile handoff for a docket that does not exist.
     assert.equal(state.changeId, null);
   });
 
@@ -487,17 +471,17 @@ describe('shipped papers do not stamp a docket', () => {
     const bay = addWorktree(repo, 'feat/thing');
 
     const state = resolve(bay);
-    assert.deepEqual(state.completed, ['ideate', 'bay']);
+    assert.deepEqual(state.completed, ['bay']);
     assert.deepEqual(state.skipped, []);
   });
 
-  it('stamps refine once this docket writes its own papers', () => {
+  it('stamps ideate once this docket writes its own papers', () => {
     const repo = createRepo({ remote: true, originHead: true });
-    commitPapers(repo, { 'docs/ideation/shipped/contract-data.json': '{}\n' });
+    commitPapers(repo, { 'docs/ideation/shipped/contract.md': '# shipped\n' });
     const bay = addWorktree(repo, 'feat/thing');
-    writeFile(path.join(bay, 'docs', 'ideation', 'live', 'contract-data.json'), '{}\n');
+    writeFile(path.join(bay, 'docs', 'ideation', 'live', 'contract.md'), '# Contract\n');
 
-    assert.equal(resolveLeg(bay).completed.includes('refine'), true);
+    assert.equal(resolveLeg(bay).completed.includes('ideate'), true);
   });
 });
 
@@ -513,7 +497,6 @@ describe('the change id is scoped to the branch', () => {
     const repo = createRepo({ remote: true, originHead: true });
     commitPapers(repo, inherited);
     const bay = addWorktree(repo, 'feat/thing');
-    writeFile(path.join(bay, 'docs', 'ideation', 'thing', 'contract-data.json'), '{}\n');
     writeFile(path.join(bay, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
     return bay;
   }
@@ -531,7 +514,7 @@ describe('the change id is scoped to the branch', () => {
     const bay = docketAfter({ 'openspec/changes/shipped/tasks.md': '- [x] a\n- [x] b\n' });
 
     const state = resolve(bay);
-    assert.equal(state.leg, 'specs');
+    assert.equal(state.leg, 'specify');
     assert.equal(state.changeId, null);
     const lines = renderWaybill(state).split('\n').map((line) => line.trim());
     assert.equal(lines.includes('/spec:propose'), true, lines.join('\n'));
@@ -542,7 +525,7 @@ describe('the change id is scoped to the branch', () => {
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
 
     const state = resolve(bay);
-    assert.equal(state.leg, 'specs');
+    assert.equal(state.leg, 'specify');
     assert.equal(state.changeId, null);
   });
 
@@ -572,8 +555,8 @@ describe('the change id is scoped to the branch', () => {
     // Bookings that put the docket at execute with no change of its own on disk — exactly the case
     // where the CLI's own pick would otherwise be taken.
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
-    const bookings = new Map([...loadBookings(BUILTIN_BOOKINGS, { knownLegs: KNOWN_LEGS }), ...bookingMap({
-      'specs.md': ['---', 'leg: specs', 'command: /s', 'model: m', 'stampPath: docs/ideation/*/contract.md', '---', ''].join('\n'),
+    const bookings = new Map([...loadBookings(BUILTIN_BOOKINGS, { knownLegs: BOOKABLE_IDS }), ...bookingMap({
+      'specify.md': ['---', 'leg: specify', 'command: /s', 'model: m', 'stampPath: docs/ideation/*/contract.md', '---', ''].join('\n'),
       'execute.md': ['---', 'leg: execute', 'command: /e', 'model: m', 'stampCmd: exit 1', '---', ''].join('\n'),
     })]);
     const stub = listStub([{ name: 'inherited', completedTasks: 0, totalTasks: 1 }]);
@@ -584,12 +567,12 @@ describe('the change id is scoped to the branch', () => {
     assert.equal(state.progress.changeId, null);
   });
 
-  it('reads an archived change of this docket as specs and execute done', () => {
+  it('reads an archived change of this docket as specify and execute done', () => {
     const bay = docketAfter({ 'openspec/changes/inherited/tasks.md': '- [ ] a\n' });
     writeFile(path.join(bay, 'openspec', 'changes', 'archive', '2026-09-15-mine', 'tasks.md'), '- [x] a\n- [x] b\n');
 
     const state = resolve(bay);
-    assert.deepEqual(state.completed, ['ideate', 'bay', 'refine', 'contract', 'specs', 'execute']);
+    assert.deepEqual(state.completed, ['bay', 'ideate', 'specify', 'execute']);
     // `review` rather than `cleanup`: the work is finished and the stub forge reports nothing open.
     assert.equal(state.leg, 'review');
   });

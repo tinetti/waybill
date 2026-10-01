@@ -11,7 +11,7 @@ import { createRepo, git, writeFile } from '../helpers/repo-fixture.js';
  * which would otherwise read as a completed cleanup.
  *
  * @param {string} [branch]
- * @returns {import('./ideate.js').LegFixture}
+ * @returns {import('../helpers/repo-fixture.js').LegFixture}
  */
 export function bayFixture(branch = 'feat/thing') {
   const repo = createRepo({ remote: true, originHead: true });

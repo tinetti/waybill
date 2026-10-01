@@ -23,7 +23,8 @@ based on the checked-out branch.
 
 #### Scenario: `next` no longer doubles as an entry point
 - **WHEN** `next` is run on the trunk with no dockets open
-- **THEN** it does not issue leg 1's waybill, and instead points the caller at `new`
+- **THEN** it does not issue the off-route brainstorm's waybill, and instead points the caller at
+  `new`
 
 ### Requirement: `bay` replaces `start`
 
@@ -88,21 +89,21 @@ with a bay SHALL take `/waybill:next <branch>/<leg>` as its last command in plac
 with the runs annotation naming that raw command below it. Plain output is unchanged.
 
 #### Scenario: Naming a docket and its next leg
-- **WHEN** `next --markdown feat/x/refine` is run from the trunk and `feat/x` is at the refine leg
-- **THEN** the output begins with `ENTER BAY:` and the bay's path, then `RUN:` and the refine
+- **WHEN** `next --markdown feat/x/ideate` is run from the trunk and `feat/x` is at the ideate leg
+- **THEN** the output begins with `ENTER BAY:` and the bay's path, then `RUN:` and the ideate
   booking's command
 
 #### Scenario: Naming a stale leg
-- **WHEN** `next --markdown feat/x/specs` is run and `feat/x` is at the refine leg
-- **THEN** the output carries `NEXT LEG: refine` and no `RUN:` line
+- **WHEN** `next --markdown feat/x/specify` is run and `feat/x` is at the ideate leg
+- **THEN** the output carries `NEXT LEG: ideate` and no `RUN:` line
 
 #### Scenario: Naming a branch from outside its bay
 - **WHEN** `next --markdown feat/x` is run from the trunk or from another bay
 - **THEN** the output begins with `ENTER BAY:` and the path of `feat/x`'s bay, and carries no `RUN:`
 
 #### Scenario: A branch whose last segment is a leg id
-- **WHEN** a bay exists for `fix/specs` and `next --markdown fix/specs` is run
-- **THEN** the argument resolves as the branch `fix/specs`, and no `RUN:` or `NEXT LEG:` is printed
+- **WHEN** a bay exists for `fix/specify` and `next --markdown fix/specify` is run
+- **THEN** the argument resolves as the branch `fix/specify`, and no `RUN:` or `NEXT LEG:` is printed
 
 #### Scenario: Asking where things stand moves nobody
 - **WHEN** `next --markdown` is run on the trunk with one docket open and no argument
@@ -137,29 +138,34 @@ docket that cannot determine its own position is named rather than blamed on the
 
 ### Requirement: `new` behaves differently in a terminal and in a session
 
-`new` SHALL begin an effort. Its two surfaces differ because only one of them has a session to act
-in:
+`new` SHALL begin an effort by issuing the waybill of the off-route `brainstorm` booking — the
+conversation that decides whether to build, which is not a leg and claims no leg position — followed
+by an `AFTER THE BRAINSTORM:` block carrying the `/waybill:bay <branch>` line that opens the docket.
+Its two surfaces differ because only one of them has a session to act in:
 
-- Run as a command line tool, `new` SHALL print the first leg's waybill, in the plain rendering
+- Run as a command line tool, `new` SHALL print that whole block, in the plain rendering
   defined by the `handover` capability, and stop.
 - Run as a slash command, `new` SHALL show that block and then invoke only the last command in its
-  NEXT block, the leg command with whatever argument it carries. It SHALL NOT run `/clear`, `/model`
-  or `/effort` from the block: the session running `new` is already the fresh one, and its model
-  and effort come from the slash command's own declaration. Where the named command cannot be
-  resolved, it SHALL say so and leave the waybill on screen as the instruction.
+  NEXT block, the brainstorm booking's own command with whatever argument it carries. It SHALL NOT
+  run `/clear`, `/model` or `/effort` from the block, nor the `/waybill:bay` line beneath it: the
+  session running `new` is already the fresh one, its model and effort come from the slash command's
+  own declaration, and the handoff is for after the brainstorm reaches a decision to build. Where
+  the named command cannot be resolved, it SHALL say so and leave the waybill on screen as the
+  instruction.
 
 #### Scenario: Terminal invocation
 - **WHEN** `new` is run from a terminal
-- **THEN** the first leg's waybill is printed and nothing is invoked
+- **THEN** the brainstorm's waybill and its `AFTER THE BRAINSTORM:` `/waybill:bay <branch>` handoff
+  are printed and nothing is invoked
 
 #### Scenario: Session invocation
 - **WHEN** the slash command is run in a session
-- **THEN** the waybill is shown and the leg command it names is invoked in that same session
+- **THEN** the waybill is shown and the brainstorm command it names is invoked in that same session
 
 #### Scenario: Session invocation leaves the other commands alone
 - **WHEN** the slash command is run and the NEXT block lists `/clear`, `/model` or `/effort` ahead of
-  the leg command
-- **THEN** none of them is run, and only the leg command is invoked
+  the brainstorm command, and the `/waybill:bay` handoff below it
+- **THEN** none of them is run, and only the brainstorm command is invoked
 
 #### Scenario: The named command is unavailable
 - **WHEN** the slash command is run and the command it names cannot be resolved
@@ -171,15 +177,15 @@ in:
 
 ### Requirement: `new` runs at the model and effort its booking names
 
-Because a session cannot change its own model, the slash command that invokes the first leg SHALL
-declare the model and effort that leg's booking names, and the two SHALL be pinned against each
-other so they cannot drift.
+Because a session cannot change its own model, the slash command that invokes the brainstorm SHALL
+declare the model and effort the off-route `brainstorm` booking names, and the two SHALL be pinned
+against each other so they cannot drift.
 
 This is deliberately the opposite of the commands whose waybill is for the *next* session; those
 SHALL continue to declare no model, so the booking's own choice is not overridden.
 
 #### Scenario: The booking changes
-- **WHEN** the first leg's booking is changed to a different model or effort
+- **WHEN** the brainstorm booking is changed to a different model or effort
 - **THEN** the test suite reports that the command now disagrees with the booking
 
 ### Requirement: Verbatim rendering, with keyed exceptions

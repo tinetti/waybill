@@ -15,6 +15,15 @@ process.env.GIT_CONFIG_GLOBAL = '/dev/null';
 process.env.GIT_CONFIG_SYSTEM = '/dev/null';
 delete process.env.WAYBILL_BAY_DIR;
 
+/**
+ * @typedef {{ dir:string, repo:string, branch:string }} LegFixture
+ *   `dir` is where inference should be run; `repo` is always the main checkout.
+ *
+ *   Declared here rather than in one of the fixtures because every fixture returns it and every
+ *   fixture already imports this module — hanging the shared type off whichever fixture happens to
+ *   come first in the chain is what left it stranded the last time the route was renamed.
+ */
+
 /** Temp roots created by this module, removed by {@link cleanupAll}. @type {string[]} */
 const roots = [];
 

@@ -8,7 +8,7 @@ What you can type in a Claude Code session once the plugin is in.
 
 | Command | What it does | Argument |
 | --- | --- | --- |
-| `/waybill:new` | Shows leg 1's waybill, then runs the command it names in this session | none |
+| `/waybill:new` | Shows the off-route brainstorm's waybill, runs the command it names in this session, and ends with a `/waybill:bay` handoff | none |
 | `/waybill:bay` | Cuts the branch and its bay, then hands off the next leg | `[<branch>]`; leave it off to pick from a list of branches |
 | `/waybill:next` | Where this docket stands, and the waybill for the next leg. Given a leg, it moves the session into that docket's bay and runs the leg | `[<branch>[/<leg>]]`, e.g. `feat/thing/execute` |
 | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk | none |
@@ -21,7 +21,7 @@ What you can type in a Claude Code session once the plugin is in.
 | `/waybill:spec:apply` | OpenSpec apply: implement `tasks.md` | the change id, e.g. `add-thing` |
 | `/waybill:spec:archive` | OpenSpec archive: fold completed deltas into the living spec | the change id |
 
-The plugin files the four OpenSpec commands under `/waybill:spec:*`. The waybills for legs 5 and 6
+The plugin files the four OpenSpec commands under `/waybill:spec:*`. The waybills for legs 3 and 4
 name the bare `/spec:propose` and `/spec:apply`, which only resolve from `~/.claude/commands/spec/`.
 Symlink those files at this repository's `commands/spec/` copies, as described in
 [the vendored `/spec:*` commands](../../README.md#the-vendored-spec-commands). The alternative is
@@ -34,7 +34,7 @@ repository.
 
 | Command | What it does |
 | --- | --- |
-| `waybill new` | Prints the first leg's waybill and nothing else |
+| `waybill new` | Prints the off-route brainstorm's waybill and its `/waybill:bay` handoff, and nothing else |
 | `waybill bay <branch>` | Creates the branch and its bay, then hands off the next leg |
 | `waybill bay --list` | Lists the branches a bay could be cut or reopened for, and changes nothing |
 | `waybill next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg |
@@ -59,7 +59,7 @@ Each booking is a markdown file: YAML frontmatter, then the text the waybill pri
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `leg` | yes | The leg this booking is for: `ideate`, `bay`, `refine`, `contract`, `specs`, `execute`, `review` or `cleanup` |
+| `leg` | yes | The leg this booking is for: `bay`, `ideate`, `specify`, `execute`, `review` or `cleanup` — or `brainstorm`, the one booking that is not a leg |
 | `command` | yes | The carrier command the waybill tells the next session to run |
 | `model` | yes | The model for that session, printed as `/model <model>` |
 | `effort` | no | The effort level, printed as `/effort <effort>` |
@@ -68,21 +68,21 @@ Each booking is a markdown file: YAML frontmatter, then the text the waybill pri
 | `stampPath` | no | A path glob; the leg is stamped when a matching file is part of this branch's changes |
 | `stampCmd` | no | A shell command; the leg is stamped when it exits 0. Exit `125` means *could not answer* — see below |
 
-A booking needs at least one of `stampPath` and `stampCmd`. This is the shipped
-`bookings/ideation-refine.md`:
+A booking needs at least one of `stampPath` and `stampCmd`. This is the frontmatter and opening of
+the shipped `bookings/ideation-ideate.md`:
 
 ```markdown
 ---
-leg: refine
+leg: ideate
 command: /ideation:ideation
 model: opus
 effort: high
 handover: transfer
-stampPath: docs/ideation/*/contract-data.json
+stampPath: docs/ideation/*/contract.md
 ---
-Run the ideation interview. Push on scope, sequencing, and the decisions worth recording as
-rejected, and keep going until the shape of the work is settled rather than merely described.
-The interview and the contract are one session's work; carry straight on into the contract leg.
+Run the ideation interview, then turn it into the contract — one session, one carrier. Push on
+scope, sequencing, and the decisions worth recording as rejected, and keep going until the shape of
+the work is settled rather than merely described.
 ```
 
 ### What a `stampCmd` exit code means
@@ -136,6 +136,11 @@ With neither set, only the shipped bookings are used. An overlay booking replace
 booking for its leg whole. Details are in
 [An overlay, rather than an edit](../../README.md#an-overlay-rather-than-an-edit).
 
+An overlay booking must name a leg on the route, or `brainstorm`. One naming anything else — a
+typo, or a leg id that has since been retired — is an error, and every `/waybill:*` command on that
+machine fails the same way until it is fixed. `waybill doctor` is the one command that keeps
+running: it degrades the same problem to a warning and names the offending file and leg.
+
 ## Prerequisites
 
 Waybill names carriers it doesn't ship. A waybill that points at a command you don't have is a dead
@@ -143,10 +148,10 @@ end, so check this table before you ride.
 
 | Carrier namespace | Legs | Needs | Where it comes from |
 | --- | --- | --- | --- |
-| `ideation` | 1 ideate, 3 refine, 4 contract | the `ideation` plugin | `/plugin install ideation@tinetti` |
-| `spec` | 5 specs, 6 execute | the `openspec` CLI, a per-project `openspec init`, and the bare `/spec:*` commands | `npm i -g @fission-ai/openspec`; `openspec init` writes the `opsx:*` commands into `<project>/.claude/commands/opsx/`; the symlink step above supplies `/spec:*` |
-| `waybill` | 2 bay, 8 cleanup | nothing beyond the waybill plugin | `/waybill:bay` and `/waybill:cleanup` ship with it; cleanup uses plain git, so no `gh`, `glab` or auth |
-| `waybill` | 7 review | `gh` **or** `glab`, and neither is mandatory | `brew install gh` / `brew install glab`, then `gh auth login` or `glab auth login --hostname <host>`. With neither usable the leg still runs — `/waybill:review` offers the browser — but it cannot be stamped until a request is open, and the counter says which of the two causes it is |
+| `ideation` | the off-route brainstorm, 2 ideate | the `ideation` plugin | `/plugin install ideation@tinetti` |
+| `spec` | 3 specify, 4 execute | the `openspec` CLI, a per-project `openspec init`, and the bare `/spec:*` commands | `npm i -g @fission-ai/openspec`; `openspec init` writes the `opsx:*` commands into `<project>/.claude/commands/opsx/`; the symlink step above supplies `/spec:*` |
+| `waybill` | 1 bay, 6 cleanup | nothing beyond the waybill plugin | `/waybill:bay` and `/waybill:cleanup` ship with it; cleanup uses plain git, so no `gh`, `glab` or auth |
+| `waybill` | 5 review | `gh` **or** `glab`, and neither is mandatory | `brew install gh` / `brew install glab`, then `gh auth login` or `glab auth login --hostname <host>`. With neither usable the leg still runs — `/waybill:review` offers the browser — but it cannot be stamped until a request is open, and the counter says which of the two causes it is |
 
 Every one of these can be rebooked. See [Prerequisites](../../README.md#prerequisites) in the
 README.

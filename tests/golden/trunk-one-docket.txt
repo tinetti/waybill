@@ -1,6 +1,6 @@
-feat/session-handover · leg 5 of 8 (specs)
-  ✓ ideate  ✓ bay  ✓ refine  ✓ contract
-  ▶ specs
+feat/session-handover · leg 3 of 6 (specify)
+  ✓ bay  ✓ ideate
+  ▶ specify
 
 IN BAY:
   cd /repo/.claude/worktrees/waybill-feat-session-handover
