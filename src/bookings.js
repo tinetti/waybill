@@ -9,7 +9,9 @@ import { checkoutRoot, configPath, expandTilde } from './repo.js';
 /**
  * @typedef {{leg:string,command:string,model:string,effort?:string,handover?:string,
  *            argument?:'change-id'|'branch'|'none',stampPath?:string,stampCmd?:string,
- *            body:string,path:string}} Booking
+ *            brief?:string,body:string,path:string}} Booking
+ *   `brief` is one line of guidance for whoever writes the leg's brief, and its presence is what
+ *   marks the leg as taking one. Free text, unlike `argument`: it is read by a model, not looked up.
  */
 
 /**
@@ -20,7 +22,7 @@ import { checkoutRoot, configPath, expandTilde } from './repo.js';
 export const BUILTIN_BOOKINGS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bookings');
 
 export const REQUIRED = ['leg', 'command', 'model'];
-export const OPTIONAL = ['effort', 'handover', 'argument', 'stampPath', 'stampCmd'];
+export const OPTIONAL = ['effort', 'handover', 'argument', 'stampPath', 'stampCmd', 'brief'];
 
 /**
  * Which repository fact the renderer appends to `command`.
@@ -114,6 +116,8 @@ export function loadBookings(dir, options = {}) {
     for (const key of OPTIONAL) {
       if (meta[key] !== undefined) booking[key] = meta[key];
     }
+    // Presence is the whole signal for `brief`, so a blank value must not count as present.
+    if (booking.brief === '') delete booking.brief;
     bookings.set(booking.leg, booking);
   }
 
@@ -250,6 +254,37 @@ function walk(dir, segments, accept) {
  * @returns {boolean}
  */
 export function stampedByPath(pattern, repoRoot, changed) {
+  return matchChanged(pattern, repoRoot, changed, () => true);
+}
+
+/**
+ * Every changed path `pattern` matches, by the same rules as {@link stampedByPath} — for a caller
+ * that needs to know *which* paper stamped rather than whether one did. One matcher, so the two
+ * answers cannot come to disagree about what a glob means.
+ *
+ * @param {string} pattern
+ * @param {string} repoRoot
+ * @param {Set<string>|null} changed repository-relative forward-slash paths
+ * @returns {string[]} repository-relative forward-slash paths
+ */
+export function changedMatching(pattern, repoRoot, changed) {
+  /** @type {string[]} */
+  const matches = [];
+  matchChanged(pattern, repoRoot, changed, (relative) => {
+    matches.push(relative);
+    return false;
+  });
+  return matches;
+}
+
+/**
+ * @param {string} pattern
+ * @param {string} repoRoot
+ * @param {Set<string>|null} changed
+ * @param {(relative:string) => boolean} found called for each match; returning true stops the walk
+ * @returns {boolean} whether `found` stopped the walk
+ */
+function matchChanged(pattern, repoRoot, changed, found) {
   if (changed === null) return false;
   const segments = pattern.split('/').filter((segment) => segment !== '' && segment !== '.');
   if (segments.length === 0) return false;
@@ -261,7 +296,7 @@ export function stampedByPath(pattern, repoRoot, changed) {
     // `vendor/sub/`, whose trailing slash no `path.relative` result below could ever equal.
     if (!fs.statSync(absolute).isFile()) return false;
     const relative = path.relative(repoRoot, absolute).split(path.sep).join('/');
-    return changed.has(relative);
+    return changed.has(relative) && found(relative);
   });
 }
 

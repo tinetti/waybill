@@ -137,6 +137,23 @@ describe('the `!` lines that shell out to the CLI', () => {
     });
   }
 
+  it('names where `brief` wants the brief written, with no marker', () => {
+    const result = runBang('brief', trunkWith('feat/one'), { args: 'feat/one' });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^WRITE TO: .*\/\.waybill\/handoff\/ideate\.html$/m);
+    assert.doesNotMatch(result.stdout, /waybill: exited/);
+  });
+
+  it('folds `brief`’s not-a-repository error onto stdout, with no argument', () => {
+    const result = runBang('brief', tempRoot());
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /not inside a git repository/);
+    assert.match(result.stdout, MARKER);
+  });
+
   it('reports a clean trunk’s status with no marker', () => {
     const result = runBang('status', trunkWith());
 
@@ -178,7 +195,7 @@ describe('the `!` lines that shell out to the CLI', () => {
 
     // Pinned rather than `length > 0`, so an extraction that silently finds nothing cannot pass —
     // a seventh command that shells out to the CLI is added here alongside its wrapper.
-    assert.deepEqual(invoking, ['bay.md', 'doctor.md', 'help.md', 'new.md', 'next.md', 'status.md']);
+    assert.deepEqual(invoking, ['bay.md', 'brief.md', 'doctor.md', 'help.md', 'new.md', 'next.md', 'status.md']);
     // Every `node` call is wrapped, not just the first: `bay` has one per branch of its `if`.
     assert.deepEqual(
       invoking.filter((rel) => {

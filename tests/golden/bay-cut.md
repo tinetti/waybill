@@ -1,5 +1,7 @@
 bay created at /repo/.claude/worktrees/waybill-feat-thing
 
+BRIEF: ideate /repo/.claude/worktrees/waybill-feat-thing/.waybill/handoff/ideate.html
+
 ```text
 feat/thing · leg 2 of 6 (ideate)
   ✓ bay

@@ -128,6 +128,7 @@ step.
 | `waybill bay --list` | `/waybill:bay` with no branch | The branches a bay could be cut or reopened for, and nothing changed |
 | `waybill next [<branch>[/<leg>]]` | `/waybill:next [<branch>[/<leg>]]` | Where this docket stands, and the waybill for the next leg — with a leg, from any checkout: move into its bay and run it |
 | `waybill status` | `/waybill:status` | Where this docket stands, or the whole fleet from the trunk |
+| `waybill brief [<branch>]` | `/waybill:brief [<branch>]` | Where the next leg's brief goes, and what it should say — the slash command then writes it |
 | — | `/waybill:review` | Push the branch and open its pull or merge request, then hand it to a reviewer. A slash command only: there is no `waybill review` verb, because the leg is a conversation rather than a computation |
 | `waybill doctor` | `/waybill:doctor` | Can this machine run the route: every prerequisite, with its fix |
 | `waybill help` | `/waybill:help` | The route, the words, and the verbs on one screen |
@@ -228,6 +229,38 @@ prints after cutting the bay. That matters more than it sounds: untracked papers
 the bay is removed at the cleanup leg. In the fleet view each warning is prefixed with the branch it
 came from, so a docket that cannot read its own diff is named rather than blamed on the repository
 at large.
+
+### The brief
+
+A leg that starts after `/clear` starts with nothing but its command. The brainstorm leaves no file
+behind by design, so what it decided — and what it ruled out, and why — is gone the moment the
+session is cleared. The **brief** is how that survives: one self-contained HTML page, written by the
+session that still holds the conversation, for the leg that runs next.
+
+Waybill has no model, so it cannot write one. It does everything else:
+
+- **Which legs take one.** A booking with a `brief:` key — one line saying what the leg's command
+  needs to know. The stock `ideate` and `specify` bookings have it; an overlay can add it to any leg
+  or, by leaving it out, drop it.
+- **Where it goes.** `<bay>/.waybill/handoff/<leg>.html`, named for the leg that reads it.
+  `waybill brief` creates that directory with a `.gitignore` of `*` inside it, so a brief never
+  shows in `git status`, never lands in a diff, and never stops the bay being removed. Your own
+  ignore files are not touched.
+- **When it is asked for.** `waybill next --markdown` and `waybill bay --markdown` print
+  `BRIEF: <leg> <path>` when the next leg takes a brief and none is written. `/waybill:next` and
+  `/waybill:bay` ask on seeing it — before showing the waybill, since the waybill's first block is
+  the `/clear`. After a leg run through `/waybill:next <branch>/<leg>` finishes, `/waybill:brief`
+  runs unasked, for whichever leg is now next.
+- **How the next session gets it.** For a leg that takes a brief, the `RUN:` line a pasted
+  `/waybill:next <branch>/<leg>` produces carries it, with the facts Waybill already knows:
+
+```
+RUN: /ideation:ideation Brief: <bay>/.waybill/handoff/ideate.html (read first) · branch feat/thing · bay <bay> · next after this session: specify
+```
+
+With no brief written it says `Brief: none written` and names no file. `waybill brief` itself only
+answers — `BRIEF FOR:`, `WRITE TO:` and `GUIDANCE:`, or `NOTHING TO BRIEF:` with exit 0 when the
+next leg takes none. A leg without a `brief:` key prints exactly what it printed before.
 
 ### Where bays live
 

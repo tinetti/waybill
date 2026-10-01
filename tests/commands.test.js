@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { BOOKABLE_IDS, LEGS } from '../src/legs.js';
-import { ENTER_BAY, NEXT_LEG, RUN, renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
+import { BRIEF, ENTER_BAY, NEXT_LEG, RUN, renderBaySelect, renderSelect, renderWaybill } from '../src/waybill.js';
 import { parseFrontmatter } from '../src/frontmatter.js';
 import { loadBookings } from '../src/bookings.js';
 import { addWorktree, cleanupAll, createRepo, git, tempRoot, writeFile } from './helpers/repo-fixture.js';
@@ -31,6 +31,7 @@ const BOOKINGS = path.join(ROOT, 'bookings');
  */
 const DECLARED = [
   'bay.md',
+  'brief.md',
   'cleanup.md',
   'doctor.md',
   'help.md',
@@ -421,6 +422,67 @@ describe('`/waybill:next` with and without an argument', () => {
   });
 });
 
+describe('`/waybill:brief`', () => {
+  const source = () => fs.readFileSync(path.join(COMMANDS, 'brief.md'), 'utf8');
+
+  it('declares the tool that writes the brief, since the list is restrictive', () => {
+    const { meta } = parseFrontmatter(source(), 'brief.md');
+    assert.deepEqual(
+      (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim()),
+      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'Write'],
+    );
+  });
+
+  it('declares no model and no effort: the session holding the conversation writes the brief', () => {
+    const { meta } = parseFrontmatter(source(), 'brief.md');
+    assert.equal(meta.model, undefined);
+    assert.equal(meta.effort, undefined);
+  });
+
+  it('keys its Task on the literals the verb prints', () => {
+    for (const literal of ['WRITE TO:', 'GUIDANCE:', 'NOTHING TO BRIEF:', 'waybill: exited']) {
+      assert.ok(source().includes(literal), `commands/brief.md does not key on \`${literal}\``);
+    }
+  });
+
+  it('routes an empty argument to `brief` and anything else to `brief <arg>`', () => {
+    const line = bangLine('brief.md');
+    assert.match(line, /^if \[ -f "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" \]; then /);
+    assert.match(line, /if \[ -z "\$ARGUMENTS" \]; then node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" brief 2>&1/);
+    assert.match(line, /else node "\$\{CLAUDE_PLUGIN_ROOT\}\/src\/cli\.js" brief "\$ARGUMENTS" 2>&1/);
+  });
+
+  it('actually runs: the lines the Task keys on are the lines the verb prints', () => {
+    const repo = createRepo();
+    const bay = addWorktree(repo, 'feat/thing');
+
+    const result = runBang('brief.md', 'feat/thing', repo);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^BRIEF FOR: ideate\nWRITE TO: .*\nGUIDANCE: ./);
+    assert.ok(result.stdout.includes(`WRITE TO: ${bay}`), result.stdout);
+  });
+});
+
+describe('the brief triggers in `next` and `bay`', () => {
+  const source = (rel) => fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
+
+  for (const rel of ['next.md', 'bay.md']) {
+    it(`keys \`${rel}\`'s brief prompt on the literal the renderer exports`, () => {
+      assert.ok(source(rel).includes(`\`${BRIEF}`), `commands/${rel} does not key on \`${BRIEF}\``);
+      assert.ok(source(rel).includes('/waybill:brief'), `commands/${rel} never names what a yes invokes`);
+    });
+  }
+
+  it('has `next` write the brief after a run-mode leg, and treat nothing-to-brief as ordinary', () => {
+    assert.ok(source('next.md').includes('NOTHING TO BRIEF:'));
+  });
+
+  it('names `/waybill:brief` on the help command\'s page', () => {
+    assert.ok(source('help.md').includes('/waybill:brief'));
+  });
+});
+
 describe('`/waybill:bay` with and without a branch', () => {
   it('routes an empty argument to `bay --list` and a named branch to `bay --markdown <branch>`', () => {
     // Each invocation is matched up to its last argument and no further, so a redirect or `||`
@@ -468,12 +530,17 @@ describe('`/waybill:bay` with and without a branch', () => {
     assert.match(source, /\*\*verbatim\*\*/, 'commands/bay.md no longer states the verbatim rule');
   });
 
-  it('declares AskUserQuestion on `bay`\'s allowed-tools line, and nothing beyond what it runs', () => {
+  it('declares on `bay`\'s allowed-tools line what it asks with and invokes with, and nothing beyond', () => {
+    // `Skill` and `SlashCommand` by name as well as in the list: without them a "yes" to the brief
+    // prompt does nothing, silently, on the one handoff that carries the brainstorm.
     const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
     assert.deepEqual(
       (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim()),
-      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion'],
+      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion', 'Skill', 'SlashCommand'],
     );
+    for (const tool of ['Skill', 'SlashCommand']) {
+      assert.match(meta['allowed-tools'] ?? '', new RegExp(`\\b${tool}\\b`), tool);
+    }
   });
 
   it('shows the branch as optional in the argument hint', () => {

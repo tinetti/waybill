@@ -53,6 +53,7 @@ const OUTRO = [
   '  waybill bay <branch>     create the branch and its bay, then hand off',
   '  waybill next [<branch>]  where this docket stands, and the next leg\'s waybill',
   '  waybill status           where it stands, or the whole fleet on the trunk',
+  '  waybill brief [<branch>] where the next leg\'s brief goes, and what to say',
   '  waybill doctor           can this machine run the route, and what to fix',
   '',
   'Why: nothing is tracked — every leg is judged by its stamp, read off the repo.',
