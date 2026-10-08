@@ -144,7 +144,8 @@ function trunkName(state) {
  *
  * Markdown carries no `cd`: its handover ends in `/waybill:next`, which moves a session itself. It
  * asks to enter the bay only when the docket was *named* — a plain `/waybill:next` from the trunk
- * is a question about where things stand, and answering it must not move anyone.
+ * is a question about where things stand, and answering it must not move anyone. (`bay` asks too,
+ * on its own terms: cutting or finding a bay is a request to stand in it.)
  *
  * @param {import('./fleet.js').Docket} docket
  * @param {string} cwd where the operator actually is
@@ -647,11 +648,15 @@ function bay(cwd, args, io) {
       ? `bay created at ${result.path}`
       : `bay already exists at ${result.path}`;
 
-  // No `cd` in markdown: the handover below ends in `/waybill:next <branch>/<leg>`, which moves the
-  // session into this bay after `/clear` — the one move a session can make for itself.
+  // No `cd` in markdown: a session cannot act on one. It is asked to enter this bay instead, with
+  // the same `ENTER BAY:` line a named `next` prints, and the handover still ends in
+  // `/waybill:next <branch>/<leg>` for the session that comes after it. Never into a bay the
+  // cleanup leg is about to remove, for the reason `issueWaybill` gives — `bay` takes no leg token,
+  // so the guard is the leg the docket resolved to.
   if (markdown) {
+    const enter = !alreadyThere && state.leg !== 'cleanup';
     io.out(`${heading}\n\n`);
-    io.out(renderWaybillMarkdown(state, inspection, { bay: result.path }));
+    io.out(renderWaybillMarkdown(state, inspection, { bay: result.path, enter }));
     return 0;
   }
 

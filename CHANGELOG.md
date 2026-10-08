@@ -6,6 +6,13 @@ whatever has not shipped yet.
 
 ## Unreleased
 
+### `/waybill:bay` now moves the session into the bay
+
+After cutting or finding a bay, `/waybill:bay` moves the session into it with `EnterWorktree`, the
+same way `/waybill:next <branch>/<leg>` does: `bay --markdown` prints an `ENTER BAY: <path>` line
+between its heading and the waybill. It still runs no leg and still stops after the waybill. No line
+is printed from inside the bay, or when the docket's next leg is cleanup.
+
 ### BREAKING: a machine-local bookings overlay binding a retired leg id stops every command
 
 The route is now six legs — `bay`, `ideate`, `specify`, `execute`, `review`, `cleanup` — and

@@ -34,6 +34,8 @@ const INDENT = '  ';
  *
  * `ENTER_BAY` carries the bay's absolute path for `EnterWorktree`, `RUN` the booking's own command
  * for the session to invoke there, and `NEXT_LEG` the leg a stale token should have named.
+ * `commands/bay.md` acts on `ENTER_BAY` too: `bay --markdown` asks for it after cutting or finding
+ * a bay, and never prints the other two, since it is given no leg token.
  */
 export const ENTER_BAY = 'ENTER BAY:';
 export const RUN = 'RUN:';
@@ -46,8 +48,8 @@ export const NEXT_LEG = 'NEXT LEG:';
  * @property {string|null} [bay] the docket's bay, when it has one. A transfer handover then ends in
  *   `/waybill:next <branch>/<leg>` instead of the raw command: `/clear` drops a session back to
  *   the main checkout, and only the portable line carries the way back into the bay.
- * @property {boolean} [enter] print {@link ENTER_BAY} — the session was pointed at this docket by
- *   name and is not standing in its bay
+ * @property {boolean} [enter] print {@link ENTER_BAY} — the session is not standing in this bay
+ *   and asked for it: `next` given the docket by name, or `bay` having cut or found it
  * @property {string|null} [token] the leg the caller named, answered with {@link RUN} when it is
  *   the next leg and {@link NEXT_LEG} when it is not
  */
@@ -380,8 +382,9 @@ function keyedLines(state, route) {
  *
  * Pure, like {@link renderWaybill}.
  *
- * No `cd` in any shape: a session cannot act on one, and the handover's `/waybill:next` line is
- * what moves it. {@link renderWaybill} keeps the `cd` for the shell.
+ * No `cd` in any shape: a session cannot act on one. What moves it is {@link ENTER_BAY}, which
+ * `next` and `bay` both ask for, or the handover's `/waybill:next` line in the session after.
+ * {@link renderWaybill} keeps the `cd` for the shell.
  *
  * @param {import('./inference.js').Inference} state
  * @param {import('./inspection.js').Inspection} [inspection]

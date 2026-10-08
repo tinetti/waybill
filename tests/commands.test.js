@@ -468,12 +468,24 @@ describe('`/waybill:bay` with and without a branch', () => {
     assert.match(source, /\*\*verbatim\*\*/, 'commands/bay.md no longer states the verbatim rule');
   });
 
-  it('declares AskUserQuestion on `bay`\'s allowed-tools line, and nothing beyond what it runs', () => {
+  it('declares AskUserQuestion and EnterWorktree on `bay`\'s allowed-tools line, and nothing beyond what it runs', () => {
     const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
     assert.deepEqual(
       (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim()),
-      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion'],
+      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion', 'EnterWorktree'],
     );
+  });
+
+  it('keys the move into the bay on the literal the CLI prints', () => {
+    const source = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.ok(source.includes(ENTER_BAY), `commands/bay.md does not act on \`${ENTER_BAY}\``);
+  });
+
+  it('cannot run a leg: neither Skill nor SlashCommand is on `bay`\'s allowed-tools line', () => {
+    // What makes "the move happens, the leg does not" a fact rather than an instruction.
+    const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
+    const tools = (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim());
+    assert.equal(tools.some((tool) => /^(Skill|SlashCommand)\b/.test(tool)), false, tools.join(', '));
   });
 
   it('shows the branch as optional in the argument hint', () => {
