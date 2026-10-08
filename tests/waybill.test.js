@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { LEGS } from '../src/legs.js';
 import {
+  BRIEF,
   ENTER_BAY,
   NEXT_LEG,
   RUN,
@@ -285,6 +286,138 @@ describe('renderWaybillMarkdown keyed lines', () => {
   it('prints no RUN for a named leg with no booking bound, since there is nothing to run', () => {
     const output = renderWaybillMarkdown(state({ booking: undefined }), CLEAN, { bay: BAY, token: 'specify' });
     assert.equal(/^RUN:/m.test(output), false);
+  });
+});
+
+/** The ideate leg's synthetic state: brief-taking, and the one whose brief carries the brainstorm. */
+const ideateState = () =>
+  state({
+    leg: 'ideate',
+    index: 2,
+    completed: ['bay'],
+    changeId: null,
+    booking: { ...state().booking, leg: 'ideate', command: '/ideation:ideation', brief: 'what was settled' },
+  });
+
+/** The specify leg's, before any change exists on disk — so `RUN:` carries no change id. */
+const specifyState = () => state({ changeId: null, booking: { ...state().booking, brief: 'what was settled' } });
+
+/**
+ * A hand-built `route.context`, the shape `briefContext` (`src/brief.js`) gathers from a bay.
+ *
+ * @param {string} leg
+ * @param {Partial<import('../src/waybill.js').BriefContext>} [overrides]
+ * @returns {import('../src/waybill.js').BriefContext}
+ */
+function context(leg, overrides = {}) {
+  return {
+    leg,
+    path: `${THING_BAY}/.waybill/handoff/${leg}.html`,
+    exists: true,
+    bay: THING_BAY,
+    ideationDir: null,
+    skipped: [],
+    after: leg === 'ideate' ? 'specify' : 'execute',
+    ...overrides,
+  };
+}
+
+/** @param {string} output @returns {string} the `RUN:` line, without its newline */
+const runLine = (output) => output.split('\n').find((line) => line.startsWith(`${RUN} `));
+
+describe('renderWaybillMarkdown with a brief', () => {
+  it('exports the literal commands/next.md and commands/bay.md key on', () => {
+    assert.equal(BRIEF, 'BRIEF:');
+  });
+
+  it('hands the ideate leg its brief on RUN', () => {
+    const route = { bay: THING_BAY, enter: true, token: 'ideate', context: context('ideate') };
+    assertGolden(GOLDEN, 'ideate-brief', renderWaybillMarkdown(ideateState(), CLEAN, route), 'md');
+  });
+
+  it('says so on RUN when no brief was written for the ideate leg', () => {
+    const route = { bay: THING_BAY, enter: true, token: 'ideate', context: context('ideate', { exists: false }) };
+    assertGolden(GOLDEN, 'ideate-no-brief', renderWaybillMarkdown(ideateState(), CLEAN, route), 'md');
+  });
+
+  it('hands the specify leg its brief and the ideation directory on RUN', () => {
+    const route = {
+      bay: THING_BAY,
+      enter: true,
+      token: 'specify',
+      context: context('specify', { ideationDir: 'docs/ideation/thing' }),
+    };
+    assertGolden(GOLDEN, 'specify-brief', renderWaybillMarkdown(specifyState(), CLEAN, route), 'md');
+  });
+
+  it('announces an unwritten brief on a display run, above the position and after ENTER BAY', () => {
+    const unwritten = context('ideate', { exists: false });
+    const line = `BRIEF: ideate ${unwritten.path}`;
+
+    const plain = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, context: unwritten });
+    assert.ok(plain.startsWith(`${line}\n\n\`\`\`text\n`));
+
+    const entered = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, enter: true, context: unwritten });
+    assert.ok(entered.startsWith(`ENTER BAY: ${THING_BAY}\n\n${line}\n\n\`\`\`text\n`));
+  });
+
+  it('announces nothing once the brief exists', () => {
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, context: context('ideate') });
+    assert.equal(output.includes('BRIEF:'), false);
+  });
+
+  it('announces nothing for a route with no context', () => {
+    for (const route of [{ bay: THING_BAY }, { bay: THING_BAY, context: null }]) {
+      assert.equal(renderWaybillMarkdown(ideateState(), CLEAN, route).includes('BRIEF:'), false);
+    }
+  });
+
+  it('announces nothing beside NEXT LEG, when the named leg is stale', () => {
+    const route = { bay: THING_BAY, token: 'execute', context: context('ideate', { exists: false }) };
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, route);
+    assert.match(output, /^NEXT LEG: ideate$/m);
+    assert.equal(output.includes('BRIEF:'), false);
+    assert.equal(output.includes('Brief:'), false);
+  });
+
+  it('never announces on a run-mode document, written or not', () => {
+    for (const exists of [true, false]) {
+      const route = { bay: THING_BAY, token: 'ideate', context: context('ideate', { exists }) };
+      assert.equal(renderWaybillMarkdown(ideateState(), CLEAN, route).includes('BRIEF:'), false);
+    }
+  });
+
+  it('joins every field onto the one RUN line, in order', () => {
+    const full = context('ideate', { ideationDir: 'docs/ideation/thing', skipped: ['specify', 'execute'] });
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, token: 'ideate', context: full });
+    assert.equal(
+      runLine(output),
+      `RUN: /ideation:ideation Brief: ${full.path} (read first) · branch feat/thing · bay ${THING_BAY}` +
+        ' · ideation docs/ideation/thing · skipped specify,execute · next after this session: specify',
+    );
+  });
+
+  it('omits the ideation, skipped and following-leg fields when there is nothing to put in them', () => {
+    const bare = context('ideate', { exists: false, after: null });
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, token: 'ideate', context: bare });
+    assert.equal(runLine(output), `RUN: /ideation:ideation Brief: none written · branch feat/thing · bay ${THING_BAY}`);
+  });
+
+  it('keeps RUN on one line whatever the repository supplies', () => {
+    const broken = context('ideate', { bay: '/repo/a\nb', path: '/repo/a\nb/.waybill/handoff/ideate.html' });
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, { bay: THING_BAY, token: 'ideate', context: broken });
+    assert.match(runLine(output), /next after this session: specify$/);
+  });
+
+  it('keeps the runs annotation bare, so the display stays readable', () => {
+    const route = { bay: THING_BAY, token: 'ideate', context: context('ideate') };
+    const output = renderWaybillMarkdown(ideateState(), CLEAN, route);
+    assert.match(output, /^→ runs `\/ideation:ideation`$/m);
+  });
+
+  it('leaves RUN alone for a leg that takes no brief', () => {
+    const output = renderWaybillMarkdown(executeState(), CLEAN, { bay: THING_BAY, token: 'execute' });
+    assert.match(output, /^RUN: \/spec:apply add-thing$/m);
   });
 });
 

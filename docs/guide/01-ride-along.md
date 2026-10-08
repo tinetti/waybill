@@ -95,8 +95,23 @@ When the bay is cut, the command prints the next leg's handover. In a session it
 `/waybill:next feat/thing/ideate`. In a terminal it prints a `cd` line instead. Either way, from
 here on you work in the bay.
 
+One thing first, if you're in a session. The handover's first block is `/clear`, and everything you
+just talked through — the decision, what you ruled out and why — lives in this conversation and
+nowhere else. So above the waybill the counter prints a line like this:
+
+```text
+BRIEF: ideate /repo/.claude/worktrees/repo-feat-thing/.waybill/handoff/ideate.html
+```
+
+and `/waybill:bay` asks before it shows you anything: *Write the brief for `ideate` before you
+/clear?* Say yes. It runs `/waybill:brief feat/thing`, which writes one HTML page to that path from
+what was said. Say skip and nothing is written. The waybill comes up either way.
+
 > **Plainly:** Waybill created the branch `feat/thing` and a git worktree for it, by default under
-> `.claude/worktrees/` in the main checkout, and printed the handover for leg 2.
+> `.claude/worktrees/` in the main checkout, and printed the handover for leg 2. Because the ideate
+> booking has a `brief` key and no brief existed yet, the markdown handover carried a `BRIEF:` line,
+> and the session offered to write `.waybill/handoff/ideate.html` in the new bay. Git ignores that
+> directory.
 
 ## Leg 2 · ideate — The interview, then the contract
 
@@ -132,6 +147,16 @@ NEXT:
   by asking for the stronger paper.
 ```
 
+If you pasted `/waybill:next feat/thing/ideate`, the carrier doesn't start cold. The session is
+handed this, and passes everything after the command to it:
+
+```text
+RUN: /ideation:ideation Brief: /repo/.claude/worktrees/repo-feat-thing/.waybill/handoff/ideate.html (read first) · branch feat/thing · bay /repo/.claude/worktrees/repo-feat-thing · next after this session: specify
+```
+
+The brief is the brainstorm, written down. The rest is what the counter already knew. Skipped the
+brief back at the bay? The line says `Brief: none written` and the interview starts from zero.
+
 The interview asks hard questions about scope. Answer them. The handler who comes after you won't
 have heard a word of it. They'll only have what gets written down.
 
@@ -143,8 +168,17 @@ The counter only looks for the contract. The interview data underneath it is rea
 can't be the stamp: a contract can't exist without it, so the contract is the stronger paper and
 asking for it loses nothing.
 
+Same again on the way out. When `/ideation:ideation` finishes, a session that came in through
+`/waybill:next feat/thing/ideate` runs `/waybill:brief feat/thing` by itself — no question this
+time, you already said to carry on. The contract is stamped, so the next leg is `specify`, and the
+brief it writes is `.waybill/handoff/specify.html`: whatever the interview settled that didn't make
+it into the contract. If you only asked where things stand, with a bare `/waybill:next`, you get the
+`BRIEF: specify …` line and the same question you got at the bay.
+
 > **Plainly:** In a fresh session inside the worktree, `/ideation:ideation` ran the interview and
-> then wrote `docs/ideation/<project>/contract.md`. That file is this leg's stamp.
+> then wrote `docs/ideation/<project>/contract.md`. That file is this leg's stamp. Afterwards
+> `/waybill:brief` wrote the brief for `specify`, whose `RUN:` line will name it — along with
+> `ideation docs/ideation/<project>` — when the next session pastes `/waybill:next feat/thing/specify`.
 
 ## Leg 3 · specify — Scaffold the change
 
