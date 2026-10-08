@@ -20,6 +20,9 @@ Source: the approved contract and specs in `docs/ideation/help-plugin-form/`.
 - The "a selection never switches" rule is scoped to `next`'s docket menu; `bay`'s branch picker
   re-run is a request for a bay and may enter it.
 - Plain `bay` output, `bay --list`, and `next` are unchanged.
+- The help page names every verb in its `/waybill:` form: FROM ZERO becomes four steps with no `cd`
+  step, COMMANDS lists the five `/waybill:` commands, and ROUTE gains a `#  LEG  CARRIER  STAMP`
+  header row that shares the rows' width calculation.
 
 Nothing here is breaking.
 
@@ -29,9 +32,12 @@ Nothing here is breaking.
 
 - `command-surface`: the verbatim-rendering exceptions and the markdown form of `bay`.
 - `handover`: the keyed lines section of the markdown document shape.
+- `help-card`: the walkthrough, the route's header row, and the verbs' `/waybill:` form.
 
 ## Impact
 
 - `src/cli.js` (`bay`), doc comments in `src/waybill.js`, `commands/bay.md`.
-- Tests: `tests/cli.test.js`, `tests/commands.test.js`, `tests/golden/bay-cut.md`.
+- `src/help.js` (the page's FROM ZERO, ROUTE header and COMMANDS).
+- Tests: `tests/cli.test.js`, `tests/commands.test.js`, `tests/golden/bay-cut.md`,
+  `tests/help.test.js`, `tests/golden/help.txt`.
 - `README.md`, `CHANGELOG.md`.

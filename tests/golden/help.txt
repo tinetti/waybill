@@ -1,13 +1,13 @@
 waybill — the route, the words, and the verbs
 
 FROM ZERO
-  1. On the trunk:        waybill new         the off-route brainstorm's waybill
-  2. Once the idea holds: waybill bay feat/x  create the branch and its bay
-  3. Move in:             cd <the path bay printed> — a session skips this step
-  4. Every new session:   waybill next        the waybill for the next leg
-  5. Run what it names — in a session its /waybill:next <branch>/<leg> moves you
+  1. On the trunk:        /waybill:new         the off-route brainstorm
+  2. Once the idea holds: /waybill:bay feat/x  cut branch and bay, and move in
+  3. Every new session:   /waybill:next        the waybill for the next leg
+  4. Paste what it prints: /waybill:next <branch>/<leg> runs the leg
 
 ROUTE
+  #  LEG      CARRIER             STAMP
   1  bay      /waybill:bay        bay exists
   2  ideate   /ideation:ideation  contract.md
   3  specify  /spec:propose       tasks.md
@@ -26,11 +26,11 @@ WORDS
   waybill  the instruction for exactly one leg, issued fresh every session
 
 COMMANDS
-  waybill new              begin an effort: the brainstorm, then a bay handoff
-  waybill bay <branch>     create the branch and its bay, then hand off
-  waybill next [<branch>]  where this docket stands, and the next leg's waybill
-  waybill status           where it stands, or the whole fleet on the trunk
-  waybill doctor           can this machine run the route, and what to fix
+  /waybill:new              begin an effort: the brainstorm, then a bay handoff
+  /waybill:bay [<branch>]   cut the branch and its bay, move in, then hand off
+  /waybill:next [<branch>]  where this docket stands, and the next leg's waybill
+  /waybill:status           where it stands, or the whole fleet on the trunk
+  /waybill:doctor           can this machine run the route, and what to fix
 
 Why: nothing is tracked — every leg is judged by its stamp, read off the repo.
      One waybill per session: the map is yours, the waybill is the handler's.
