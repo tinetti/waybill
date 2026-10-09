@@ -1,22 +1,24 @@
 ---
 description: "Waybill — cut the branch and its bay, then hand off the next leg"
 argument-hint: "[branch — the branch to cut a bay for, e.g. feat/thing; omit it to pick from a list]"
-allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), AskUserQuestion, Skill, SlashCommand
+allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), AskUserQuestion, EnterWorktree, Skill, SlashCommand
 ---
 
 <!--
 No `model:` or `effort:` frontmatter on purpose. The waybill below names the model and effort for the
 *next* session; declaring one here would silently override the booking's choice with this session's.
 
-`AskUserQuestion` is on the `allowed-tools` line for the reason `next.md` gives: the list is
-restrictive, so a tool left off it is unavailable rather than merely unmentioned, and the branch
-menu below would simply never appear. The second invocation the menu leads to is `node`, which the
-line already permits.
+`AskUserQuestion` and `EnterWorktree` are on the `allowed-tools` line for the reason `next.md`
+gives: the list is restrictive, so a tool left off it is unavailable rather than merely
+unmentioned — the branch menu below would never appear, and an `ENTER BAY:` line would be printed
+and silently ignored. The second invocation the menu leads to is `node`, which the line already
+permits.
 
 `Skill` and `SlashCommand` are there for the brief: a "yes" to the `BRIEF:` prompt below invokes
 `/waybill:brief`, and undeclared, that "yes" would do nothing — silently, on the one handoff where
 the conversation about to be cleared is the brainstorm itself. Both, as in `next.md`, because either
-may be how this host resolves a slash command.
+may be how this host resolves a slash command. They make running a leg from here possible, so the
+Task below is what forbids it: `/waybill:brief` is the only command this file invokes.
 -->
 
 # Waybill: bay
@@ -49,14 +51,23 @@ branch menu never carries the marker.
 ## Task
 
 Show the block above to me **verbatim** — same lines, same order, same glyphs. Do not summarise it,
-re-word it, re-order it, or add commentary of your own. It is already the whole answer.
+re-word it, re-order it, or add commentary of your own. It is already the whole answer; the two
+things you do besides showing it are the brief prompt before it and the move after it, below.
 
 It is markdown, with each command in a fence of its own so that each gets its own copy button: show
 it as markdown, and do not wrap it in a further fence.
 
-There is no `cd` to relay: the handover ends in `/waybill:next <branch>/<leg>`, and that line is what
-moves the next session into the new bay, once I have typed `/clear`. Do not run it here and do not
-offer to — it is the next session's first command, not this one's last.
+One exception is keyed on an exact string at the start of a line, never on your reading of the
+situation. **`ENTER BAY: <path>`** — after showing the block, call `EnterWorktree` with that `path`,
+exactly as printed. It moves this session into the bay I just cut or found. If the call fails or I
+deny it, say why in one line, show the block verbatim, and stop; there is no `cd` to relay, because
+the waybill's own `/waybill:next <branch>/<leg>` line still moves the next session into the bay. No
+`ENTER BAY:` line means I am already standing in the bay, or its next leg is cleanup and is about to
+remove it: move nowhere.
+
+Do not run the waybill's last line, `/waybill:next <branch>/<leg>`, here and do not offer to — it
+is the next session's first command, not this one's last. Entering the bay is not running a leg,
+and neither is writing its brief: `/waybill:brief` is the one command you may invoke here.
 
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
@@ -131,7 +142,7 @@ single quotes exactly as shown. If the name I gave contains a single quote itsel
 escape it: say it cannot be used as given and ask me again. Not `waybill bay <branch>`: that line is
 printed for *me*, and assumes a `waybill` on my PATH that a plugin install never puts there.
 
-**3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, its
-`/waybill:next` line left for me, and then stop. A `BRIEF:` line in it is handled as above: the
-prompt first, then the block. If it fails instead, show its error verbatim and stop; do not
-retry with a different name unless I give you one.
+**3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, any
+`ENTER BAY:` line acted on, its `/waybill:next` line left for me, and then stop. A `BRIEF:` line in
+it is handled as above: the prompt first, then the block, then the move. If it fails instead, show
+its error verbatim and stop; do not retry with a different name unless I give you one.

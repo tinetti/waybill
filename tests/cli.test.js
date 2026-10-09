@@ -22,6 +22,7 @@ import {
 } from './helpers/repo-fixture.js';
 import { briefPath } from '../src/brief.js';
 import { specifyFixture } from './fixtures/specify.js';
+import { cleanupFixture } from './fixtures/cleanup.js';
 import { executeFixture } from './fixtures/execute.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 
@@ -68,13 +69,15 @@ function isolated(fn) {
  * @param {string[]} argv
  * @param {string} cwd
  * @param {import('../src/signals.js').Signals} [signals] what the shell is taken to say
+ * @param {'none'|'open'} [forge] whether the stub forge reports a request open — `cleanup` is only
+ *   reachable when one is
  * @returns {{code:number, out:string, err:string}}
  */
-function cli(argv, cwd, signals = { tmux: null, history: [] }) {
+function cli(argv, cwd, signals = { tmux: null, history: [] }, forge = 'none') {
   let out = '';
   let err = '';
   const code = isolated(() =>
-    withPath(forgePath(), () =>
+    withPath(forgePath(forge), () =>
       run(argv, {
         cwd,
         out: (text) => {
@@ -1159,7 +1162,10 @@ describe('waybill bay --markdown', () => {
 
     assert.equal(result.code, 0);
     const brief = `BRIEF: ideate ${briefPath(target, 'ideate')}`;
-    assert.ok(result.out.startsWith(`bay already exists at ${target}\n\n${brief}\n\n\`\`\`text\n`), result.out);
+    assert.ok(
+      result.out.startsWith(`bay already exists at ${target}\n\nENTER BAY: ${target}\n\n${brief}\n\n\`\`\`text\n`),
+      result.out,
+    );
   });
 
   it('bay --markdown from inside the bay prints no cd fence', () => {
@@ -1178,6 +1184,58 @@ describe('waybill bay --markdown', () => {
     );
     assert.equal(result.out.includes('IN BAY'), false, 'told the operator to cd where they already are');
     assert.equal(/^cd /m.test(result.out), false);
+  });
+
+  it('bay --markdown asks to enter the bay it just cut, between the heading and the waybill', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    assert.equal(result.code, 0);
+    const brief = `BRIEF: ideate ${briefPath(target, 'ideate')}`;
+    assert.ok(
+      result.out.startsWith(`bay created at ${target}\n\nENTER BAY: ${target}\n\n${brief}\n\n\`\`\`text\n`),
+      result.out,
+    );
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('bay --markdown asks to enter a bay that already exists, and runs nothing', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], repo);
+
+    assert.equal(result.code, 0);
+    assert.ok(result.out.split('\n').includes(`ENTER BAY: ${target}`), result.out);
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('bay --markdown from inside the bay asks to enter nothing', () => {
+    const repo = createRepo({ remote: true, originHead: true });
+    cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
+
+    const result = cli(['bay', '--markdown', 'feat/demo'], target);
+
+    assert.equal(result.code, 0);
+    assert.equal(/^ENTER BAY:/m.test(result.out), false);
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
+  });
+
+  it('bay --markdown never enters a bay whose next leg is cleanup, since cleanup is about to remove it', () => {
+    const fixture = cleanupFixture();
+
+    const result = cli(['bay', '--markdown', fixture.branch], fixture.repo, undefined, 'open');
+
+    assert.equal(result.code, 0, result.err);
+    assert.ok(result.out.startsWith(`bay already exists at ${fixture.dir}\n\n`), result.out);
+    // The leg really is cleanup, so the missing line is the guard and not a fixture that never got there.
+    assert.match(result.out, /^feat\/thing · leg \d+ of \d+ \(cleanup\)$/m);
+    assert.equal(/^ENTER BAY:/m.test(result.out), false);
+    assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
   });
 
   it('bay --markdown leaves the --list branch menu untouched, since it issues no waybill', () => {

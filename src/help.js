@@ -27,11 +27,10 @@ const INTRO = [
   'waybill — the route, the words, and the verbs',
   '',
   'FROM ZERO',
-  '  1. On the trunk:        waybill new         the off-route brainstorm\'s waybill',
-  '  2. Once the idea holds: waybill bay feat/x  create the branch and its bay',
-  '  3. Move in:             cd <the path bay printed> — a session skips this step',
-  '  4. Every new session:   waybill next        the waybill for the next leg',
-  '  5. Run what it names — in a session its /waybill:next <branch>/<leg> moves you',
+  '  1. On the trunk:        /waybill:new         the off-route brainstorm',
+  '  2. Once the idea holds: /waybill:bay feat/x  cut branch and bay, and move in',
+  '  3. Every new session:   /waybill:next        the waybill for the next leg',
+  '  4. Paste what it prints: /waybill:next <branch>/<leg> runs the leg',
   '',
   'ROUTE',
 ];
@@ -49,12 +48,12 @@ const OUTRO = [
   '  waybill  the instruction for exactly one leg, issued fresh every session',
   '',
   'COMMANDS',
-  '  waybill new              begin an effort: the brainstorm, then a bay handoff',
-  '  waybill bay <branch>     create the branch and its bay, then hand off',
-  '  waybill next [<branch>]  where this docket stands, and the next leg\'s waybill',
-  '  waybill status           where it stands, or the whole fleet on the trunk',
-  '  waybill brief [<branch>] where the next leg\'s brief goes, and what to say',
-  '  waybill doctor           can this machine run the route, and what to fix',
+  '  /waybill:new              begin an effort: the brainstorm, then a bay handoff',
+  '  /waybill:bay [<branch>]   cut the branch and its bay, move in, then hand off',
+  '  /waybill:next [<branch>]  where this docket stands, and the next leg\'s waybill',
+  '  /waybill:status           where it stands, or the whole fleet on the trunk',
+  '  /waybill:brief [<branch>] where the next leg\'s brief goes, and what to say',
+  '  /waybill:doctor           can this machine run the route, and what to fix',
   '',
   'Why: nothing is tracked — every leg is judged by its stamp, read off the repo.',
   '     One waybill per session: the map is yours, the waybill is the handler\'s.',
@@ -77,14 +76,23 @@ function stampOf(leg, booking) {
 }
 
 /**
- * One row per leg, generated from the leg model rather than from the bookings, so a leg with no
- * booking still gets its row and adding a leg changes the page with no edit here.
+ * The route's column labels. A row like any other for width purposes: when the bookings cannot be
+ * read every carrier is `—`, narrower than `CARRIER`, so a header padded outside the calculation
+ * would sit out of line with the rows beneath it. `#` rather than a digit keeps it from reading as a
+ * leg row.
+ */
+const HEADER = { index: '#', id: 'LEG', carrier: 'CARRIER', stamp: 'STAMP' };
+
+/**
+ * A header row, then one row per leg, generated from the leg model rather than from the bookings,
+ * so a leg with no booking still gets its row and adding a leg changes the page with no edit here.
+ * Header and legs share one width calculation and one template, so their columns cannot drift.
  *
  * @param {Map<string, import('./bookings.js').Booking>} bookings
  * @returns {string[]}
  */
 function routeLines(bookings) {
-  const rows = LEGS.map((leg, i) => {
+  const legs = LEGS.map((leg, i) => {
     const booking = bookings.get(leg.id);
     return {
       index: String(i + 1),
@@ -93,6 +101,7 @@ function routeLines(bookings) {
       stamp: booking ? stampOf(leg, booking) : NONE,
     };
   });
+  const rows = [HEADER, ...legs];
   const width = (key) => Math.max(...rows.map((row) => [...row[key]].length));
   const pad = (text, size) => text + ' '.repeat(size - [...text].length);
   const [index, id, carrier] = [width('index'), width('id'), width('carrier')];

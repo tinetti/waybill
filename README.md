@@ -194,7 +194,9 @@ fence names the leg command the wrapper will run — prose rather than a fence, 
 read as one more block to paste. Given that argument, `next --markdown` prints `ENTER BAY: <path>`
 when you are not in the bay, then `RUN: <command>` when the leg is still the next one or
 `NEXT LEG: <leg>` when it is not — the lines `/waybill:next` acts on, by moving the session with
-`EnterWorktree` and invoking the command. A stale leg runs nothing.
+`EnterWorktree` and invoking the command. A stale leg runs nothing. `bay --markdown` prints
+`ENTER BAY: <path>` too, after its heading, unless you are already in the bay or its next leg is
+cleanup; `/waybill:bay` acts on it by moving the session into the bay, and runs no leg.
 `/waybill:next` and `/waybill:bay` ask for that form; `--json` and `--markdown` cannot be combined.
 `waybill status` takes no options; the fleet view is chosen by where you stand, not by a flag.
 

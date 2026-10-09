@@ -208,7 +208,7 @@ describe('renderHelp', () => {
 
     const commands = section(isolated(() => renderHelp(tempRoot())), 'COMMANDS', 'Why:');
     for (const token of tokens.filter((name) => name !== 'help')) {
-      assert.ok(commands.includes(`waybill ${token}`), `COMMANDS does not name \`waybill ${token}\``);
+      assert.ok(commands.includes(`/waybill:${token}`), `COMMANDS does not name \`/waybill:${token}\``);
     }
   });
 
@@ -221,11 +221,55 @@ describe('renderHelp', () => {
     assert.deepEqual([...offsets].sort((a, b) => a - b), offsets, 'the headings are out of order');
 
     const fromZero = section(page, 'FROM ZERO', 'ROUTE');
-    for (const step of ['waybill new', 'waybill bay', 'cd ']) {
+    for (const step of ['/waybill:new', '/waybill:bay', '/waybill:next']) {
       assert.ok(fromZero.includes(step), `FROM ZERO does not name \`${step}\``);
     }
+    // bay moves the session in, so there is no `cd` step left for the operator to take.
+    assert.equal(fromZero.includes('cd '), false, 'FROM ZERO still names a `cd` step');
     assert.equal(page.includes('waybill start'), false);
     assert.equal(page.includes('/waybill:start'), false);
+  });
+
+  it('names no verb in its terminal form', () => {
+    const page = isolated(() => renderHelp(tempRoot()));
+    const verbs = usage().commands.map((line) => line.trim().split(/\s+/)[0]);
+    for (const verb of verbs.filter((name) => name !== 'help')) {
+      assert.equal(page.includes(`waybill ${verb}`), false, `the page still names \`waybill ${verb}\``);
+    }
+  });
+
+  /**
+   * The header is the first line under ROUTE, and each of its labels starts where the matching
+   * field of the first leg row starts — so the columns line up whichever row sets each width.
+   *
+   * @param {string} page
+   */
+  function assertHeaderAligned(page) {
+    const lines = section(page, 'ROUTE', 'WORDS').split('\n');
+    const [header, first] = lines;
+    assert.match(header, /^ +# +LEG +CARRIER +STAMP$/);
+    const fields = /^( +)(\d+)( +)(\S+)( +)(\S+)( +)(.+)$/.exec(first);
+    assert.ok(fields, `the first leg row does not parse: ${first}`);
+    const leg = fields[1].length + fields[2].length + fields[3].length;
+    const carrier = leg + fields[4].length + fields[5].length;
+    const stamp = carrier + [...fields[6]].length + fields[7].length;
+    assert.deepEqual(
+      [header.indexOf('#'), header.indexOf('LEG'), header.indexOf('CARRIER'), header.indexOf('STAMP')],
+      [fields[1].length, leg, carrier, stamp],
+      `header and first row disagree:\n${header}\n${first}`,
+    );
+  }
+
+  it('heads the route with aligned column labels', () => {
+    assertHeaderAligned(isolated(() => renderHelp(tempRoot())));
+  });
+
+  it('keeps the header aligned when the bookings cannot be read', () => {
+    const dir = overlay(['---', 'leg: execute', 'model: overlay-model', 'stampPath: a.md', '---', ''].join('\n'));
+    const page = renderWithOverlay(dir);
+    assertHeaderAligned(page);
+    const notes = page.split('\n').filter((line) => line.startsWith('bookings could not be read:'));
+    assert.equal(notes.length, 1, page);
   });
 
   it('same page on the trunk and in a bay', () => {

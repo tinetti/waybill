@@ -1,0 +1,67 @@
+{
+  "projectName": "Help in plugin form, and a bay you land in",
+  "slug": "help-plugin-form",
+  "date": "2026-10-07",
+  "branch": null,
+  "baseBranch": null,
+  "strict": false,
+  "summary": {
+    "completed": [
+      "Archive add-help-card",
+      "Bay entry",
+      "Help page in plugin form"
+    ],
+    "noops": [],
+    "failed": [],
+    "skipped": [],
+    "results": [
+      {
+        "title": "Archive add-help-card",
+        "result": "PASS",
+        "reviewStatus": "passed",
+        "commitHash": "3b4069be0ca685612b171eeff3ba32b9570e7b5d",
+        "summary": "Archived add-help-card with `openspec archive add-help-card -y` (the opsx:archive skill isn't installed; this CLI is the tool /spec:archive is limited to). This created openspec/specs/help-card/spec.md (8 requirements, real Purpose, no delta headings), merged the command-surface delta, and moved the change to openspec/changes/archive/2026-10-07-add-help-card/. Tests pass 624/624. REPORTED FAILURE MODE: `node src/cli.js next` moved from \"leg 3 of 6 (specify)\" to \"leg 5 of 6 (review)\". The specify and execute legs count as done when any `openspec/changes/**/tasks.md` is in the branch diff, and that pattern matches the archived tasks.md. With no active change of the branch's own, that check alone decides the legs. Left unchanged per the spec; this needs an operator decision. \u2014 The phase does what the spec asks. The change moved to `openspec/changes/archive/2026-10-07-add-help-card/` unchanged, using the same layout as the 2026-09-10 pattern archives. `openspec/specs/help-card/spec.md` holds all eight requirements, word for word as in the change's ADDED section, with no delta headings left in it. `command-surface/spec.md` got the MODIFIED requirement exactly as written in the delta, plus the ADDED requirement at the end. Nothing under `src/`, `tests/`, `commands/` or `bookings/` changed. It is ready to commit once the commit is limited to `openspec/` paths.",
+        "findings": [
+          "low/spec-deviation docs/ideation/help-plugin-form/ \u2014 The directory is untracked in the working tree. The spec says this phase's commit must contain only `openspec/` paths. \u2192 Stage only `openspec/` paths for the `chore: archive the add-help-card change` commit, and leave `docs/ideation/` out of it.",
+          "low/testing openspec/specs/help-card/spec.md \u2014 Failure Modes asks for a `node src/cli.js next` check after the commit to confirm which leg the docket is on. The diff cannot show whether that ran. \u2192 After committing, run `node src/cli.js next` and confirm it names the leg expected for where the route stands, `specify` or `execute`. If it names a different leg, report it rather than working around it."
+        ],
+        "warnings": [],
+        "reviewCycles": 1
+      },
+      {
+        "title": "Bay entry",
+        "result": "PASS",
+        "reviewStatus": "passed",
+        "commitHash": "f05da532f9e3d838cbda2d28ea45e3e87356f1d9",
+        "summary": "bay --markdown now prints `ENTER BAY: <path>` between its heading and the waybill. It skips the line when you are already in the bay or the next leg is cleanup, and it never prints RUN or NEXT LEG. commands/bay.md now declares EnterWorktree and moves the session into the bay without running a leg. If the move fails it gives one line saying why, then the block, with no cd fallback. Added tests (written first and seen failing), regenerated only the bay-cut.md golden, updated README and CHANGELOG, and created the OpenSpec change `help-plugin-form` with MODIFIED deltas for command-surface and handover; `openspec validate --strict` passes. Full suite: 630 pass, 0 fail. Both contract checks pass. Note: adding the change dir may move docket inference off 'specify', which is expected. \u2014 Phase 2 matches the spec closely. The src/cli.js change follows the spec's snippet and the `issueWaybill` cleanup-guard pattern exactly. bay.md gains `EnterWorktree`, handles a failed move with a one-line explanation and no `cd`, and keeps `Skill`/`SlashCommand` off its tool list, with a test asserting that. All four required CLI cases (cut, found, inside, cleanup-next) are tested, the cleanup case confirms the docket really reached that leg, the golden is updated, and the README, CHANGELOG, doc comments and OpenSpec deltas cover every listed requirement and scenario. The three findings are non-blocking: one omission in the handover delta (the cleanup exception) and two wording or test-redundancy nits. Tests were not run because this reviewer is limited to read-only git commands. The phase is ready to commit.",
+        "findings": [
+          "medium/spec-deviation openspec/changes/help-plugin-form/specs/handover/spec.md:7 \u2014 The rewritten Keyed lines passage says `ENTER BAY:` is present when `bay` cut or found the bay and the operator is not standing in it. It leaves out the cleanup exception. The command-surface delta (`next` and `bay` offer a paste-ready markdown form) and src/cli.js:657 both suppress the line when the next leg is `cleanup`, so the two capability deltas now disagree. \u2192 Add the exception to that sentence, e.g. \"\u2026and the operator is not already standing in it and, for `bay`, its next leg is not `cleanup`\".",
+          "low/logic commands/bay.md:55 \u2014 The new paragraph starts \"The one exception is keyed on an exact string\u2026\", but line 79 adds a second keyed exception (\"The exception to all of the above\u2026\" for `SELECT A BRANCH:` / `no branches besides`). Calling the first one \"the one exception\" contradicts the file's own structure and could make the model doubt the picker section. \u2192 Reword to \"One exception is keyed on\u2026\" (or \"The first exception\u2026\") so both keyed cases read as parallel.",
+          "low/testing tests/cli.test.js:968 \u2014 The new 'asks to enter a bay that already exists' case only checks `/^ENTER BAY: \\//m`. The updated found-case `startsWith` at :933-936 already pins the exact position and path. The new case's only unique value is the `RUN|NEXT LEG` negative check. \u2192 Either fold that negative check into the existing found-case test and drop this one, or tighten it to assert `ENTER BAY: ${target}` on the exact path."
+        ],
+        "warnings": [],
+        "reviewCycles": 1
+      },
+      {
+        "title": "Help page in plugin form",
+        "result": "PASS",
+        "reviewStatus": "passed",
+        "commitHash": "b322bc0a5b8c4100a91b44c023d05b7a5fe5a1e8",
+        "summary": "The help page now uses the /waybill: forms. FROM ZERO has four steps and no cd step, COMMANDS lists the five /waybill: commands, and ROUTE starts with a '#  LEG  CARRIER  STAMP' header that shares the rows' width calculation. The help-card MODIFIED delta, the CHANGELOG entry, the proposal update, the regenerated golden and the new tests are all in place. All validation passed: 633/633 tests, the target diff is empty in the machine environment, contract checks 1-6 pass and openspec validate --strict is valid. Two deviations: (1) the golden matches help-target.txt except line 16. The target was captured with the machine overlay (/mar), so the golden keeps the stock /waybill:cleanup row. (2) The harness blocks GIT_CONFIG_GLOBAL, so the spec's neutralised target diff could not run as written. I ran contract checks :79 and :86 without GIT_CONFIG_GLOBAL (only WAYBILL_BOOKINGS_DIR cleared); the tests' isolated() covers the neutralised environment. Both are logged in implementation-notes-phase-3.html. \u2014 The phase-3 change matches the spec. src/help.js now has the four-step `/waybill:` FROM ZERO and the five `/waybill:` COMMANDS rows. HEADER is added as a row in the shared width calculation and rendered by the same template, as the spec's snippet shows. The tests were rewritten as specified: the slash-form coverage check, the FROM ZERO check with no `cd`, a new check that no verb appears in its terminal form, and header-alignment tests with bookings resolved and with bookings unreadable. The three MODIFIED help-card requirements keep all their scenarios, and the CHANGELOG entry names no version. The one deviation is the golden's stock cleanup carrier instead of the target's machine-specific `/mar`. It is justified and documented, but help-target.txt should be updated to match. The change is ready to commit.",
+        "findings": [
+          "medium/spec-deviation tests/golden/help.txt:16 \u2014 The golden differs from docs/ideation/help-plugin-form/help-target.txt on one line: the cleanup carrier is the stock `/waybill:cleanup`, while the target has `/mar`. The target was captured with this machine's bookings overlay. The builder's choice is correct, because a golden containing `/mar` would fail on every machine without that overlay, and implementation-notes-phase-3.html records it. But the spec's Validation Commands diff (`WAYBILL_BOOKINGS_DIR= GIT_CONFIG_GLOBAL=/dev/null node src/cli.js help | diff - help-target.txt`) now fails, and the spec's 'Golden and target drift' failure mode is now true. \u2192 Change line 16 of help-target.txt to the stock `/waybill:cleanup` row (same width, so the 80-column fit is unchanged) so that target, golden and validation command agree, or record in the contract that the target is compared under stock bookings.",
+          "low/testing tests/help.test.js:assertHeaderAligned \u2014 The helper computes the LEG offset as `fields[1].length + 1`, which assumes the first leg's index is one digit. That holds for six legs, but the arithmetic is implicit. \u2192 Optionally take the index field's length from a capture group (`( +)(\\d+)( +)...`) so the helper does not depend on route length."
+        ],
+        "warnings": [],
+        "reviewCycles": 1
+      }
+    ]
+  },
+  "verify": {
+    "line": "VERIFY help-plugin-form: commits=3/3 pass=11 fail=0 judgment=2",
+    "exitCode": 0
+  },
+  "notesFiles": [
+    "implementation-notes-phase-3.html"
+  ]
+}

@@ -530,17 +530,31 @@ describe('`/waybill:bay` with and without a branch', () => {
     assert.match(source, /\*\*verbatim\*\*/, 'commands/bay.md no longer states the verbatim rule');
   });
 
-  it('declares on `bay`\'s allowed-tools line what it asks with and invokes with, and nothing beyond', () => {
+  it('declares on `bay`\'s allowed-tools line what it asks with, moves with and invokes with, and nothing beyond', () => {
     // `Skill` and `SlashCommand` by name as well as in the list: without them a "yes" to the brief
     // prompt does nothing, silently, on the one handoff that carries the brainstorm.
     const { meta } = parseFrontmatter(fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8'), 'bay.md');
     assert.deepEqual(
       (meta['allowed-tools'] ?? '').split(',').map((tool) => tool.trim()),
-      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion', 'Skill', 'SlashCommand'],
+      ['Bash(node:*)', 'Bash(test:*)', 'Bash(echo:*)', 'AskUserQuestion', 'EnterWorktree', 'Skill', 'SlashCommand'],
     );
     for (const tool of ['Skill', 'SlashCommand']) {
       assert.match(meta['allowed-tools'] ?? '', new RegExp(`\\b${tool}\\b`), tool);
     }
+  });
+
+  it('keys the move into the bay on the literal the CLI prints', () => {
+    const source = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.ok(source.includes(ENTER_BAY), `commands/bay.md does not act on \`${ENTER_BAY}\``);
+  });
+
+  it('runs no leg: `/waybill:brief` is the one command `bay` may invoke', () => {
+    // `Skill` is on the line for the brief, so "the move happens, the leg does not" rests on the Task.
+    const source = fs.readFileSync(path.join(COMMANDS, 'bay.md'), 'utf8');
+    assert.ok(
+      source.includes('`/waybill:brief` is the one command you may invoke here'),
+      'commands/bay.md no longer limits what it invokes to `/waybill:brief`',
+    );
   });
 
   it('shows the branch as optional in the argument hint', () => {

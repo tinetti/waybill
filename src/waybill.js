@@ -34,8 +34,10 @@ const INDENT = '  ';
  *
  * `ENTER_BAY` carries the bay's absolute path for `EnterWorktree`, `RUN` the booking's own command
  * for the session to invoke there, and `NEXT_LEG` the leg a stale token should have named. `BRIEF`
- * is the one `commands/bay.md` keys on too: it names a leg whose brief is due and unwritten, and
- * the path it would go to, so the session asks before the conversation is cleared.
+ * names a leg whose brief is due and unwritten, and the path it would go to, so the session asks
+ * before the conversation is cleared. `commands/bay.md` acts on `ENTER_BAY` and `BRIEF`:
+ * `bay --markdown` asks to enter after cutting or finding a bay, and never prints `RUN` or
+ * `NEXT_LEG`, since it is given no leg token.
  */
 export const ENTER_BAY = 'ENTER BAY:';
 export const RUN = 'RUN:';
@@ -66,8 +68,8 @@ const FIELD_SEPARATOR = ' · ';
  * @property {string|null} [bay] the docket's bay, when it has one. A transfer handover then ends in
  *   `/waybill:next <branch>/<leg>` instead of the raw command: `/clear` drops a session back to
  *   the main checkout, and only the portable line carries the way back into the bay.
- * @property {boolean} [enter] print {@link ENTER_BAY} — the session was pointed at this docket by
- *   name and is not standing in its bay
+ * @property {boolean} [enter] print {@link ENTER_BAY} — the session is not standing in this bay
+ *   and asked for it: `next` given the docket by name, or `bay` having cut or found it
  * @property {string|null} [token] the leg the caller named, answered with {@link RUN} when it is
  *   the next leg and {@link NEXT_LEG} when it is not
  * @property {BriefContext|null} [context] set when the next leg takes a brief and the docket has a
@@ -435,8 +437,9 @@ function runContext(state, context) {
  *
  * Pure, like {@link renderWaybill}.
  *
- * No `cd` in any shape: a session cannot act on one, and the handover's `/waybill:next` line is
- * what moves it. {@link renderWaybill} keeps the `cd` for the shell.
+ * No `cd` in any shape: a session cannot act on one. What moves it is {@link ENTER_BAY}, which
+ * `next` and `bay` both ask for, or the handover's `/waybill:next` line in the session after.
+ * {@link renderWaybill} keeps the `cd` for the shell.
  *
  * @param {import('./inference.js').Inference} state
  * @param {import('./inspection.js').Inspection} [inspection]
