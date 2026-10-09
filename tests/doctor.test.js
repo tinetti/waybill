@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { checkNode, checkSpecCommands, renderDoctor, runChecks } from '../src/doctor.js';
+import { checkNode, checkOpsxCommands, checkSpecCommands, renderDoctor, runChecks } from '../src/doctor.js';
 import { run } from '../src/cli.js';
 import {
   cleanupAll,
@@ -307,6 +307,48 @@ describe('waybill doctor — the gaps, each with its remediation', () => {
     const listed = /is missing ([^—]+) —/.exec(row);
     assert.ok(listed, `the detail names no missing set: ${row}`);
     assert.deepEqual(listed[1].trim().split(', '), missing);
+  });
+});
+
+describe('checkOpsxCommands', () => {
+  const VERBS = SPEC_COMMANDS.map((name) => name.slice(0, -'.md'.length));
+
+  /** A project root with `openspec/`, plus whichever tool files `openspec init` would have written. */
+  function project({ claude = VERBS, opencode = false } = {}) {
+    const root = tempRoot();
+    writeFile(path.join(root, 'openspec', 'config.yaml'), 'schema: spec-driven\n');
+    for (const verb of claude) writeFile(path.join(root, '.claude', 'commands', 'opsx', `${verb}.md`), '# stub\n');
+    if (opencode) writeFile(path.join(root, '.opencode', 'skills', 'openspec-propose', 'SKILL.md'), '# stub\n');
+    return root;
+  }
+
+  it('is info, with no remediation, outside an OpenSpec project', () => {
+    const check = checkOpsxCommands(tempRoot());
+    assert.equal(check.verdict, 'info');
+    assert.equal(check.fix, undefined);
+  });
+
+  it('passes when every opsx command the routing commands invoke is present', () => {
+    const check = checkOpsxCommands(project());
+    assert.equal(check.verdict, 'ok', check.detail);
+    assert.match(check.detail, new RegExp(`${VERBS.length} of ${VERBS.length}`));
+  });
+
+  it('fails naming the missing verbs and the Claude Code init', () => {
+    const check = checkOpsxCommands(project({ claude: VERBS.slice(1) }));
+    assert.equal(check.verdict, 'fail');
+    assert.ok(check.detail.includes(VERBS[0]), check.detail);
+    assert.ok(check.detail.includes(path.join('.claude', 'commands', 'opsx')), check.detail);
+    assert.match(check.fix, /openspec init --tools claude/);
+    assert.equal(/OpenCode/.test(check.detail), false, check.detail);
+  });
+
+  it('says plainly when OpenSpec was initialised for OpenCode only', () => {
+    const check = checkOpsxCommands(project({ claude: [], opencode: true }));
+    assert.equal(check.verdict, 'fail');
+    assert.match(check.detail, /OpenCode/);
+    assert.match(check.detail, /not for Claude Code/);
+    assert.match(check.fix, /openspec init --tools claude/);
   });
 });
 
