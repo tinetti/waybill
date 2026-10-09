@@ -968,11 +968,12 @@ describe('waybill bay --markdown', () => {
   it('bay --markdown asks to enter a bay that already exists, and runs nothing', () => {
     const repo = createRepo({ remote: true, originHead: true });
     cli(['bay', 'feat/demo'], repo);
+    const target = defaultBayPath(repo, 'feat/demo');
 
     const result = cli(['bay', '--markdown', 'feat/demo'], repo);
 
     assert.equal(result.code, 0);
-    assert.match(result.out, /^ENTER BAY: \//m);
+    assert.ok(result.out.split('\n').includes(`ENTER BAY: ${target}`), result.out);
     assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
   });
 

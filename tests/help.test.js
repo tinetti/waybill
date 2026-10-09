@@ -247,11 +247,11 @@ describe('renderHelp', () => {
     const lines = section(page, 'ROUTE', 'WORDS').split('\n');
     const [header, first] = lines;
     assert.match(header, /^ +# +LEG +CARRIER +STAMP$/);
-    const fields = /^( +)\d+( +)(\S+)( +)(\S+)( +)(.+)$/.exec(first);
+    const fields = /^( +)(\d+)( +)(\S+)( +)(\S+)( +)(.+)$/.exec(first);
     assert.ok(fields, `the first leg row does not parse: ${first}`);
-    const leg = fields[1].length + 1 + fields[2].length;
-    const carrier = leg + fields[3].length + fields[4].length;
-    const stamp = carrier + [...fields[5]].length + fields[6].length;
+    const leg = fields[1].length + fields[2].length + fields[3].length;
+    const carrier = leg + fields[4].length + fields[5].length;
+    const stamp = carrier + [...fields[6]].length + fields[7].length;
     assert.deepEqual(
       [header.indexOf('#'), header.indexOf('LEG'), header.indexOf('CARRIER'), header.indexOf('STAMP')],
       [fields[1].length, leg, carrier, stamp],

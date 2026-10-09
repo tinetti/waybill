@@ -52,7 +52,7 @@ thing you do besides showing it is the move below.
 It is markdown, with each command in a fence of its own so that each gets its own copy button: show
 it as markdown, and do not wrap it in a further fence.
 
-The one exception is keyed on an exact string at the start of a line, never on your reading of the
+One exception is keyed on an exact string at the start of a line, never on your reading of the
 situation. **`ENTER BAY: <path>`** — after showing the block, call `EnterWorktree` with that `path`,
 exactly as printed. It moves this session into the bay I just cut or found. If the call fails or I
 deny it, say why in one line, show the block verbatim, and stop; there is no `cd` to relay, because
