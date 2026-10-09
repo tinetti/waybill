@@ -464,6 +464,27 @@ describe('`/waybill:brief`', () => {
   });
 });
 
+describe('`/spec:propose` and the context its RUN line carries', () => {
+  // The specify leg's RUN line hands `/spec:propose` the brief and the inferred facts, not a
+  // change description: the description lives in the brief and in the ideation directory. A
+  // command that took `$ARGUMENTS` as the description alone stopped at an empty request.
+  const source = () => fs.readFileSync(path.join(COMMANDS, 'spec', 'propose.md'), 'utf8');
+
+  it('reads the brief first when the arguments carry one', () => {
+    assert.ok(source().includes('`Brief: <path>`'), 'commands/spec/propose.md never names the brief field');
+  });
+
+  it("reads the ideation directory's contract and spec as the change to propose", () => {
+    for (const literal of ['`ideation <dir>`', '`contract.md`', '`spec.md`', '`spec-phase-*.md`']) {
+      assert.ok(source().includes(literal), `commands/spec/propose.md does not name ${literal}`);
+    }
+  });
+
+  it('asks only when there is no description, no brief and no ideation directory', () => {
+    assert.match(source(), /only when .*no description.*no brief.*no ideation directory/is);
+  });
+});
+
 describe('the brief triggers in `next` and `bay`', () => {
   const source = (rel) => fs.readFileSync(path.join(COMMANDS, rel), 'utf8');
 
