@@ -5,6 +5,7 @@ model: opus
 effort: high
 handover: transfer
 stampPath: docs/ideation/*/contract.md
+brief: What the brainstorm settled — the decision and its concrete problem, the assumptions, each rejected alternative with its reason, and what is explicitly out.
 ---
 Run the ideation interview, then turn it into the contract — one session, one carrier. Push on
 scope, sequencing, and the decisions worth recording as rejected, and keep going until the shape of

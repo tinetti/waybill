@@ -33,13 +33,33 @@ const INDENT = '  ';
  * whether a leg is stale is answered by the code that resolved it, never by a model reading prose.
  *
  * `ENTER_BAY` carries the bay's absolute path for `EnterWorktree`, `RUN` the booking's own command
- * for the session to invoke there, and `NEXT_LEG` the leg a stale token should have named.
- * `commands/bay.md` acts on `ENTER_BAY` too: `bay --markdown` asks for it after cutting or finding
- * a bay, and never prints the other two, since it is given no leg token.
+ * for the session to invoke there, and `NEXT_LEG` the leg a stale token should have named. `BRIEF`
+ * names a leg whose brief is due and unwritten, and the path it would go to, so the session asks
+ * before the conversation is cleared. `commands/bay.md` acts on `ENTER_BAY` and `BRIEF`:
+ * `bay --markdown` asks to enter after cutting or finding a bay, and never prints `RUN` or
+ * `NEXT_LEG`, since it is given no leg token.
  */
 export const ENTER_BAY = 'ENTER BAY:';
 export const RUN = 'RUN:';
 export const NEXT_LEG = 'NEXT LEG:';
+export const BRIEF = 'BRIEF:';
+
+/** What joins the fields of a `RUN:` line's context suffix. */
+const FIELD_SEPARATOR = ' · ';
+
+/**
+ * What the next leg's brief needs said about it, gathered from the bay by `briefContext`
+ * (`src/brief.js`) so this module never has to look at a filesystem.
+ *
+ * @typedef {object} BriefContext
+ * @property {string} leg
+ * @property {string} path absolute path of the brief for `leg`
+ * @property {boolean} exists
+ * @property {string} bay
+ * @property {string|null} ideationDir e.g. `docs/ideation/next-leg-brief`
+ * @property {string[]} skipped
+ * @property {string|null} after the leg that starts after this session
+ */
 
 /**
  * Where a markdown waybill is being read from, as far as the handover cares.
@@ -52,6 +72,8 @@ export const NEXT_LEG = 'NEXT LEG:';
  *   and asked for it: `next` given the docket by name, or `bay` having cut or found it
  * @property {string|null} [token] the leg the caller named, answered with {@link RUN} when it is
  *   the next leg and {@link NEXT_LEG} when it is not
+ * @property {BriefContext|null} [context] set when the next leg takes a brief and the docket has a
+ *   bay. Absent, the document is byte-identical to one rendered before briefs existed.
  */
 
 /**
@@ -359,15 +381,48 @@ function nextMarkdown(state, bay) {
  * line at all: there is no next leg to name and no command to run, and the waybill below already
  * says which.
  *
+ * A {@link BriefContext} adds one of two things and never both. With no token — a display run — an
+ * unwritten brief earns {@link BRIEF}, so the session still holding the conversation is asked to
+ * write it. With the token naming the next leg, `RUN` gains {@link runContext}.
+ *
  * @param {import('./inference.js').Inference} state
  * @param {Route} route
  * @returns {string[]}
  */
 function keyedLines(state, route) {
   const lines = route.enter && route.bay ? [`${ENTER_BAY} ${route.bay}`] : [];
-  if (!route.token || state.leg === null || !state.booking) return lines;
+  const context = route.context ?? null;
+  if (!route.token) {
+    return context && !context.exists ? [...lines, `${BRIEF} ${context.leg} ${context.path}`] : lines;
+  }
+  if (state.leg === null || !state.booking) return lines;
   if (route.token !== state.leg) return [...lines, `${NEXT_LEG} ${state.leg}`];
-  return [...lines, `${RUN} ${handoverCommands(state.booking, state).command}`];
+  const { command } = handoverCommands(state.booking, state);
+  return [...lines, `${RUN} ${command}${context ? ` ${runContext(state, context)}` : ''}`];
+}
+
+/**
+ * What a brief-taking leg's command is handed after its own argument: the brief, then the facts
+ * Waybill inferred, so the new session need neither rediscover them nor trust a model's retelling.
+ *
+ * One line, always. `commands/next.md` acts on keyed lines one at a time, so a newline anywhere in
+ * here would cut the command's argument short — and a path is the operator's to name.
+ *
+ * @param {import('./inference.js').Inference} state
+ * @param {BriefContext} context
+ * @returns {string}
+ */
+function runContext(state, context) {
+  return [
+    context.exists ? `Brief: ${context.path} (read first)` : 'Brief: none written',
+    `branch ${state.branch}`,
+    `bay ${context.bay}`,
+    ...(context.ideationDir ? [`ideation ${context.ideationDir}`] : []),
+    ...(context.skipped.length > 0 ? [`skipped ${context.skipped.join(',')}`] : []),
+    ...(context.after ? [`next after this session: ${context.after}`] : []),
+  ]
+    .join(FIELD_SEPARATOR)
+    .replace(/\s*[\r\n]+\s*/g, ' ');
 }
 
 /**

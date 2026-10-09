@@ -15,13 +15,14 @@ Source: the approved contract and specs in `docs/ideation/help-plugin-form/`.
 - `commands/bay.md` declares `EnterWorktree`, shows the block verbatim, then moves the session with
   `EnterWorktree` and stops. A failed or denied move is explained in one line and the block is shown
   verbatim, with no `cd` fallback: no `RUN:` follows, and the waybill's `/waybill:next` line still
-  moves the next session. `Skill` and `SlashCommand` stay off its `allowed-tools`, so it still
-  cannot run a leg.
+  moves the next session. It still runs no leg: `Skill` and `SlashCommand` are on its
+  `allowed-tools` only for `add-next-leg-brief`'s brief prompt, and `/waybill:brief` is the one
+  command it may invoke.
 - The "a selection never switches" rule is scoped to `next`'s docket menu; `bay`'s branch picker
   re-run is a request for a bay and may enter it.
 - Plain `bay` output, `bay --list`, and `next` are unchanged.
 - The help page names every verb in its `/waybill:` form: FROM ZERO becomes four steps with no `cd`
-  step, COMMANDS lists the five `/waybill:` commands, and ROUTE gains a `#  LEG  CARRIER  STAMP`
+  step, COMMANDS lists the six `/waybill:` commands, and ROUTE gains a `#  LEG  CARRIER  STAMP`
   header row that shares the rows' width calculation.
 
 Nothing here is breaking.

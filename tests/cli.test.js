@@ -20,8 +20,10 @@ import {
   withPath,
   writeFile,
 } from './helpers/repo-fixture.js';
+import { briefPath } from '../src/brief.js';
 import { specifyFixture } from './fixtures/specify.js';
 import { cleanupFixture } from './fixtures/cleanup.js';
+import { executeFixture } from './fixtures/execute.js';
 import { noDocketFixture } from './fixtures/no-docket.js';
 
 after(cleanupAll);
@@ -399,7 +401,8 @@ describe('waybill next <branch>/<leg>', () => {
 
     const result = cli(['next', '--markdown', 'feat/two'], repo);
 
-    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[0]}\n\n\`\`\`text\n`), result.out);
+    const brief = `BRIEF: ideate ${briefPath(bays[0], 'ideate')}`;
+    assert.ok(result.out.startsWith(`ENTER BAY: ${bays[0]}\n\n${brief}\n\n\`\`\`text\n`), result.out);
     assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);
   });
 
@@ -832,11 +835,15 @@ describe('waybill bay', () => {
 
 describe('waybill next --markdown', () => {
   it('prints the markdown waybill in a bay — the golden the renderer pins — and exits 0', () => {
-    const result = cli(['next', '--markdown'], specifyFixture().dir);
+    const { dir } = specifyFixture();
+    const result = cli(['next', '--markdown'], dir);
 
     assert.equal(result.code, 0);
     assert.equal(result.err, '');
-    assert.equal(result.out, fs.readFileSync(path.join(GOLDEN, 'specify.md'), 'utf8'));
+    // The renderer's golden is rendered with no bay behind it, so the one line the bay adds — the
+    // brief this leg is still owed — is put in front of it here rather than recorded into it.
+    const brief = `BRIEF: specify ${briefPath(dir, 'specify')}\n\n`;
+    assert.equal(result.out, brief + fs.readFileSync(path.join(GOLDEN, 'specify.md'), 'utf8'));
     assert.match(result.out, /^```text$/m);
     assert.match(result.out, /^```\n\/waybill:next feat\/thing\/specify\n```$/m);
   });
@@ -859,9 +866,11 @@ describe('waybill next --markdown', () => {
     const result = cli(['next', '--markdown'], repo);
 
     assert.equal(result.code, 0);
-    assert.ok(result.out.startsWith(`\`\`\`text\nfeat/one · leg 2 of ${LEGS.length} (ideate)\n`));
+    const brief = `BRIEF: ideate ${briefPath(bays[0], 'ideate')}\n\n`;
+    assert.ok(result.out.startsWith(`${brief}\`\`\`text\nfeat/one · leg 2 of ${LEGS.length} (ideate)\n`));
     assert.match(result.out, /^```\n\/waybill:next feat\/one\/ideate\n```$/m);
-    assert.equal(result.out.includes(bays[0]), false, 'neither a cd nor ENTER BAY: nobody asked to move');
+    // The bay is named once, by the brief line, and by nothing that would move anyone into it.
+    assert.equal(result.out.replace(brief, '').includes(bays[0]), false, 'neither a cd nor ENTER BAY: nobody asked to move');
   });
 
   it('leaves the selection menu untouched under --markdown, and still exits 2', () => {
@@ -907,6 +916,228 @@ describe('waybill next --markdown', () => {
   });
 });
 
+describe('waybill brief', () => {
+  it('names where the ideate brief goes, from the trunk, and makes the directory ignore itself', () => {
+    const { repo, bays } = trunkWith('feat/x');
+    const target = briefPath(bays[0], 'ideate');
+
+    const result = cli(['brief', 'feat/x'], repo);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.err, '');
+    const lines = result.out.split('\n');
+    assert.equal(lines[0], 'BRIEF FOR: ideate');
+    assert.equal(lines[1], `WRITE TO: ${target}`);
+    assert.match(lines[2], /^GUIDANCE: What the brainstorm settled — /);
+    assert.equal(lines.length, 4, 'three lines and the final newline');
+
+    assert.equal(fs.readFileSync(path.join(path.dirname(target), '.gitignore'), 'utf8'), '*\n');
+    assert.equal(fs.existsSync(target), false, 'the verb writes no brief itself');
+
+    fs.writeFileSync(target, '<p>brief</p>');
+    assert.equal(git(bays[0], ['status', '--porcelain']), '');
+  });
+
+  it('answers for the bay it is run in, with no argument', () => {
+    const { dir } = specifyFixture();
+
+    const result = cli(['brief'], dir);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^BRIEF FOR: specify$/m);
+    assert.ok(result.out.includes(`WRITE TO: ${briefPath(dir, 'specify')}\n`), result.out);
+  });
+
+  it('ignores the leg of a `<branch>/<leg>` argument: the next leg is the one briefed', () => {
+    const { repo, branch } = specifyFixture();
+
+    const result = cli(['brief', `${branch}/ideate`], repo);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /^BRIEF FOR: specify$/m);
+  });
+
+  it('says there is nothing to brief, and creates nothing, when the next leg takes none', () => {
+    const { dir } = executeFixture();
+
+    const result = cli(['brief'], dir);
+
+    assert.equal(result.code, 0);
+    assert.equal(result.out, 'NOTHING TO BRIEF: execute takes no brief\n');
+    assert.equal(fs.existsSync(path.join(dir, '.waybill', 'handoff')), false);
+  });
+
+  it('says there is nothing to brief once every leg is complete', () => {
+    // The same construction as the `complete` golden in tests/waybill.test.js: a bay off the
+    // convention reads as cleaned up, and the forge stub has to report a request open.
+    const repo = createRepo({ remote: true, originHead: true });
+    const elsewhere = path.join(tempRoot(), 'off-convention');
+    git(repo, ['worktree', 'add', '--no-track', '-b', 'feat/thing', elsewhere]);
+    writeFile(path.join(elsewhere, 'docs', 'ideation', 'thing', 'contract.md'), '# Contract\n');
+    writeFile(path.join(elsewhere, 'openspec', 'changes', 'add-thing', 'tasks.md'), '- [x] a\n');
+
+    let out = '';
+    const code = isolated(() =>
+      withPath(forgePath('open'), () =>
+        run(['brief', 'feat/thing'], { cwd: repo, out: (text) => (out += text), err: () => {} }),
+      ),
+    );
+
+    assert.equal(code, 0);
+    assert.equal(out, 'NOTHING TO BRIEF: every leg is complete\n');
+    assert.equal(fs.existsSync(path.join(elsewhere, '.waybill', 'handoff')), false);
+  });
+
+  it('names `bay <branch>` on stdout and exits 2 when the branch has no bay', () => {
+    const { repo } = trunkWith('feat/one');
+
+    const result = cli(['brief', 'feat/nope'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.err, '');
+    assert.equal(result.out, 'waybill: no bay for feat/nope — cut one with `waybill bay feat/nope`\n');
+  });
+
+  it('says the same for a feature branch checked out in the main checkout, which has no bay', () => {
+    const repo = createRepo();
+    git(repo, ['checkout', '-b', 'feat/x']);
+
+    const result = cli(['brief'], repo);
+
+    assert.equal(result.code, 2);
+    assert.match(result.out, /^waybill: no bay for feat\/x — cut one with `waybill bay feat\/x`$/m);
+    assert.equal(fs.existsSync(path.join(repo, '.waybill')), false);
+  });
+
+  it('exits 2 when no docket is open anywhere', () => {
+    const result = cli(['brief'], trunkWith().repo);
+
+    assert.equal(result.code, 2);
+    assert.match(result.out, /^waybill: no dockets open — begin one with `waybill new`$/m);
+  });
+
+  it('asks for a branch in one line, with no menu, when several dockets are open', () => {
+    const { repo } = trunkWith('feat/one', 'feat/two', 'fix/three');
+
+    const result = cli(['brief'], repo);
+
+    assert.equal(result.code, 2);
+    assert.equal(result.out, 'waybill: more than one docket open — name one with `waybill brief <branch>`\n');
+    assert.equal(result.out.includes('SELECT A DOCKET:'), false);
+  });
+
+  it('rejects an unknown option and a second positional', () => {
+    const { repo } = trunkWith('feat/x');
+
+    const option = cli(['brief', '--markdown'], repo);
+    assert.equal(option.code, 2);
+    assert.match(option.err, /unknown option `--markdown` for `brief`/);
+
+    const extra = cli(['brief', 'feat/x', 'feat/y'], repo);
+    assert.equal(extra.code, 2);
+    assert.match(extra.err, /`brief` takes at most one branch name/);
+  });
+
+  it('prints the same lines when run twice, and leaves a written brief alone', () => {
+    const { repo, bays } = trunkWith('feat/x');
+
+    const first = cli(['brief', 'feat/x'], repo);
+    fs.writeFileSync(briefPath(bays[0], 'ideate'), '<p>brief</p>');
+    const second = cli(['brief', 'feat/x'], repo);
+
+    assert.deepEqual(second, first);
+    assert.equal(fs.readFileSync(briefPath(bays[0], 'ideate'), 'utf8'), '<p>brief</p>');
+  });
+
+  it('removes a bay holding a brief', () => {
+    const { repo, bays } = trunkWith('feat/x');
+    cli(['brief', 'feat/x'], repo);
+    fs.writeFileSync(briefPath(bays[0], 'ideate'), '<p>brief</p>');
+
+    assert.doesNotThrow(() => git(repo, ['worktree', 'remove', bays[0]]));
+    assert.equal(fs.existsSync(bays[0]), false);
+  });
+
+  it('is listed in the usage text, after `status`', () => {
+    const usage = cli(['--help'], tempRoot()).out;
+    assert.match(usage, /^ {2}status .*\n {2}brief \[<branch>\] /m);
+  });
+});
+
+describe('the brief in the markdown waybill', () => {
+  it('announces the ideate brief when `bay --markdown` cuts a fresh bay', () => {
+    const repo = createRepo();
+
+    const result = cli(['bay', '--markdown', 'feat/x'], repo);
+
+    assert.equal(result.code, 0);
+    const bay = defaultBayPath(repo, 'feat/x');
+    assert.ok(result.out.split('\n').includes(`BRIEF: ideate ${briefPath(bay, 'ideate')}`), result.out);
+  });
+
+  it('announces the specify brief inside the bay, and stops once the file exists', () => {
+    const { dir } = specifyFixture();
+    const line = `BRIEF: specify ${briefPath(dir, 'specify')}`;
+    const golden = fs.readFileSync(path.join(GOLDEN, 'specify.md'), 'utf8');
+
+    assert.equal(cli(['next', '--markdown'], dir).out, `${line}\n\n${golden}`);
+
+    cli(['brief'], dir);
+    fs.writeFileSync(briefPath(dir, 'specify'), '<p>brief</p>');
+    assert.equal(cli(['next', '--markdown'], dir).out, golden);
+  });
+
+  it('announces nothing at a leg that takes no brief', () => {
+    assert.equal(cli(['next', '--markdown'], executeFixture().dir).out.includes('BRIEF:'), false);
+  });
+
+  it('announces nothing for a feature branch in the main checkout, which has no bay to write in', () => {
+    const repo = createRepo();
+    git(repo, ['checkout', '-b', 'feat/x']);
+
+    const result = cli(['next', '--markdown'], repo);
+
+    assert.equal(result.code, 0);
+    assert.match(result.out, /\(bay\)$/m);
+    assert.equal(result.out.includes('BRIEF:'), false);
+  });
+
+  it('hands RUN the brief once it is written, and says so until then', () => {
+    const { repo, bays } = trunkWith('feat/x');
+    const runLine = () =>
+      cli(['next', '--markdown', 'feat/x/ideate'], repo)
+        .out.split('\n')
+        .find((text) => text.startsWith('RUN: '));
+    const rest = ` · branch feat/x · bay ${bays[0]} · next after this session: specify`;
+
+    assert.equal(runLine(), `RUN: /ideation:ideation Brief: none written${rest}`);
+
+    cli(['brief', 'feat/x'], repo);
+    fs.writeFileSync(briefPath(bays[0], 'ideate'), '<p>brief</p>');
+    assert.equal(runLine(), `RUN: /ideation:ideation Brief: ${briefPath(bays[0], 'ideate')} (read first)${rest}`);
+    assert.equal(cli(['next', '--markdown', 'feat/x/ideate'], repo).out.includes('BRIEF:'), false);
+  });
+
+  it('names the ideation directory on the specify leg\'s RUN', () => {
+    const { repo, dir, branch } = specifyFixture();
+
+    const result = cli(['next', '--markdown', `${branch}/specify`], repo);
+
+    assert.match(result.out, new RegExp(`^RUN: /spec:propose Brief: none written · branch ${branch} · bay ${dir} · ideation docs/ideation/thing · next after this session: execute$`, 'm'));
+  });
+
+  it('leaves `next --json` exactly as it was, brief or no brief', () => {
+    const { dir } = specifyFixture();
+    const before = cli(['next', '--json'], dir).out;
+
+    cli(['brief'], dir);
+    fs.writeFileSync(briefPath(dir, 'specify'), '<p>brief</p>');
+
+    assert.equal(cli(['next', '--json'], dir).out, before);
+    assert.equal(before.includes('handoff'), false);
+  });
+});
+
 describe('waybill bay --markdown', () => {
   it('bay --markdown names the new bay, then a waybill that hands over to /waybill:next', () => {
     const repo = createRepo({ remote: true, originHead: true });
@@ -930,8 +1161,9 @@ describe('waybill bay --markdown', () => {
     const result = cli(['bay', '--markdown', 'feat/demo'], repo);
 
     assert.equal(result.code, 0);
+    const brief = `BRIEF: ideate ${briefPath(target, 'ideate')}`;
     assert.ok(
-      result.out.startsWith(`bay already exists at ${target}\n\nENTER BAY: ${target}\n\n\`\`\`text\n`),
+      result.out.startsWith(`bay already exists at ${target}\n\nENTER BAY: ${target}\n\n${brief}\n\n\`\`\`text\n`),
       result.out,
     );
   });
@@ -944,8 +1176,11 @@ describe('waybill bay --markdown', () => {
     const result = cli(['bay', '--markdown', 'feat/demo'], target);
 
     assert.equal(result.code, 0);
+    const brief = `BRIEF: ideate ${briefPath(target, 'ideate')}`;
     assert.ok(
-      result.out.startsWith(`already inside the feat/demo bay at ${target} — nothing to do\n\n\`\`\`text\n`),
+      result.out.startsWith(
+        `already inside the feat/demo bay at ${target} — nothing to do\n\n${brief}\n\n\`\`\`text\n`,
+      ),
     );
     assert.equal(result.out.includes('IN BAY'), false, 'told the operator to cd where they already are');
     assert.equal(/^cd /m.test(result.out), false);
@@ -958,8 +1193,9 @@ describe('waybill bay --markdown', () => {
     const target = defaultBayPath(repo, 'feat/demo');
 
     assert.equal(result.code, 0);
+    const brief = `BRIEF: ideate ${briefPath(target, 'ideate')}`;
     assert.ok(
-      result.out.startsWith(`bay created at ${target}\n\nENTER BAY: ${target}\n\n\`\`\`text\n`),
+      result.out.startsWith(`bay created at ${target}\n\nENTER BAY: ${target}\n\n${brief}\n\n\`\`\`text\n`),
       result.out,
     );
     assert.equal(/^(RUN|NEXT LEG):/m.test(result.out), false);

@@ -1,7 +1,7 @@
 ---
 description: "Waybill — cut the branch and its bay, then hand off the next leg"
 argument-hint: "[branch — the branch to cut a bay for, e.g. feat/thing; omit it to pick from a list]"
-allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), AskUserQuestion, EnterWorktree
+allowed-tools: Bash(node:*), Bash(test:*), Bash(echo:*), AskUserQuestion, EnterWorktree, Skill, SlashCommand
 ---
 
 <!--
@@ -11,9 +11,14 @@ No `model:` or `effort:` frontmatter on purpose. The waybill below names the mod
 `AskUserQuestion` and `EnterWorktree` are on the `allowed-tools` line for the reason `next.md`
 gives: the list is restrictive, so a tool left off it is unavailable rather than merely
 unmentioned — the branch menu below would never appear, and an `ENTER BAY:` line would be printed
-and silently ignored. Nothing else was added. The second invocation the menu leads to is `node`,
-which the line already permits; and `Skill` and `SlashCommand` stay off on purpose, which is what
-makes "this command moves the session but cannot run a leg" a fact rather than an instruction.
+and silently ignored. The second invocation the menu leads to is `node`, which the line already
+permits.
+
+`Skill` and `SlashCommand` are there for the brief: a "yes" to the `BRIEF:` prompt below invokes
+`/waybill:brief`, and undeclared, that "yes" would do nothing — silently, on the one handoff where
+the conversation about to be cleared is the brainstorm itself. Both, as in `next.md`, because either
+may be how this host resolves a slash command. They make running a leg from here possible, so the
+Task below is what forbids it: `/waybill:brief` is the only command this file invokes.
 -->
 
 # Waybill: bay
@@ -46,8 +51,8 @@ branch menu never carries the marker.
 ## Task
 
 Show the block above to me **verbatim** — same lines, same order, same glyphs. Do not summarise it,
-re-word it, re-order it, or add commentary of your own. It is already the whole answer; the one
-thing you do besides showing it is the move below.
+re-word it, re-order it, or add commentary of your own. It is already the whole answer; the two
+things you do besides showing it are the brief prompt before it and the move after it, below.
 
 It is markdown, with each command in a fence of its own so that each gets its own copy button: show
 it as markdown, and do not wrap it in a further fence.
@@ -61,11 +66,14 @@ the waybill's own `/waybill:next <branch>/<leg>` line still moves the next sessi
 remove it: move nowhere.
 
 Do not run the waybill's last line, `/waybill:next <branch>/<leg>`, here and do not offer to — it
-is the next session's first command, not this one's last. Entering the bay is not running a leg.
+is the next session's first command, not this one's last. Entering the bay is not running a leg,
+and neither is writing its brief: `/waybill:brief` is the one command you may invoke here.
 
 Then stop. Running the commands the waybill lists is the next session's job, not this one's: the
 first block is `/clear` when the next leg wants a fresh session, and acting on any of them here
-would spend the context the waybill is trying to hand over.
+would spend the context the waybill is trying to hand over. The one thing that comes *before* the
+block is the brief prompt, below — and it is the CLI that decides when there is one, by printing a
+`BRIEF:` line.
 
 If the block ends with a line `waybill: exited N`, the CLI stopped without cutting a bay or issuing
 a waybill, and that line only records its exit code. Relay the error verbatim, as shown, and stop —
@@ -73,6 +81,29 @@ do not run a command, and do not improvise the leg.
 
 If the block reports `IGNORED BY GIT`, mention that those papers will not survive a commit, and
 leave editing `.gitignore` to me.
+
+### When the next leg is owed a brief: `BRIEF:`
+
+Keyed on an exact string at the start of a line, like every exception here.
+
+**`BRIEF: <leg> <path>`** — the next leg takes a brief, and none has been written for it yet. Right
+after a bay is cut this is the usual case: the next leg starts after a `/clear`, and whatever this
+conversation settled exists nowhere else.
+
+**Before showing the block**, ask me with `AskUserQuestion`: "Write the brief for `<leg>` before you
+/clear?", with two options — `Yes — write it now (Recommended)` and `Skip`. Before, not after: once
+the waybill is on screen the instruction is to stop.
+
+- **Yes** — invoke `/waybill:brief <branch>` through `Skill` (or `SlashCommand`) and follow it, with
+  the branch this bay was cut for. Do not write the file yourself, and do not use the `<path>` from
+  the line — the command asks the CLI again and writes where it says.
+- **Skip** — write nothing.
+
+Either way, then show the block verbatim, on the terms at the top of this Task, and stop.
+
+Ask when the line is present, and **never otherwise**. Whether a brief is due is the CLI's answer,
+not yours: do not offer one because the conversation seems worth keeping, and do not skip the
+question because it seems thin.
 
 ### When I named no branch
 
@@ -112,5 +143,6 @@ escape it: say it cannot be used as given and ask me again. Not `waybill bay <br
 printed for *me*, and assumes a `waybill` on my PATH that a plugin install never puts there.
 
 **3. Show me that second block**, on exactly the terms at the top of this Task — **verbatim**, any
-`ENTER BAY:` line acted on, its `/waybill:next` line left for me, and then stop. If it fails
-instead, show its error verbatim and stop; do not retry with a different name unless I give you one.
+`ENTER BAY:` line acted on, its `/waybill:next` line left for me, and then stop. A `BRIEF:` line in
+it is handled as above: the prompt first, then the block, then the move. If it fails instead, show
+its error verbatim and stop; do not retry with a different name unless I give you one.

@@ -6,10 +6,12 @@ The markdown rendering SHALL be a complete markdown document with the following 
 by one blank line:
 
 - **Keyed lines**: the `ENTER BAY:`, `RUN:` and `NEXT LEG:` lines the `command-surface` capability
-  defines, each a paragraph of its own. `ENTER BAY:` is present when `next` was given a docket by
-  name, or when `bay` cut or found the bay, and the operator is not already standing in it and, for
-  `bay`, the docket's next leg is not `cleanup`; `RUN:`
-  and `NEXT LEG:` are present only when `next` was given a leg as well.
+  defines, and the `BRIEF:` line, present only on a display run with an unwritten brief; each a
+  paragraph of its own. `ENTER BAY:` is present when `next` was given a docket by name, or when
+  `bay` cut or found the bay, and the operator is not already standing in it and, for `bay`, the
+  docket's next leg is not `cleanup`; `RUN:` and `NEXT LEG:` are present only when `next` was given
+  a leg as well. `ENTER BAY:` SHALL come first when present, and `BRIEF:` SHALL never share a
+  document with `RUN:` or `NEXT LEG:`.
 - **Position**: the same header and leg-strip lines as the plain rendering, inside a `text` fence so
   their line breaks survive. With no docket open, only the header is shown.
 - **NEXT**: the introducing line, any custom handover prose as a plain paragraph, then the command
@@ -54,3 +56,7 @@ act on one, and the plain rendering keeps it for the shell.
 - **WHEN** the markdown waybill is rendered for `bay`, from outside a bay it cut or found
 - **THEN** the document begins with `ENTER BAY:` and the bay's path, and carries no `RUN:` or
   `NEXT LEG:` line
+
+#### Scenario: A brief line sits with the keyed lines
+- **WHEN** a display-run markdown waybill carries a `BRIEF:` line
+- **THEN** it is a paragraph of its own above the position fence, after any `ENTER BAY:` line

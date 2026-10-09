@@ -232,7 +232,8 @@ describe('renderHelp', () => {
 
   it('names no verb in its terminal form', () => {
     const page = isolated(() => renderHelp(tempRoot()));
-    for (const verb of ['new', 'bay', 'next', 'status', 'doctor']) {
+    const verbs = usage().commands.map((line) => line.trim().split(/\s+/)[0]);
+    for (const verb of verbs.filter((name) => name !== 'help')) {
       assert.equal(page.includes(`waybill ${verb}`), false, `the page still names \`waybill ${verb}\``);
     }
   });
@@ -302,12 +303,14 @@ describe('waybill help', () => {
     // A literal copy of the usage from before `help` existed, so this cannot agree with a `USAGE`
     // that quietly reworded a verb's row or an option while the new row was being added. The `new`
     // row is the one deliberate reword since: `new` is the off-route brainstorm's on-ramp, not
-    // leg 1's waybill, and it ends in a `/waybill:bay` handoff rather than "nothing else".
+    // leg 1's waybill, and it ends in a `/waybill:bay` handoff rather than "nothing else". The
+    // `brief` row is the one addition, placed after `status` with the four above it untouched.
     const before = [
       '  new             Begin an effort: the off-route brainstorm, then a bay handoff',
       '  bay <branch>    Create the branch and its bay, then hand off the next leg',
       '  next [<branch>] Where this docket stands, and the waybill for the next leg',
       '  status          Where this docket stands, without the waybill',
+      "  brief [<branch>] Where the next leg's brief goes, and what it should say",
     ];
     const options = [
       'Options:',
@@ -322,13 +325,13 @@ describe('waybill help', () => {
       '',
     ].join('\n');
 
-    // The four docket verbs, then the two that report on something else: `doctor` on the machine,
+    // The five docket verbs, then the two that report on something else: `doctor` on the machine,
     // `help` on the command surface. Both are pinned by position, so a row added anywhere has to
     // be accounted for here rather than quietly widening the banner.
     const { commands, options: actual } = usage();
     assert.deepEqual(commands.slice(0, -2), before);
     assert.equal(commands.length, before.length + 2);
-    assert.ok(commands.at(-2).startsWith('  doctor '), `the fifth row is not \`doctor\`: ${commands.at(-2)}`);
+    assert.ok(commands.at(-2).startsWith('  doctor '), `the row before last is not \`doctor\`: ${commands.at(-2)}`);
     assert.ok(commands.at(-1).startsWith('  help '), `the last row is not \`help\`: ${commands.at(-1)}`);
     assert.equal(actual, options);
   });

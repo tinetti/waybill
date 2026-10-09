@@ -118,8 +118,8 @@
     {
       "criterion": "commands/bay.md may call EnterWorktree, names the keyed line it acts on, and still cannot run a leg.",
       "check": {
-        "cmd": "grep -q -E '^allowed-tools:.*EnterWorktree' commands/bay.md && grep -q 'ENTER BAY:' commands/bay.md && ! grep -q -E '^allowed-tools:.*(Skill|SlashCommand)' commands/bay.md",
-        "expect": "exits 0 (it exits 1 on main today, where bay.md has neither EnterWorktree nor the keyed literal)"
+        "cmd": "grep -q -E '^allowed-tools:.*EnterWorktree' commands/bay.md && grep -q 'ENTER BAY:' commands/bay.md && grep -q '`/waybill:brief` is the one command you may invoke here' commands/bay.md",
+        "expect": "exits 0 (it exits 1 on main today, where bay.md has neither EnterWorktree nor the keyed literal). Amended on 2026-10-08 when merging add-next-leg-brief (#41): that change put Skill and SlashCommand on bay.md's allowed-tools for the brief prompt, so 'cannot run a leg' is now held by the Task's one-command rule rather than by the tool list."
       }
     },
     {

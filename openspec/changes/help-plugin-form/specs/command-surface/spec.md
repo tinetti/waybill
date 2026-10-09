@@ -19,16 +19,26 @@ The exceptions SHALL each be keyed on an exact literal at the start of a line in
   line, show the block verbatim, and stop, with no `cd` fence, since no `RUN:` follows and the
   waybill's `/waybill:next` line still moves the next session;
 - `RUN: <command> [<argument>]`: after a successful move, the session SHALL invoke that command with
-  that argument, and never `/clear`, `/model` or `/effort`; a command it cannot resolve SHALL be named
-  in one line, with no substitute run;
+  everything after it on the line as its argument, and never `/clear`, `/model` or `/effort`; a
+  command it cannot resolve SHALL be named in one line, with no substitute run. Once the invoked
+  command has finished, and only then, `/waybill:next` SHALL invoke `/waybill:brief` for the same
+  docket and follow it, so the brief for whichever leg is now next is written while the session
+  still holds the conversation;
 - `NEXT LEG: <leg>`: the session SHALL say that the named leg is not next, show the block verbatim,
-  and stop.
+  and stop;
+- `BRIEF: <leg> <path>`, in `/waybill:next` and `/waybill:bay` alike: before showing the block, the
+  session SHALL ask, with a question offering to write it now or to skip, whether to write the brief
+  for `<leg>`. On a yes it SHALL invoke `/waybill:brief` for that docket and follow it; on a skip it
+  SHALL write nothing. Either way it SHALL then show the block verbatim and stop, after any move
+  `/waybill:bay`'s `ENTER BAY:` asks for. The session SHALL NOT decide for itself whether a brief is
+  due: it asks when the line is present and never otherwise.
 
-`/waybill:bay` SHALL run no leg after a move: entering the bay is the whole of its action, and
-`Skill` and `SlashCommand` SHALL NOT be on its permission list.
+`/waybill:bay` SHALL run no leg: entering the bay and writing its brief are the whole of its action,
+and `/waybill:brief` SHALL be the only command it invokes.
 
 Every tool these exceptions require SHALL be declared, since the permission list is restrictive and
-an undeclared tool is silently unavailable.
+an undeclared tool is silently unavailable. `/waybill:bay` SHALL therefore declare the tool that
+moves the session and the tools that invoke another command, in addition to the one that asks.
 
 #### Scenario: An ordinary waybill
 - **WHEN** the block does not contain the selection heading
@@ -64,6 +74,29 @@ an undeclared tool is silently unavailable.
 #### Scenario: `bay` cannot enter its bay
 - **WHEN** `/waybill:bay`'s move into the `ENTER BAY:` path fails or is denied
 - **THEN** the session says why in one line, shows the block verbatim with no `cd` fence, and stops
+
+#### Scenario: A run line with a context suffix
+- **WHEN** the block carries `RUN: /ideation:ideation Brief: <path> (read first) · branch feat/x · …`
+- **THEN** the session invokes `/ideation:ideation` with the whole remainder of the line as its
+  argument
+
+#### Scenario: A brief after a run-mode leg
+- **WHEN** the command a `RUN:` line named has finished
+- **THEN** the session invokes `/waybill:brief` for that docket, and not before the command's own
+  work is done
+
+#### Scenario: The brief prompt after cutting a bay
+- **WHEN** `/waybill:bay feat/x` prints a block carrying `BRIEF: ideate <path>` and I answer yes
+- **THEN** `/waybill:brief feat/x` is invoked, the brief is written, the block is then shown
+  verbatim, and the session moves into the bay
+
+#### Scenario: Skipping the brief
+- **WHEN** the block carries a `BRIEF:` line and I answer skip
+- **THEN** nothing is written and the block is shown verbatim
+
+#### Scenario: No brief line, no prompt
+- **WHEN** the block carries no `BRIEF:` line
+- **THEN** the session asks nothing about a brief
 
 ### Requirement: `next` and `bay` offer a paste-ready markdown form
 

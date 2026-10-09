@@ -29,3 +29,7 @@ Show the block above to me **verbatim** — same lines, same order, same glyphs.
 re-word it, re-order it, or add commentary of your own. It is already the whole answer.
 
 Then stop.
+
+The page lists the verbs as a terminal runs them. In a session each is a command of the same name —
+`/waybill:new`, `/waybill:bay`, `/waybill:next`, `/waybill:status`, `/waybill:brief`,
+`/waybill:doctor` — and that is the form to name if I ask how to run one from here.

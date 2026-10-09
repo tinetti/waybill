@@ -69,7 +69,8 @@ or not.
 The commands section SHALL name every docket verb that `--help` lists, in its `/waybill:` form, and
 it SHALL describe each one in words consistent with its usage row. The page is read inside a
 session, where the slash command is what the operator types, so it SHALL NOT name a verb in its
-terminal form (`waybill new`, `waybill bay`, `waybill next`, `waybill status`, `waybill doctor`).
+terminal form (`waybill new`, `waybill bay`, `waybill next`, `waybill status`, `waybill brief`,
+`waybill doctor`).
 
 The page SHALL NOT contain `waybill start` or `/waybill:start` anywhere, because that verb was
 removed with no alias.
@@ -81,8 +82,8 @@ removed with no alias.
 
 #### Scenario: No terminal forms
 - **WHEN** the page is rendered
-- **THEN** it contains none of `waybill new`, `waybill bay`, `waybill next`, `waybill status` or
-  `waybill doctor`
+- **THEN** it contains none of `waybill new`, `waybill bay`, `waybill next`, `waybill status`,
+  `waybill brief` or `waybill doctor`
 
 #### Scenario: The removed verb
 - **WHEN** the recorded page is searched for `waybill start` or `/waybill:start`
