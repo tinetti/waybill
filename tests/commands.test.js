@@ -202,6 +202,21 @@ describe('the shipped command set', () => {
     }
   });
 
+  it('stops each routing command when its `opsx:*` skill cannot be resolved, rather than substituting', () => {
+    // `openspec init` with only OpenCode selected leaves `openspec/` and `.opencode/skills/` but no
+    // Claude Code commands, so the `openspec/` guard passes and the leg dies mid-flight on
+    // `Unknown skill`. The guard has to name the verb it needs and the init that writes it.
+    for (const verb of ['apply', 'archive', 'explore', 'propose']) {
+      const source = fs.readFileSync(path.join(COMMANDS, 'spec', `${verb}.md`), 'utf8');
+      const line = source.split('\n').find((text) => text.includes(`\`opsx:${verb}\` cannot be resolved`));
+      assert.ok(line, `spec/${verb}.md has no unresolvable-skill guard`);
+      assert.ok(line.includes('openspec init --tools claude'), line);
+      assert.ok(line.includes('.opencode/skills/openspec-'), line);
+      assert.match(line, /stop/i, line);
+      assert.match(line, /similarly named/i, line);
+    }
+  });
+
   it('runs `new` at the model and effort the brainstorm booking names, and nothing else at any', () => {
     // `new` is the one command whose waybill is for *this* session, and a session cannot switch its
     // own model — so it declares one, and the value has to be the booking's. The booking is the

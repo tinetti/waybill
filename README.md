@@ -296,7 +296,7 @@ see *Swapping a carrier* — but a waybill pointing at a command you do not have
 | --- | --- | --- |
 | the off-route brainstorm, 2 | the `ideation` plugin | `/plugin install ideation@tinetti` |
 | 3, 4 | the `openspec` CLI, and a per-project `openspec init` | `npm i -g @fission-ai/openspec` |
-| 3, 4 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init` |
+| 3, 4 | the `opsx:*` commands the `/spec:*` commands invoke | written into `<project>/.claude/commands/opsx/` by `openspec init --tools claude` — an init for another tool alone (OpenCode, say) leaves them out, which `waybill doctor` reports |
 | 5 | `gh` **or** `glab` — neither mandatory | `/waybill:review` ships with Waybill and runs with neither installed; it offers the browser instead. But the *stamp* asks the forge, so with neither able to answer the leg stays current with a warning naming which of the two it is: nothing on `PATH`, or something on `PATH` that cannot speak for this host. `gh auth login`; `glab auth login --hostname <host>` |
 | 6 | nothing — `/waybill:cleanup` ships with Waybill | it assumes the request was already merged on the forge and verifies that with plain git, so there is no `gh`, no `glab`, and no auth to arrange |
 
@@ -316,6 +316,7 @@ waybill doctor — 0.8.0
   FAIL  openspec       not on PATH — legs 3 and 4 fall back to parsing tasks.md, silently
         fix: npm install -g @fission-ai/openspec
   ok    spec commands  4 of 4 present in /Users/you/.claude/commands/spec/
+  ok    opsx commands  4 of 4 present in /Users/you/src/project/.claude/commands/opsx/
   ok    gh             authenticated
   WARN  glab           present, but `glab auth status` exited 1 — the review leg cannot open an MR
         fix: glab auth login --hostname <your-self-hosted-host>

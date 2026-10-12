@@ -258,6 +258,55 @@ export function checkSpecCommands(configDir, pluginRoot = PLUGIN_ROOT) {
   };
 }
 
+/** Tool directories `openspec init` writes `skills/openspec-*` into, and the tool each one is for. */
+const OTHER_TOOLS = { '.opencode': 'OpenCode', '.cursor': 'Cursor', '.codex': 'Codex', '.windsurf': 'Windsurf' };
+
+/**
+ * Check 4b — the per-project `opsx:*` commands the `/spec:*` commands invoke.
+ *
+ * `openspec init` writes them only for the tools selected, so a project initialised for OpenCode
+ * alone carries `openspec/` — which is all the routing commands' own guard checks — and no
+ * `.claude/commands/opsx/`, and the leg dies mid-flight on an unknown skill. The required verbs are
+ * derived from the plugin's own `commands/spec/`, as {@link checkSpecCommands} derives its set.
+ *
+ * @param {string} root the project's checkout root
+ * @param {string} [pluginRoot] the directory holding `commands/spec/`
+ * @returns {Check}
+ */
+export function checkOpsxCommands(root, pluginRoot = PLUGIN_ROOT) {
+  const label = 'opsx commands';
+  if (!fs.existsSync(path.join(root, 'openspec'))) {
+    return { label, verdict: 'info', detail: `no openspec/ in ${root} — not an OpenSpec project` };
+  }
+
+  const fix = `cd "${root}" && openspec init --tools claude — or openspec update, if Claude Code is already configured`;
+  const target = path.join(root, '.claude', 'commands', 'opsx');
+  const verbs = fs
+    .readdirSync(path.join(pluginRoot, 'commands', 'spec'))
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => name.slice(0, -'.md'.length))
+    .sort();
+  const missing = verbs.filter((verb) => !fs.existsSync(path.join(target, `${verb}.md`)));
+  if (missing.length === 0) {
+    return { label, verdict: 'ok', detail: `${verbs.length} of ${verbs.length} present in ${target}/` };
+  }
+
+  const others = Object.entries(OTHER_TOOLS)
+    .filter(([dir]) => {
+      try {
+        return fs.readdirSync(path.join(root, dir, 'skills')).some((name) => name.startsWith('openspec-'));
+      } catch {
+        return false;
+      }
+    })
+    .map(([, tool]) => tool);
+  const names = missing.map((verb) => `opsx:${verb}`).join(', ');
+  const detail = others.length > 0 && missing.length === verbs.length
+    ? `OpenSpec was initialised for ${others.join(', ')} only, not for Claude Code — ${target}/ is missing, so ${names} cannot resolve`
+    : `${target}/ is missing ${names} — the /spec:* commands that invoke them cannot resolve`;
+  return { label, verdict: 'fail', detail, fix };
+}
+
 /** What to run to authenticate each forge CLI. Placeholders, never values. */
 const LOGIN_FIX = {
   gh: 'gh auth login',
@@ -600,7 +649,7 @@ function guard(label, probe) {
  * `env` is a parameter defaulting to the live `process.env` rather than being snapshotted at module
  * load, so `withEnv` can relocate `HOME` and `CLAUDE_CONFIG_DIR` around a call.
  *
- * @param {string} cwd used only to resolve the bookings overlay in force
+ * @param {string} cwd the project: resolves the bookings overlay in force and the opsx commands
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {{version: string, checks: Check[]}}
  */
@@ -620,6 +669,7 @@ export function runChecks(cwd, env = process.env) {
       ...guard('git', () => checkGit()),
       ...guard('openspec', () => checkOpenspec()),
       ...guard('spec commands', () => checkSpecCommands(dir)),
+      ...guard('opsx commands', () => checkOpsxCommands(checkoutRoot(cwd) ?? cwd)),
       ...guard('forge CLI', () => checkForges()),
       ...guard('plugin cache', () => checkPluginCache(manifest, pkg.version)),
       ...guard('bookings', () => checkBookings(cwd)),
