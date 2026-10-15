@@ -1,0 +1,78 @@
+{
+  "projectName": "Bay enters the bay",
+  "slug": "bay-enters-the-bay",
+  "date": "2026-10-12",
+  "status": "Approved",
+  "approvedOn": "2026-10-14",
+  "supersedes": null,
+  "gates": {
+    "dimensions": [
+      { "key": "problem", "label": "Problem Clarity", "status": "ready", "evidence": "Brainstorm conclusion plus the 2026-10-07 incident: entering the feat/fleet-dashboard bay without running a leg needed /wt, a non-Waybill skill, because only a named /waybill:next moves a session and it always runs the leg." },
+      { "key": "goals", "label": "Goal Definition", "status": "ready", "evidence": "Goals state observable output: an ENTER BAY: line in bay --markdown for any bay the operator is not already inside, a cleanup warning in WARNINGS, and bay.md acting on the line with exit-first semantics." },
+      { "key": "criteria", "label": "Success Criteria", "status": "ready", "evidence": "Operator chose named node tests per behavior plus one live smoke judgment covering EnterWorktree, the bay-to-bay exit, and /clear persistence." },
+      { "key": "scope", "label": "Scope Boundaries", "status": "ready", "evidence": "Operator approved the IN/OUT strawman as listed, single phase, no Full/Stretch tiers." },
+      { "key": "consistency", "label": "Consistency", "status": "ready", "evidence": "The one divergence from next (entering a bay whose next leg is cleanup) was decided explicitly and is surfaced as a warning; sequencing against feat/next-drives-the-route decided as independent." }
+    ]
+  },
+  "problem": [
+    "No Waybill command moves a session into a docket's bay without also running a leg there. `/waybill:bay <branch>` cuts or finds the bay and prints a waybill but never moves the session; the only mover is `/waybill:next <branch>/<leg>`, whose `ENTER BAY:` line is always followed by a `RUN:` that starts the leg.",
+    "The operator hits this whenever they want to stand in a bay to look around, finish by hand, or check state mid-session — on 2026-10-07 entering `feat/fleet-dashboard` took `/wt`, a personal skill outside Waybill that knows nothing about dockets. The gap widens once `feat/next-drives-the-route` lands and a named `next` always executes."
+  ],
+  "goals": [
+    "`waybill bay --markdown <branch>` prints `ENTER BAY: <bay path>` whenever the operator is not already inside that bay — newly cut or pre-existing — and never prints `RUN:` or `NEXT LEG:`.",
+    "When the bay's next leg is `cleanup`, `bay` still enters and its output carries a WARNINGS entry saying cleanup will remove the bay.",
+    "`/waybill:bay` moves the session into the bay with EnterWorktree, leaving any other worktree first with ExitWorktree (keep), falls back to a `cd <path>` line when the move fails, and then stops.",
+    "Every prose surface that says `bay` does not move the session is brought in line."
+  ],
+  "successCriteria": [
+    { "criterion": "bay --markdown prints ENTER BAY: for a newly cut and a pre-existing bay, with no RUN: or NEXT LEG: line", "check": { "cmd": "out=$(node --test --test-name-pattern 'bay markdown enters the bay' tests/cli.test.js 2>&1) && printf '%s' \"$out\" | grep -qE '^# pass [1-9]'", "expect": "exits 0" } },
+    { "criterion": "bay --markdown prints no ENTER BAY: for a bay the operator is already inside (the test asserts its cwd is the bay path)", "check": { "cmd": "out=$(node --test --test-name-pattern 'bay markdown does not enter a bay it is already inside' tests/cli.test.js 2>&1) && printf '%s' \"$out\" | grep -qE '^# pass [1-9]'", "expect": "exits 0" } },
+    { "criterion": "A bay whose next leg is cleanup is still entered, and both terminal and markdown output carry the cleanup warning", "check": { "cmd": "out=$(node --test --test-name-pattern 'bay warns when the next leg is cleanup' tests/cli.test.js 2>&1) && printf '%s' \"$out\" | grep -qE '^# pass [1-9]'", "expect": "exits 0" } },
+    { "criterion": "commands/bay.md allows EnterWorktree and ExitWorktree, carries the ENTER BAY: and exit-first rules, and its menu descriptions promise entry", "check": { "cmd": "out=$(node --test --test-name-pattern 'bay.md enters the bay' tests/commands.test.js 2>&1) && printf '%s' \"$out\" | grep -qE '^# pass [1-9]'", "expect": "exits 0" } },
+    { "criterion": "The guide's waybill samples still match the re-blessed goldens after the booking body changes", "check": { "cmd": "out=$(node --test --test-name-pattern 'samples match their goldens' tests/guide.test.js 2>&1) && printf '%s' \"$out\" | grep -qE '^# pass [1-9]'", "expect": "exits 0" } },
+    { "criterion": "The stale 'bay does not move you' prose is gone from bay.md, the bay booking and its guide copy, and bay.md names ExitWorktree", "check": { "cmd": "! grep -qF 'once I have typed' commands/bay.md && ! grep -qF 'prints its waybill' commands/bay.md && ! grep -qF 'moves the next session into the bay' bookings/waybill-bay.md docs/guide/01-ride-along.md && grep -q 'ExitWorktree' commands/bay.md", "expect": "exits 0" } },
+    { "criterion": "The full suite passes", "check": { "judgment": "The PR's CI run of `node --test tests/` is green (the suite runs ~210s, past the verify timeout)." } },
+    { "criterion": "A live session lands and stays in the bay", "check": { "judgment": "Operator runs `/waybill:bay <existing branch>` from the trunk and again from inside another bay, confirms the session is in the target bay each time, then types /clear and confirms it is still there." } }
+  ],
+  "scope": {
+    "mvp": [
+      { "item": "CLI: `bay --markdown` passes `{ bay, enter: true }` unless already inside, so the renderer prints `ENTER BAY: <path>` with no token (no RUN:/NEXT LEG:). The heading stays first, as the command-surface spec requires, so `ENTER BAY:` follows it", "reason": "The CLI decides when to move, as it does for next; the renderer line already exists (src/waybill.js:364-369). bay.md's rules for it are new, adapted from next.md:71-90." },
+      { "item": "CLI: when `state.leg === 'cleanup'`, push a warning onto `state.warnings` so it renders in WARNINGS in both terminal and markdown output", "reason": "Operator chose to enter cleanup bays, with a warning; state.warnings is the existing path (onRamp, cli.js:436-457)." },
+      { "item": "commands/bay.md: on a line beginning `ENTER BAY:` (wherever it appears in the block), always call ExitWorktree (keep) first — treating \"no active worktree session\" as fine to continue — then EnterWorktree with the path; on an EnterWorktree failure say why in one line, show `cd <path>` and the block, and stop", "reason": "The move itself. bay.md cannot tell whether it is in another worktree (no git on its allowed-tools), so the exit is unconditional; that is /mar's approach, and ExitWorktree is a no-op outside a worktree session." },
+      { "item": "commands/bay.md: allowed-tools gains EnterWorktree, ExitWorktree and ToolSearch", "reason": "The allowed-tools list is restrictive; an undeclared tool is silently unavailable. Both worktree tools were deferred in this session and needed ToolSearch to load (as /mar's test pins); the live smoke confirms." },
+      { "item": "No-arg menu descriptions: `no bay yet — cuts one and enters it`, `new branch — cuts it and its bay, and enters it`, `bay exists — enters it`", "reason": "The menu promises what the choice does." },
+      { "item": "Prose sweep: bookings/waybill-bay.md (with tests/golden/bay.md, bay.txt and the docs/guide/01-ride-along.md sample), README.md bay sections, docs/guide/01-ride-along.md and 03-reference.md, src/help.js walkthrough steps 3 and 5 (with tests/golden/help.txt), the src/cli.js:145 and bay() comments, commands/bay.md comment blocks", "reason": "Learning from next-from-anywhere: behavior prose outside src/ goes stale unless every hit is listed." },
+      { "item": "Tests: re-bless the bay-cut, bay and help goldens, replace the 'bay already exists' starts-with assertion, add the named tests above, update the bay.md allowed-tools assertion (tests/commands.test.js:471)", "reason": "Every functional change is pinned by a test that fails first." }
+    ],
+    "full": [],
+    "stretch": [],
+    "outOfScope": [
+      { "item": "bay running the next leg", "reason": "That is next's job; bay enters, shows the waybill, and stops." },
+      { "item": "Changing next's own ENTER BAY rules (including its refusal to enter a cleanup bay)", "reason": "Out of the brainstorm's scope; next's refusal stays as is." },
+      { "item": "Terminal (non-markdown) bay moving anything", "reason": "A terminal has no session to move; it keeps printing its cd line." },
+      { "item": "/wt, and any worktree creation path", "reason": "/wt is a personal skill outside Waybill; bay already cuts worktrees." },
+      { "item": "Writing the OpenSpec living-spec delta in this phase", "reason": "The specify leg owns openspec/specs/command-surface changes." }
+    ],
+    "future": []
+  },
+  "decisions": [
+    { "decision": "Extend /waybill:bay to enter the bay", "rejected": "A new /waybill:enter verb", "reason": "It would be a second command for the same docket and bay; bay already finds existing bays." },
+    { "decision": "bay enters every time it is not already inside", "rejected": "An opt-in flag", "reason": "Entering is what the operator wants whenever they name a branch." },
+    { "decision": "Enter a bay whose next leg is cleanup, with a warning", "rejected": "Refuse, as next does", "reason": "Naming the branch is a deliberate request to go in; cleanup runs by branch name from anywhere." },
+    { "decision": "From inside another bay, ExitWorktree (keep) then EnterWorktree", "rejected": "Refuse and print cd", "reason": "Bay-to-bay is the commonest reason for the feature; /wt already proves exit-first works." },
+    { "decision": "Keep Waybill's own mover", "rejected": "Keep using /wt", "reason": "/wt is outside Waybill and knows nothing about dockets or the waybill." },
+    { "decision": "Cleanup warning via state.warnings in the WARNINGS block", "rejected": "A dedicated line beside ENTER BAY:", "reason": "Reuses the existing renderer path in both outputs; no new literal for bay.md to key on." },
+    { "decision": "Verify with named node tests plus one live smoke judgment", "rejected": "Node tests only", "reason": "EnterWorktree and /clear persistence are session behavior no node test can execute." },
+    { "decision": "Independent of feat/next-drives-the-route", "rejected": "Block on it, or land first by plan", "reason": "This change touches bay only; whichever merges second rebases and re-blesses goldens." },
+    { "decision": "bay.md always calls ExitWorktree (keep) before EnterWorktree, continuing past \"no active worktree session\"", "rejected": "Exit only when inside another worktree (detected via git rev-parse, as /wt does)", "reason": "Hidden-dependency critic: bay.md has no git on its allowed-tools and the CLI emits no such signal; an unconditional exit needs neither." },
+    { "decision": "Keep bay's heading first; bay.md keys on an `ENTER BAY:` line wherever it appears", "rejected": "Move ENTER BAY: above the heading, as next prints it", "reason": "Hidden-dependency critic: the command-surface spec requires the heading first; keying by line start needs no spec change." },
+    { "decision": "Each test criterion gates on node --test's own exit code plus a pass-count grep", "rejected": "Grep for '# pass' alone, with one criterion re-running its file to check '# fail'", "reason": "Success-criteria critic: a pattern matching several tests let one pass mask a failure, and the double run doubled time against the verify cap." },
+    { "decision": "Add a negated-grep criterion on today's stale bay prose, with an ExitWorktree positive twin", "rejected": "Leave the prose sweep unchecked", "reason": "Success-criteria critic: goal 4 had no criterion, so a sweep that missed a surface would still pass." }
+  ],
+  "execution": {
+    "strategy": "Sequential",
+    "phases": [
+      { "title": "bay enters the bay", "risk": "low", "blocking": true, "specPath": "docs/ideation/bay-enters-the-bay/spec.md", "notes": "spec.md is written after contract approval, before execution. CLI ENTER BAY + cleanup warning, bay.md acting rules and allowed-tools, menu wording, prose sweep, tests and goldens." }
+    ]
+  }
+}
